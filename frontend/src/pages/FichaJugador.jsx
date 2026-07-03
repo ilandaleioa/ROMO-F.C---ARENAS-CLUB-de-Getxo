@@ -11,7 +11,7 @@ import {
 } from '../lib/campos';
 
 const ROLES_QUE_PUEDEN_SUBIR_FOTO = ['administrador', 'director', 'responsable', 'tecnico'];
-const ROLES_QUE_PUEDEN_EDITAR_DEPORTIVO = ['administrador', 'responsable'];
+const ROLES_QUE_PUEDEN_EDITAR_DEPORTIVO = ['administrador', 'responsable', 'director'];
 const OPCIONES_POR_CAMPO = {
   lateralidad: LATERALIDAD_OPCIONES,
   demarcacion: DEMARCACION_OPCIONES,

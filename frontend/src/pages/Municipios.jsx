@@ -161,7 +161,7 @@ export default function Municipios() {
               </text>
             ))}
         </svg>
-        <ul className="w-full flex flex-col gap-1.5">
+        <ul className="w-full max-w-xs flex flex-col gap-1.5">
           {sectores.map((s) => (
             <li key={s.municipio} className="flex items-center gap-2 text-sm">
               <span

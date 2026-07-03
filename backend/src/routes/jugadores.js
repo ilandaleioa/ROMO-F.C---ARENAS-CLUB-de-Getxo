@@ -231,10 +231,10 @@ router.post(
 );
 
 // PATCH /api/jugadores/:id/datos-deportivos -> actualiza dorsal/lateralidad/demarcacion.
-// Solo Administrador y Responsable pueden editar estos datos.
+// Solo Administrador, Responsable y Director pueden editar estos datos.
 router.patch(
   '/:id/datos-deportivos',
-  requireRole(ROLES.ADMINISTRADOR, ROLES.RESPONSABLE),
+  requireRole(ROLES.ADMINISTRADOR, ROLES.RESPONSABLE, ROLES.DIRECTOR),
   async (req, res) => {
     const { dorsal, lateralidad, demarcacion } = req.body || {};
     const updates = {};

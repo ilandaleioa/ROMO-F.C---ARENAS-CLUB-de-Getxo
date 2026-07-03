@@ -56,13 +56,13 @@ function configDelClub(club) {
 
 function estaConfigurado(club) {
   const { spreadsheetId } = configDelClub(club);
-  const { serviceAccountEmail, privateKey } = env.googleServiceAccount;
-  return Boolean(spreadsheetId && serviceAccountEmail && privateKey);
+  const { email, privateKey } = env.googleServiceAccount;
+  return Boolean(spreadsheetId && email && privateKey);
 }
 
 function getSheetsClient() {
   const auth = new google.auth.JWT({
-    email: env.googleServiceAccount.serviceAccountEmail,
+    email: env.googleServiceAccount.email,
     key: env.googleServiceAccount.privateKey,
     scopes: ['https://www.googleapis.com/auth/spreadsheets'],
   });

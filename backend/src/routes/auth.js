@@ -25,6 +25,7 @@ router.post('/login', async (req, res) => {
     if (result.error) throw result.error;
     data = result.data;
   } catch (err) {
+    console.error('[auth/login] Error al consultar la base de datos:', err.message || err);
     return res.status(503).json({ error: 'No se pudo conectar con la base de datos. Intentalo de nuevo mas tarde.' });
   }
 
