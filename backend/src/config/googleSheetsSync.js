@@ -52,6 +52,7 @@ const CAMPOS_FECHA = new Set(['marca_temporal', 'fecha_nacimiento']);
 const CAMPOS_BOOLEANOS = new Set(['tiene_hermanos_club', 'acepta_condiciones']);
 const CAMPOS_OBLIGATORIOS = ['nombre', 'primer_apellido', 'equipo'];
 const TAB_TITLE_HINTS = ['Form Responses 1', 'Respuestas de formulario 1', 'Respuestas del formulario 1', 'PLANTILLAS 2627'];
+const CAMPOS_MAPA_PISTA = ['nombre', 'primer_apellido', 'segundo_apellido', 'equipo', 'fecha_nacimiento', 'dni_jugador'];
 
 function configDelClub(club) {
   return env.googleSheetsPorClub[club] || {};
@@ -96,22 +97,85 @@ async function resolverPestana(sheets, club) {
 
   const normalizados = tabs.map((t) => ({ ...t, tituloNormalizado: normalizarTexto(t.title) }));
   const tabPorNombre = normalizados.find((t) => TAB_TITLE_HINTS.some((hint) => t.tituloNormalizado === normalizarTexto(hint)));
-  if (tabPorNombre) return tabPorNombre.title;
-
   const tabPorClave = normalizados.find((t) =>
     t.tituloNormalizado.includes('RESPUESTA') ||
     t.tituloNormalizado.includes('RESPONSE') ||
     t.tituloNormalizado.includes('PLANTILLA')
   );
 
-  const tab = tabPorClave || tabs[0];
+  const tab = tabPorNombre || tabPorClave || tabs[0];
   if (!tab) throw new Error('La hoja de calculo no tiene ninguna pestana.');
 
-  if (!gidObjetivo && tabPorClave) {
+  if (!gidObjetivo && (tabPorNombre || tabPorClave)) {
     console.warn(`Google Sheets ${club}: usando pestana "${tab.title}" al no tener gid configurado.`);
   }
 
+  // Si no hemos encontrado una pestaña por nombre, intentamos detectar la que
+  // realmente contiene el formulario mirando las cabeceras. Esto evita que una
+  // hoja auxiliar o una pestaña antigua deje la sincronización en 0 filas.
+  const candidatos = await Promise.all(
+    tabs.map(async (tabInfo) => {
+      try {
+        const res = await sheets.spreadsheets.values.get({
+          spreadsheetId,
+          range: `'${tabInfo.title}'!A1:BZ1`,
+        });
+        const headers = res.data.values?.[0] || [];
+        return {
+          ...tabInfo,
+          score: puntuarPestana(headers, tabInfo.title),
+          headers,
+        };
+      } catch (err) {
+        return { ...tabInfo, score: 0, headers: [] };
+      }
+    })
+  );
+
+  candidatos.sort((a, b) => b.score - a.score || a.title.localeCompare(b.title));
+
+  if (candidatos[0] && candidatos[0].score > 0) {
+    if (candidatos[0].title !== tab.title) {
+      console.warn(
+        `Google Sheets ${club}: la pestaña "${tab.title}" no parece ser la principal; usando "${candidatos[0].title}" por cabeceras.`
+      );
+    }
+    return candidatos[0].title;
+  }
+
   return tab.title;
+}
+
+function puntuarPestana(headers, title) {
+  if (!Array.isArray(headers) || headers.length === 0) return 0;
+
+  const columnasDetectadas = new Set();
+  let score = 0;
+
+  for (const header of headers) {
+    const columna = HEADER_TO_COLUMN[normalizarCabecera(header)];
+    if (!columna) continue;
+    columnasDetectadas.add(columna);
+    score += CAMPOS_MAPA_PISTA.includes(columna) ? 4 : 1;
+  }
+
+  for (const campo of CAMPOS_OBLIGATORIOS) {
+    if (columnasDetectadas.has(campo)) score += 12;
+  }
+
+  if (columnasDetectadas.has('nombre') && columnasDetectadas.has('primer_apellido') && columnasDetectadas.has('equipo')) {
+    score += 20;
+  }
+
+  const tituloNormalizado = normalizarTexto(title);
+  if (TAB_TITLE_HINTS.some((hint) => tituloNormalizado === normalizarTexto(hint))) {
+    score += 6;
+  }
+  if (tituloNormalizado.includes('RESPUESTA') || tituloNormalizado.includes('RESPONSE') || tituloNormalizado.includes('PLANTILLA')) {
+    score += 3;
+  }
+
+  return score;
 }
 
 // dd/mm/aaaa o dd/mm/aaaa hh:mm:ss -> 'aaaa-mm-dd' / ISO. Devuelve null si no

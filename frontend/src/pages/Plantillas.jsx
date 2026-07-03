@@ -59,9 +59,17 @@ export default function Plantillas() {
     setMensajeSync('');
     try {
       const resultado = await api.post('/jugadores/sync');
+      const motivos = resultado.omisiones_por_motivo || {};
+      const detallesOmisiones = Object.entries(motivos)
+        .map(([motivo, total]) => `${total} por ${motivo}`)
+        .join(', ');
       setMensajeSync(
         `Sincronización completada: ${resultado.insertados} jugador(es) nuevo(s) importado(s)` +
-          (resultado.omitidos ? `, ${resultado.omitidos} fila(s) omitida(s) por datos incompletos.` : '.')
+          (resultado.omitidos
+            ? `, ${resultado.omitidos} fila(s) omitida(s) por datos incompletos${
+                detallesOmisiones ? ` (${detallesOmisiones})` : ''
+              }.`
+            : '.')
       );
       await recargarEquipos();
       await cargarJugadores();

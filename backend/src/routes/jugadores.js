@@ -320,8 +320,18 @@ router.post('/sync', requireRole(ROLES.ADMINISTRADOR), async (req, res) => {
     return res.status(503).json({ error: 'No se pudo leer la hoja de calculo.' });
   }
 
+  const omisionesPorMotivo = omitidas.reduce((acc, fila) => {
+    acc[fila.motivo] = (acc[fila.motivo] || 0) + 1;
+    return acc;
+  }, {});
+
   if (pendientes.length === 0) {
-    return res.json({ insertados: 0, omitidos: omitidas.length, total_pendientes: 0 });
+    return res.json({
+      insertados: 0,
+      omitidos: omitidas.length,
+      total_pendientes: 0,
+      omisiones_por_motivo: omisionesPorMotivo,
+    });
   }
 
   const { data: insertados, error: insertError } = await supabaseAdmin
@@ -345,11 +355,12 @@ router.post('/sync', requireRole(ROLES.ADMINISTRADOR), async (req, res) => {
     return res.json({
       insertados: insertados.length,
       omitidos: omitidas.length,
+      omisiones_por_motivo: omisionesPorMotivo,
       aviso: 'Se importaron los jugadores pero no se pudo marcar la hoja como sincronizada. Revisa el Sheet manualmente.',
     });
   }
 
-  res.json({ insertados: insertados.length, omitidos: omitidas.length });
+  res.json({ insertados: insertados.length, omitidos: omitidas.length, omisiones_por_motivo: omisionesPorMotivo });
 });
 
 module.exports = router;
