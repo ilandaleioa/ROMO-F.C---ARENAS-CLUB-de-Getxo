@@ -20,6 +20,7 @@ export default function Usuarios() {
   const [form, setForm] = useState(FORM_VACIO);
   const [guardando, setGuardando] = useState(false);
   const [formError, setFormError] = useState('');
+  const [mostrarFormulario, setMostrarFormulario] = useState(false);
 
   const cargarUsuarios = useCallback(async () => {
     setError('');
@@ -46,12 +47,14 @@ export default function Usuarios() {
       activo: usuario.activo !== false,
     });
     setFormError('');
+    setMostrarFormulario(true);
   };
 
   const cancelarEdicion = () => {
     setEditandoId(null);
     setForm(FORM_VACIO);
     setFormError('');
+    setMostrarFormulario(false);
   };
 
   const handleSubmit = async (e) => {
@@ -93,8 +96,21 @@ export default function Usuarios() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6">
-      <h2 className="text-2xl font-bold text-club-black mb-6">Gestion de usuarios</h2>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-bold text-club-black">Gestion de usuarios</h2>
+        {!mostrarFormulario && (
+          <button
+            type="button"
+            onClick={() => setMostrarFormulario(true)}
+            className="flex items-center gap-2 bg-club-red hover:bg-club-redDark text-white font-semibold px-4 py-2 rounded-md transition-colors"
+          >
+            <span className="text-lg leading-none">+</span>
+            Añadir usuario
+          </button>
+        )}
+      </div>
 
+      {mostrarFormulario && (
       <form
         onSubmit={handleSubmit}
         className="bg-white border border-gray-200 rounded-xl p-6 mb-8 shadow-sm space-y-4"
@@ -191,17 +207,16 @@ export default function Usuarios() {
           >
             {guardando ? 'Guardando...' : editandoId ? 'Guardar cambios' : 'Crear usuario'}
           </button>
-          {editandoId && (
-            <button
-              type="button"
-              onClick={cancelarEdicion}
-              className="px-5 py-2 rounded-md font-semibold text-club-black border border-gray-300 hover:bg-gray-50"
-            >
-              Cancelar
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={cancelarEdicion}
+            className="px-5 py-2 rounded-md font-semibold text-club-black border border-gray-300 hover:bg-gray-50"
+          >
+            Cancelar
+          </button>
         </div>
       </form>
+      )}
 
       {error && (
         <p className="text-sm text-club-red font-medium bg-red-50 border border-club-red/30 rounded-md px-3 py-2 mb-4">

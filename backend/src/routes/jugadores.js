@@ -6,6 +6,7 @@ const requireRole = require('../middleware/requireRole');
 const { ROLES } = require('../config/roles');
 const { columnsForRole, sanitizeRow, FULL_COLUMNS } = require('../config/jugadoresColumns');
 const { LATERALIDAD_VALUES, DEMARCACION_VALUES } = require('../config/datosDeportivos');
+const sheetsSync = require('../config/googleSheetsSync');
 
 const router = express.Router();
 
@@ -281,5 +282,69 @@ router.patch(
     res.json({ jugador: await conFotoUrl(sanitizeRow(data, rol)) });
   }
 );
+
+// POST /api/jugadores/sync -> importa desde Google Sheets las filas nuevas
+// del formulario (las que aun no tienen ID_SYNC) e inserta cada una en
+// "jugadores". Solo Administrador: escribe en bloque datos sensibles de
+// menores (DNI, telefono, domicilio, datos de padres/madres).
+router.post('/sync', requireRole(ROLES.ADMINISTRADOR), async (req, res) => {
+  if (!sheetsSync.estaConfigurado()) {
+    return res.status(503).json({
+      error: 'La sincronizacion con Google Sheets no esta configurada en el servidor.',
+    });
+  }
+
+  let sheets;
+  let tabTitle;
+  try {
+    sheets = sheetsSync.getSheetsClient();
+    tabTitle = await sheetsSync.resolverPestana(sheets);
+  } catch (err) {
+    console.error('Error conectando con Google Sheets:', err.message);
+    return res.status(503).json({ error: 'No se pudo conectar con Google Sheets.' });
+  }
+
+  let headers;
+  let idxIdSync;
+  let pendientes;
+  let omitidas;
+  try {
+    ({ headers, idxIdSync, pendientes, omitidas } = await sheetsSync.leerFilasPendientes(sheets, tabTitle));
+  } catch (err) {
+    console.error('Error leyendo filas de Google Sheets:', err.message);
+    return res.status(503).json({ error: 'No se pudo leer la hoja de calculo.' });
+  }
+
+  if (pendientes.length === 0) {
+    return res.json({ insertados: 0, omitidos: omitidas.length, total_pendientes: 0 });
+  }
+
+  const { data: insertados, error: insertError } = await supabaseAdmin
+    .from('jugadores')
+    .insert(pendientes.map((p) => p.datos))
+    .select('id');
+
+  if (insertError) {
+    console.error('Error insertando jugadores desde Sheets:', insertError.message);
+    return res.status(503).json({ error: 'No se pudieron guardar los jugadores en la base de datos.' });
+  }
+
+  try {
+    const filasConId = pendientes.map((p, i) => ({ numeroFila: p.numeroFila, id: insertados[i].id }));
+    await sheetsSync.marcarComoSincronizadas(sheets, tabTitle, idxIdSync, filasConId);
+  } catch (err) {
+    // Los jugadores ya se han insertado; si falla solo el marcado en el Sheet,
+    // avisamos pero no lo tratamos como fallo total (evita duplicados se
+    // reintentaria manualmente revisando el Sheet).
+    console.error('Jugadores insertados pero no se pudo marcar ID_SYNC en el Sheet:', err.message);
+    return res.json({
+      insertados: insertados.length,
+      omitidos: omitidas.length,
+      aviso: 'Se importaron los jugadores pero no se pudo marcar la hoja como sincronizada. Revisa el Sheet manualmente.',
+    });
+  }
+
+  res.json({ insertados: insertados.length, omitidos: omitidas.length });
+});
 
 module.exports = router;

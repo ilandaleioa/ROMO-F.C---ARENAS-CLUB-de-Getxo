@@ -165,7 +165,7 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-50 bg-club-black text-white shadow-md">
-      <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+      <div className="w-full px-4 py-3 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
           <ClubLogo />
           <div className="leading-tight min-w-0">

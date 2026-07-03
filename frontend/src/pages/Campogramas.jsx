@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../lib/api';
@@ -7,6 +7,61 @@ const MAX_JUGADORES_POR_PUESTO = 3;
 
 function nombreCompleto(j) {
   return `${j.nombre} ${j.primer_apellido} ${j.segundo_apellido || ''}`.trim();
+}
+
+function SelectorEquipo({ equipo, equipos, onChange }) {
+  const [abierto, setAbierto] = useState(false);
+  const contenedorRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickFuera = (e) => {
+      if (contenedorRef.current && !contenedorRef.current.contains(e.target)) {
+        setAbierto(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickFuera);
+    return () => document.removeEventListener('mousedown', handleClickFuera);
+  }, []);
+
+  return (
+    <div className="relative w-full sm:w-64" ref={contenedorRef}>
+      <button
+        type="button"
+        onClick={() => setAbierto((v) => !v)}
+        className="w-full flex items-center justify-between gap-2 rounded-md border border-gray-300 px-3 py-2 bg-white text-left focus:outline-none focus:ring-2 focus:ring-club-red"
+        aria-haspopup="listbox"
+        aria-expanded={abierto}
+      >
+        <span className="truncate">{equipo || 'Selecciona un equipo'}</span>
+        <span className="text-club-black/50 shrink-0">▾</span>
+      </button>
+
+      {abierto && (
+        <div
+          role="listbox"
+          className="absolute left-0 right-0 mt-1 max-h-72 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg z-50"
+        >
+          {equipos.map((eq) => (
+            <button
+              key={eq}
+              type="button"
+              role="option"
+              aria-selected={eq === equipo}
+              onClick={() => {
+                onChange(eq);
+                setAbierto(false);
+              }}
+              className={`w-full text-left px-3 py-2 text-sm transition-colors ${
+                eq === equipo ? 'bg-club-red text-white font-semibold' : 'text-club-black hover:bg-red-50/60'
+              }`}
+            >
+              {eq}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function Campogramas() {
@@ -201,17 +256,7 @@ export default function Campogramas() {
                 <path d="M12.7 4.3a1 1 0 010 1.4L8.4 10l4.3 4.3a1 1 0 01-1.4 1.4l-5-5a1 1 0 010-1.4l5-5a1 1 0 011.4 0z" />
               </svg>
             </button>
-            <select
-              value={equipo}
-              onChange={(e) => setEquipo(e.target.value)}
-              className="w-full sm:w-64 rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
-            >
-              {equipos.map((eq) => (
-                <option key={eq} value={eq}>
-                  {eq}
-                </option>
-              ))}
-            </select>
+            <SelectorEquipo equipo={equipo} equipos={equipos} onChange={setEquipo} />
             <button
               type="button"
               onClick={() => irEquipoRelativo(1)}

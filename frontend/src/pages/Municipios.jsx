@@ -14,6 +14,18 @@ const COLORES_CIRCULAR = [
 
 const TOP_MUNICIPIOS_CIRCULAR = 7;
 
+// El Form ha usado a lo largo del tiempo tanto opcion multiple
+// ("Getxo (Algorta, Romo, Las Arenas..)") como texto libre ("Berango") para
+// "Localidad". Se normaliza para que no aparezcan como municipios distintos.
+function normalizarLocalidad(valor) {
+  let v = valor.trim();
+  v = v.replace(/\(.*$/, '').trim();
+  v = v.replace(/[.,]+$/, '').trim();
+  v = v.replace(/\s+/g, ' ');
+  v = v.toLowerCase().replace(/(^|\s)\p{L}/gu, (c) => c.toUpperCase());
+  return v;
+}
+
 function polarToCartesian(cx, cy, radio, anguloGrados) {
   const anguloRad = ((anguloGrados - 90) * Math.PI) / 180;
   return { x: cx + radio * Math.cos(anguloRad), y: cy + radio * Math.sin(anguloRad) };
@@ -50,7 +62,7 @@ export default function Municipios() {
   const conLocalidad = jugadores.filter((j) => j.localidad && j.localidad.trim() !== '');
 
   const conteoPorMunicipio = conLocalidad.reduce((acc, j) => {
-    const municipio = j.localidad.trim();
+    const municipio = normalizarLocalidad(j.localidad);
     (acc[municipio] ||= []).push(j);
     return acc;
   }, {});
