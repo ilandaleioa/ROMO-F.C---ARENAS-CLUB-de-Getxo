@@ -19,7 +19,6 @@ const ADMIN_NAV_ITEMS = [
 ];
 
 const VISTA_OPCIONES = [
-  { valor: 'tabla', label: 'Tabla' },
   { valor: 'tarjeta', label: 'Tarjetas' },
   { valor: 'graficas', label: 'Gráficas' },
 ];
@@ -50,7 +49,6 @@ export default function Sidebar({ isOpen, onClose }) {
 
       {enPlantillas && (
         <div className="mt-4 pt-3 border-t border-gray-200">
-          <p className="px-4 pb-1 text-xs font-semibold uppercase tracking-wide text-club-black/50">Vista</p>
           {VISTA_OPCIONES.map((opcion) => (
             <button
               key={opcion.valor}

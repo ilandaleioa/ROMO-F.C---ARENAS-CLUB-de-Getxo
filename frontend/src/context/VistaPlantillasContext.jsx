@@ -3,7 +3,7 @@ import { createContext, useContext, useState } from 'react';
 const VistaPlantillasContext = createContext(null);
 
 export function VistaPlantillasProvider({ children }) {
-  const [vista, setVista] = useState('tabla');
+  const [vista, setVista] = useState('tarjeta');
 
   return (
     <VistaPlantillasContext.Provider value={{ vista, setVista }}>{children}</VistaPlantillasContext.Provider>
