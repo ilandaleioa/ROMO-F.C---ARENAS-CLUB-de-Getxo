@@ -1,6 +1,12 @@
 import { getClub } from './clubStore';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+// En produccion usamos la misma origin con /api. En local, Vite puede
+// reenviar /api al backend mediante proxy.
+const configuredApiUrl = (import.meta.env.VITE_API_URL || '/api').trim();
+const isLocalhostApi =
+  /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:\/|$)/i.test(configuredApiUrl) ||
+  configuredApiUrl === 'localhost';
+const API_URL = (isLocalhostApi ? '/api' : configuredApiUrl).replace(/\/$/, '');
 
 async function request(path, options = {}) {
   // FormData (subida de ficheros) no debe llevar Content-Type manual: el

@@ -39,6 +39,12 @@ SESSION_COOKIE_NAME=romofc_session
 PORT=4000
 FRONTEND_ORIGIN=http://localhost:5173
 NODE_ENV=development                    # "production" activa cookies "secure" (requiere HTTPS)
+GOOGLE_SHEETS_SPREADSHEET_ID=...        # ROMO
+GOOGLE_SHEETS_GID=...
+GOOGLE_SHEETS_SPREADSHEET_ID_ARENAS=... # ARENAS
+GOOGLE_SHEETS_GID_ARENAS=...
+GOOGLE_SERVICE_ACCOUNT_EMAIL=...
+GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY=...
 ```
 
 ### Instalacion y arranque
@@ -50,6 +56,7 @@ npm run dev      # o "npm start" para produccion
 ```
 
 El backend queda escuchando en `http://localhost:4000` (o el puerto que definas). Ruta de comprobacion: `GET /api/health`.
+La sincronizacion desde Google Sheets se hace por club. Si ARENAS no muestra jugadores, revisa que `GOOGLE_SHEETS_SPREADSHEET_ID_ARENAS`, `GOOGLE_SHEETS_GID_ARENAS` y la service account esten configurados en `backend/.env`.
 
 ### Crear el primer usuario Administrador
 
@@ -71,8 +78,10 @@ La contrasena se guarda siempre hasheada con bcrypt, nunca en texto plano.
 Copia `frontend/.env.example` a `frontend/.env`:
 
 ```
-VITE_API_URL=http://localhost:4000/api
+VITE_API_URL=/api
 ```
+
+En desarrollo, `frontend/vite.config.js` reenvia `/api` al backend en `http://localhost:4000`.
 
 ### Instalacion y arranque
 
@@ -86,7 +95,7 @@ La app queda disponible en `http://localhost:5173`.
 
 ### Escudo del club
 
-Sube tu escudo real a `frontend/public/assets/escudo.png` (no se genera ni se dibuja con IA; el hueco ya esta reservado en la cabecera y en la pantalla de login).
+Sube tu escudo real a `frontend/public/assets/escudo.png` o sustituye los archivos `escudo-romo.png` y `escudo-arenas.png` por los logos oficiales; el hueco ya esta reservado en la cabecera y en la pantalla de login.
 
 ## Seguridad
 

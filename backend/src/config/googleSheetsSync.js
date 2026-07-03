@@ -1,47 +1,45 @@
 const { google } = require('googleapis');
 const env = require('./env');
 
-// Mapeo exacto encabezado de columna (hoja "PLANTILLAS 2627") -> columna en
-// la tabla "jugadores" de Supabase. Si cambian los titulos de las preguntas
-// del Form hay que actualizar este mapa.
+// Map normalized sheet headers to Supabase columns.
 const HEADER_TO_COLUMN = {
-  'Marca temporal': 'marca_temporal',
+  'MARCA TEMPORAL': 'marca_temporal',
   NOMBRE: 'nombre',
   'PRIMER APELLIDO': 'primer_apellido',
   'SEGUNDO APELLIDO': 'segundo_apellido',
   EQUIPO: 'equipo',
   FECHA: 'fecha_nacimiento',
   'LUGAR NACIMIENTO': 'lugar_nacimiento',
-  'DNI ': 'dni_jugador',
+  'DNI': 'dni_jugador',
   ALTURA: 'altura_cm',
   PESO: 'peso_kg',
   'HERMANOS EN EL CLUB': 'tiene_hermanos_club',
-  Domicilio: 'domicilio',
-  Numero: 'numero',
-  'Piso y / o letra ': 'piso_letra',
-  Localidad: 'localidad',
+  DOMICILIO: 'domicilio',
+  NUMERO: 'numero',
+  'PISO Y / O LETRA': 'piso_letra',
+  LOCALIDAD: 'localidad',
   COLEGIO: 'colegio_instituto',
   'HORA SALIDA': 'hora_salida_colegio',
   'CLUB PROCEDENCIA': 'club_procedencia',
   'TEMPORADA INGRESO': 'temporada_ingreso',
-  TELÉFONO: 'telefono_jugador',
+  TELEFONO: 'telefono_jugador',
   MAIL: 'email_jugador',
-  'Nombre de aita ': 'nombre_aita',
-  'Primer apellido de aita ': 'primer_apellido_aita',
-  'Segundo apellido de aita ': 'segundo_apellido_aita',
-  'DNI de aita ': 'dni_aita',
-  'Telefono de aita ': 'telefono_aita',
-  'E - mail de aita ': 'email_aita',
-  'Nombre de ama': 'nombre_ama',
-  'Primer apellido de ama': 'primer_apellido_ama',
-  'Segundo apellido de ama ': 'segundo_apellido_ama',
-  'DNI de ama': 'dni_ama',
-  'Teléfono de ama': 'telefono_ama',
-  'E - mail de ama': 'email_ama',
-  ACEPTACIÓN: 'acepta_condiciones',
+  'NOMBRE DE AITA': 'nombre_aita',
+  'PRIMER APELLIDO DE AITA': 'primer_apellido_aita',
+  'SEGUNDO APELLIDO DE AITA': 'segundo_apellido_aita',
+  'DNI DE AITA': 'dni_aita',
+  'TELEFONO DE AITA': 'telefono_aita',
+  'E - MAIL DE AITA': 'email_aita',
+  'NOMBRE DE AMA': 'nombre_ama',
+  'PRIMER APELLIDO DE AMA': 'primer_apellido_ama',
+  'SEGUNDO APELLIDO DE AMA': 'segundo_apellido_ama',
+  'DNI DE AMA': 'dni_ama',
+  'TELEFONO DE AMA': 'telefono_ama',
+  'E - MAIL DE AMA': 'email_ama',
+  ACEPTACION: 'acepta_condiciones',
   'NOMBRE ACEPTA': 'nombre_aceptante',
   'DNI ACEPTA': 'dni_aceptante',
-  Observaciones: 'observaciones',
+  OBSERVACIONES: 'observaciones',
 };
 
 const ID_SYNC_HEADER = 'ID_SYNC';
@@ -49,6 +47,7 @@ const CAMPOS_NUMERICOS = new Set(['altura_cm', 'peso_kg']);
 const CAMPOS_FECHA = new Set(['marca_temporal', 'fecha_nacimiento']);
 const CAMPOS_BOOLEANOS = new Set(['tiene_hermanos_club', 'acepta_condiciones']);
 const CAMPOS_OBLIGATORIOS = ['nombre', 'primer_apellido', 'equipo'];
+const TAB_TITLE_HINTS = ['Form Responses 1', 'Respuestas de formulario 1', 'Respuestas del formulario 1', 'PLANTILLAS 2627'];
 
 function configDelClub(club) {
   return env.googleSheetsPorClub[club] || {};
@@ -69,13 +68,45 @@ function getSheetsClient() {
   return google.sheets({ version: 'v4', auth });
 }
 
+function normalizarTexto(valor) {
+  return String(valor || '')
+    .trim()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/\s+/g, ' ')
+    .toUpperCase();
+}
+
+function normalizarCabecera(header) {
+  return normalizarTexto(header).replace(/[:]+$/g, '').replace(/\s+/g, ' ').trim();
+}
+
 async function resolverPestana(sheets, club) {
   const { spreadsheetId, gid } = configDelClub(club);
   const meta = await sheets.spreadsheets.get({ spreadsheetId });
   const tabs = meta.data.sheets.map((s) => ({ title: s.properties.title, gid: s.properties.sheetId }));
   const gidObjetivo = gid ? Number(gid) : null;
-  const tab = (gidObjetivo !== null && tabs.find((t) => t.gid === gidObjetivo)) || tabs[0];
+
+  const tabPorGid = gidObjetivo !== null ? tabs.find((t) => t.gid === gidObjetivo) : null;
+  if (tabPorGid) return tabPorGid.title;
+
+  const normalizados = tabs.map((t) => ({ ...t, tituloNormalizado: normalizarTexto(t.title) }));
+  const tabPorNombre = normalizados.find((t) => TAB_TITLE_HINTS.some((hint) => t.tituloNormalizado === normalizarTexto(hint)));
+  if (tabPorNombre) return tabPorNombre.title;
+
+  const tabPorClave = normalizados.find((t) =>
+    t.tituloNormalizado.includes('RESPUESTA') ||
+    t.tituloNormalizado.includes('RESPONSE') ||
+    t.tituloNormalizado.includes('PLANTILLA')
+  );
+
+  const tab = tabPorClave || tabs[0];
   if (!tab) throw new Error('La hoja de calculo no tiene ninguna pestana.');
+
+  if (!gidObjetivo && tabPorClave) {
+    console.warn(`Google Sheets ${club}: usando pestana "${tab.title}" al no tener gid configurado.`);
+  }
+
   return tab.title;
 }
 
@@ -96,8 +127,8 @@ function parsearFecha(valor) {
 
 function parsearBooleano(valor) {
   if (valor === null || valor === undefined || valor === '') return null;
-  const normalizado = String(valor).trim().toLowerCase();
-  return ['si', 'sí', 'true', 'x', 'acepto'].some((v) => normalizado.startsWith(v));
+  const normalizado = normalizarTexto(valor);
+  return ['SI', 'TRUE', 'X', 'ACEPTO', '1', 'YES'].some((v) => normalizado.startsWith(v));
 }
 
 function parsearNumero(valor) {
@@ -126,7 +157,7 @@ function normalizarLocalidad(valor) {
 function mapearFila(headers, filaValores) {
   const datos = {};
   headers.forEach((header, i) => {
-    const columna = HEADER_TO_COLUMN[header];
+    const columna = HEADER_TO_COLUMN[normalizarCabecera(header)];
     if (!columna) return;
     const valorCrudo = filaValores[i] !== undefined ? String(filaValores[i]).trim() : '';
     if (valorCrudo === '') {

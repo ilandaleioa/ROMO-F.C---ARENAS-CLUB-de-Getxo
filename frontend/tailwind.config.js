@@ -5,10 +5,10 @@ export default {
     extend: {
       colors: {
         club: {
-          red: '#C8102E',
-          redDark: '#9A0C22',
-          black: '#111111',
-          white: '#FFFFFF',
+          red: 'rgb(var(--club-red) / <alpha-value>)',
+          redDark: 'rgb(var(--club-red-dark) / <alpha-value>)',
+          black: 'rgb(var(--club-black) / <alpha-value>)',
+          white: 'rgb(var(--club-white) / <alpha-value>)',
         },
       },
       fontFamily: {

@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ClubProvider } from './context/ClubContext';
+import { useClub } from './context/ClubContext';
 import { FiltroEquiposProvider } from './context/FiltroEquiposContext';
 import { VistaPlantillasProvider } from './context/VistaPlantillasContext';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -14,6 +15,17 @@ import Usuarios from './pages/Usuarios';
 import Campogramas from './pages/Campogramas';
 import Municipios from './pages/Municipios';
 import HojasCalculo from './pages/HojasCalculo';
+
+function ClubThemeSync() {
+  const { club } = useClub();
+
+  useEffect(() => {
+    document.documentElement.dataset.club = club;
+    document.body.dataset.club = club;
+  }, [club]);
+
+  return null;
+}
 
 function Layout({ children }) {
   const [sidebarAbierto, setSidebarAbierto] = useState(false);
@@ -109,6 +121,7 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <ClubProvider>
+          <ClubThemeSync />
           <FiltroEquiposProvider>
             <VistaPlantillasProvider>
               <AppRoutes />
