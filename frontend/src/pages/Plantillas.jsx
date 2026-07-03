@@ -218,8 +218,8 @@ export default function Plantillas() {
   );
 
   const renderFiltrosDeportivos = () => (
-    <div className="flex flex-col sm:flex-row gap-3 mb-4">
-      <div className="w-full sm:w-auto sm:flex-1 flex flex-col gap-1">
+    <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+      <div className="w-full sm:w-48 flex flex-col gap-1">
         <label htmlFor="filtro-jugadores" className="text-xs font-semibold text-club-black/60 uppercase tracking-wide">
           Jugadores
         </label>
@@ -261,34 +261,37 @@ export default function Plantillas() {
 
   return (
     <div className="w-full px-4 sm:px-6 py-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
         <h2 className="text-2xl font-bold text-club-black">Plantillas</h2>
-        <div className="flex items-center gap-3">
-          <div className="inline-flex rounded-md border border-gray-300 overflow-hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          {renderFiltrosDeportivos()}
+          <div className="flex items-center gap-3">
+            <div className="inline-flex rounded-md border border-gray-300 overflow-hidden">
+              <button
+                onClick={() => setVista('tabla')}
+                className={`px-3 py-2 text-sm font-semibold transition-colors ${
+                  vista === 'tabla' ? 'bg-club-red text-white' : 'bg-white text-club-black hover:bg-red-50/60'
+                }`}
+              >
+                Tabla
+              </button>
+              <button
+                onClick={() => setVista('tarjeta')}
+                className={`px-3 py-2 text-sm font-semibold border-l border-gray-300 transition-colors ${
+                  vista === 'tarjeta' ? 'bg-club-red text-white' : 'bg-white text-club-black hover:bg-red-50/60'
+                }`}
+              >
+                Tarjetas
+              </button>
+            </div>
             <button
-              onClick={() => setVista('tabla')}
-              className={`px-3 py-2 text-sm font-semibold transition-colors ${
-                vista === 'tabla' ? 'bg-club-red text-white' : 'bg-white text-club-black hover:bg-red-50/60'
-              }`}
+              onClick={handleActualizar}
+              disabled={refrescando}
+              className="self-start sm:self-auto bg-club-red hover:bg-club-redDark disabled:opacity-60 text-white font-semibold px-4 py-2 rounded-md transition-colors"
             >
-              Tabla
-            </button>
-            <button
-              onClick={() => setVista('tarjeta')}
-              className={`px-3 py-2 text-sm font-semibold border-l border-gray-300 transition-colors ${
-                vista === 'tarjeta' ? 'bg-club-red text-white' : 'bg-white text-club-black hover:bg-red-50/60'
-              }`}
-            >
-              Tarjetas
+              {refrescando ? 'Actualizando...' : 'Actualizar datos'}
             </button>
           </div>
-          <button
-            onClick={handleActualizar}
-            disabled={refrescando}
-            className="self-start sm:self-auto bg-club-red hover:bg-club-redDark disabled:opacity-60 text-white font-semibold px-4 py-2 rounded-md transition-colors"
-          >
-            {refrescando ? 'Actualizando...' : 'Actualizar datos'}
-          </button>
         </div>
       </div>
 
@@ -307,7 +310,6 @@ export default function Plantillas() {
               </Link>
             )}
           </div>
-          {renderFiltrosDeportivos()}
           {error && (
             <p className="text-sm text-club-red font-medium bg-red-50 border border-club-red/30 rounded-md px-3 py-2 mb-4">
               {error}
@@ -326,7 +328,6 @@ export default function Plantillas() {
           {renderFiltroEquipos()}
 
           <div className="flex-1 min-w-0">
-            {renderFiltrosDeportivos()}
             {error && (
               <p className="text-sm text-club-red font-medium bg-red-50 border border-club-red/30 rounded-md px-3 py-2 mb-4">
                 {error}

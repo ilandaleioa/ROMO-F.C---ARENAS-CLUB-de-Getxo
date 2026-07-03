@@ -245,7 +245,7 @@ export default function FichaJugador() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <Link to="/plantillas" className="text-club-red font-semibold hover:underline text-sm">
           &larr; Volver a plantillas
         </Link>
@@ -264,27 +264,27 @@ export default function FichaJugador() {
 
       {jugador && (
         <div className="mt-4 bg-white border border-gray-200 rounded-xl shadow-sm">
-          <div className="sticky top-[72px] z-40 bg-club-black text-white px-6 py-4 flex items-center gap-4 rounded-t-xl">
+          <div className="sticky top-[72px] z-40 bg-club-black text-white px-4 sm:px-6 py-4 flex items-center gap-4 rounded-t-xl">
             {jugador.foto_url ? (
               <img
                 src={jugador.foto_url}
                 alt={`Foto de ${jugador.nombre}`}
-                className="w-16 h-16 rounded-full object-cover border-2 border-white/30 shrink-0"
+                className="w-14 h-14 sm:w-16 sm:h-16 rounded-full object-cover border-2 border-white/30 shrink-0"
               />
             ) : (
-              <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center text-[10px] text-white/40 shrink-0 text-center">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white/10 flex items-center justify-center text-[10px] text-white/40 shrink-0 text-center">
                 Sin foto
               </div>
             )}
-            <div>
-              <h2 className="text-xl font-bold">
+            <div className="min-w-0">
+              <h2 className="text-lg sm:text-xl font-bold truncate">
                 {jugador.nombre} {jugador.primer_apellido} {jugador.segundo_apellido || ''}
               </h2>
-              <p className="text-white/60 text-sm">Equipo: {jugador.equipo}</p>
+              <p className="text-white/60 text-sm truncate">Equipo: {jugador.equipo}</p>
             </div>
           </div>
 
-          <div className="px-6 pt-4 flex flex-wrap items-center gap-4">
+          <div className="px-4 sm:px-6 pt-4 flex flex-wrap items-center gap-4">
             {puedeSubirFoto && (
               <label className="inline-block text-sm font-medium text-club-red cursor-pointer hover:underline">
                 {subiendoFoto ? 'Subiendo foto...' : 'Cambiar foto'}
@@ -305,9 +305,9 @@ export default function FichaJugador() {
               {generandoInforme ? 'Generando informe...' : 'Informe jugador'}
             </button>
           </div>
-          {errorFoto && <p className="px-6 text-sm text-club-red mt-1">{errorFoto}</p>}
+          {errorFoto && <p className="px-4 sm:px-6 text-sm text-club-red mt-1">{errorFoto}</p>}
 
-          <div className="p-6 space-y-6">
+          <div className="p-4 sm:p-6 space-y-6">
             {SECCIONES_FICHA.map((seccion) => {
               const camposDisponibles = seccion.campos.filter((c) => c in jugador);
               if (camposDisponibles.length === 0) return null;

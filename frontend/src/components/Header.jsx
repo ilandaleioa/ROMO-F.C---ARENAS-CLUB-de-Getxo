@@ -151,26 +151,32 @@ function BotonesHistorial() {
 
 export default function Header() {
   const { user, logout } = useAuth();
+  const [menuAbierto, setMenuAbierto] = useState(false);
 
   const linkClass = ({ isActive }) =>
     `px-3 py-2 rounded-md text-sm font-semibold transition-colors ${
       isActive ? 'bg-club-red text-white' : 'text-white/80 hover:text-white hover:bg-white/10'
     }`;
 
+  const linkClassMobile = ({ isActive }) =>
+    `block px-3 py-2 rounded-md text-sm font-semibold transition-colors ${
+      isActive ? 'bg-club-red text-white' : 'text-white/80 hover:text-white hover:bg-white/10'
+    }`;
+
   return (
     <header className="sticky top-0 z-50 bg-club-black text-white shadow-md">
       <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           <ClubLogo />
-          <div className="leading-tight">
-            <h1 className="text-lg sm:text-xl font-bold tracking-wide whitespace-nowrap">
+          <div className="leading-tight min-w-0">
+            <h1 className="text-base sm:text-xl font-bold tracking-wide truncate">
               ROMO FC <span className="text-club-red">-</span> ARENAS CLUB
             </h1>
           </div>
         </div>
 
         {user && (
-          <nav className="flex items-center gap-2">
+          <nav className="hidden md:flex items-center gap-2">
             <BotonesHistorial />
             <NavLink to="/plantillas" className={linkClass}>
               Plantillas
@@ -192,10 +198,10 @@ export default function Header() {
         )}
 
         {user && (
-          <div className="flex items-center gap-3 text-sm">
+          <div className="hidden md:flex items-center gap-3 text-sm">
             {user.rol !== 'tecnico' && <FiltroEquiposSelector />}
             <BotonPantallaCompleta />
-            <div className="text-right hidden sm:block">
+            <div className="text-right hidden lg:block">
               <p className="font-semibold">{user.username}</p>
               <p className="text-white/60 text-xs">{ROLE_LABELS[user.rol] || user.rol}</p>
             </div>
@@ -207,7 +213,70 @@ export default function Header() {
             </button>
           </div>
         )}
+
+        {user && (
+          <button
+            type="button"
+            onClick={() => setMenuAbierto((v) => !v)}
+            aria-label={menuAbierto ? 'Cerrar menu' : 'Abrir menu'}
+            aria-expanded={menuAbierto}
+            className="md:hidden shrink-0 p-2 rounded-md bg-white/10 hover:bg-white/20 text-white transition-colors"
+          >
+            {menuAbierto ? (
+              <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+                <path d="M4.3 4.3a1 1 0 011.4 0L10 8.6l4.3-4.3a1 1 0 111.4 1.4L11.4 10l4.3 4.3a1 1 0 01-1.4 1.4L10 11.4l-4.3 4.3a1 1 0 01-1.4-1.4L8.6 10 4.3 5.7a1 1 0 010-1.4z" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+                <path fillRule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
+              </svg>
+            )}
+          </button>
+        )}
       </div>
+
+      {user && menuAbierto && (
+        <div className="md:hidden border-t border-white/10 px-4 py-3 flex flex-col gap-3">
+          <nav className="flex flex-col gap-1">
+            <NavLink to="/plantillas" className={linkClassMobile} onClick={() => setMenuAbierto(false)}>
+              Plantillas
+            </NavLink>
+            <NavLink to="/campogramas" className={linkClassMobile} onClick={() => setMenuAbierto(false)}>
+              Campogramas
+            </NavLink>
+            {(user.rol === 'administrador' || user.rol === 'director') && (
+              <NavLink to="/usuarios" className={linkClassMobile} onClick={() => setMenuAbierto(false)}>
+                Usuarios
+              </NavLink>
+            )}
+            {(user.rol === 'administrador' || user.rol === 'director') && (
+              <NavLink to="/municipios" className={linkClassMobile} onClick={() => setMenuAbierto(false)}>
+                Municipios
+              </NavLink>
+            )}
+          </nav>
+
+          <div className="flex items-center gap-2">
+            <BotonesHistorial />
+            <BotonPantallaCompleta />
+          </div>
+
+          {user.rol !== 'tecnico' && <FiltroEquiposSelector />}
+
+          <div className="flex items-center justify-between gap-3 pt-2 border-t border-white/10">
+            <div>
+              <p className="font-semibold text-sm">{user.username}</p>
+              <p className="text-white/60 text-xs">{ROLE_LABELS[user.rol] || user.rol}</p>
+            </div>
+            <button
+              onClick={logout}
+              className="px-3 py-2 rounded-md bg-club-red hover:bg-club-redDark font-semibold text-sm transition-colors"
+            >
+              Cerrar sesion
+            </button>
+          </div>
+        </div>
+      )}
     </header>
   );
 }
