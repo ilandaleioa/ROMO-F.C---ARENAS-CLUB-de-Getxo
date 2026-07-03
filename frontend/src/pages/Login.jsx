@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import ClubLogo from '../components/ClubLogo';
 
 export default function Login() {
   const { user, login } = useAuth();
@@ -34,12 +33,10 @@ export default function Login() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-club-black px-4">
       <div className="w-full max-w-sm bg-white rounded-xl shadow-2xl overflow-hidden">
-        <div className="bg-club-black py-8 flex flex-col items-center gap-3">
-          <ClubLogo className="h-20 w-20" />
+        <div className="bg-club-black py-10 flex flex-col items-center gap-2">
           <h1 className="text-white text-xl font-bold text-center leading-tight">
             ROMO FC <span className="text-club-red">-</span> ARENAS
           </h1>
-          <p className="text-white/50 text-xs">Club de Getxo</p>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">

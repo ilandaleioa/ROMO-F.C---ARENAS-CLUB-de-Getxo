@@ -58,6 +58,17 @@ npm run dev      # o "npm start" para produccion
 El backend queda escuchando en `http://localhost:4000` (o el puerto que definas). Ruta de comprobacion: `GET /api/health`.
 La sincronizacion desde Google Sheets se hace por club. Si ARENAS no muestra jugadores, revisa que `GOOGLE_SHEETS_SPREADSHEET_ID_ARENAS`, `GOOGLE_SHEETS_GID_ARENAS` y la service account esten configurados en `backend/.env`.
 
+### Despliegue en Vercel
+
+Si el frontend y el backend se despliegan en Vercel, configura estas variables en el proyecto que ejecuta el backend:
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `SESSION_SECRET`
+- `FRONTEND_ORIGIN` con la URL publica del frontend
+
+Si falta `FRONTEND_ORIGIN`, el backend acepta orígenes de `*.vercel.app` y `localhost`, pero es mejor dejarlo fijado para evitar bloqueos de CORS en producción.
+
 ### Crear el primer usuario Administrador
 
 La tabla `usuarios` no se rellena automaticamente: usa el script incluido para dar de alta (o resetear la contrasena de) un usuario:

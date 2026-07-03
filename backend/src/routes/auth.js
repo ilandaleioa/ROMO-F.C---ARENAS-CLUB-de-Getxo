@@ -37,7 +37,18 @@ router.post('/login', async (req, res) => {
     return genericError();
   }
 
-  const passwordOk = await bcrypt.compare(password, data.password_hash);
+  if (!data.password_hash || typeof data.password_hash !== 'string') {
+    console.error('[auth/login] El usuario no tiene password_hash valido:', data.username);
+    return res.status(503).json({ error: 'El usuario no tiene una contrasena valida configurada. Contacta con administracion.' });
+  }
+
+  let passwordOk = false;
+  try {
+    passwordOk = await bcrypt.compare(password, data.password_hash);
+  } catch (err) {
+    console.error('[auth/login] Error al validar la contrasena:', err.message || err);
+    return res.status(503).json({ error: 'No se pudo validar la contrasena. Intentalo de nuevo mas tarde.' });
+  }
   if (!passwordOk) {
     return genericError();
   }

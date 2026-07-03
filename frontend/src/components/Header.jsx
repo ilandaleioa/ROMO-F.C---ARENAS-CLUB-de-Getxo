@@ -181,6 +181,7 @@ export default function Header({ onToggleSidebar }) {
   const { club, setClub } = useClub();
   const [menuAbierto, setMenuAbierto] = useState(false);
   const puedeCambiarClub = user && (!user.club || user.club === 'TODOS');
+  const headerBgClass = club === 'ARENAS' ? 'bg-club-red' : 'bg-club-black';
 
   useEffect(() => {
     if (user && user.club && user.club !== 'TODOS') {
@@ -189,7 +190,7 @@ export default function Header({ onToggleSidebar }) {
   }, [user, setClub]);
 
   return (
-    <header className="sticky top-0 z-50 bg-club-black text-white shadow-md">
+    <header className={`sticky top-0 z-50 text-white shadow-md ${headerBgClass}`}>
       <div className="w-full px-4 py-3 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
           {user && (

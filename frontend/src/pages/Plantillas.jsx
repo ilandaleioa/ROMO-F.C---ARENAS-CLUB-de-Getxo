@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useClub } from '../context/ClubContext';
 import { useFiltroEquipos } from '../context/FiltroEquiposContext';
 import { useVistaPlantillas } from '../context/VistaPlantillasContext';
 import { api } from '../lib/api';
@@ -8,6 +9,7 @@ import { LATERALIDAD_OPCIONES, DEMARCACION_OPCIONES } from '../lib/campos';
 
 export default function Plantillas() {
   const { user } = useAuth();
+  const { club } = useClub();
   const esTecnico = user.rol === 'tecnico' && user.equipo_asignado !== 'Todos';
   const esAdministrador = user.rol === 'administrador';
   const { equiposDisponibles, equiposSeleccionados, seleccionarEquipoUnico, limpiarSeleccion, recargarEquipos } =
@@ -35,7 +37,7 @@ export default function Plantillas() {
     } catch (err) {
       setError(err.message);
     }
-  }, [esTecnico, equiposSeleccionados, busqueda]);
+  }, [club, esTecnico, equiposSeleccionados, busqueda]);
 
   useEffect(() => {
     setLoading(true);

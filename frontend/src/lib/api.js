@@ -1,12 +1,13 @@
 import { getClub } from './clubStore';
 
-// En produccion usamos la misma origin con /api. En local, Vite puede
-// reenviar /api al backend mediante proxy.
-const configuredApiUrl = (import.meta.env.VITE_API_URL || '/api').trim();
-const isLocalhostApi =
-  /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:\/|$)/i.test(configuredApiUrl) ||
-  configuredApiUrl === 'localhost';
-const API_URL = (isLocalhostApi ? '/api' : configuredApiUrl).replace(/\/$/, '');
+// Si se configura una URL explícita, la respetamos. Si no, en desarrollo
+// apuntamos al backend local y en produccion usamos la misma origin con /api.
+const configuredApiUrl = import.meta.env.VITE_API_URL?.trim();
+const API_URL = configuredApiUrl
+  ? configuredApiUrl.replace(/\/$/, '')
+  : import.meta.env.PROD
+    ? '/api'
+    : 'http://localhost:4000/api';
 
 async function request(path, options = {}) {
   // FormData (subida de ficheros) no debe llevar Content-Type manual: el
@@ -28,14 +29,24 @@ async function request(path, options = {}) {
   }
 
   let body = null;
+  let responseText = '';
   try {
-    body = await res.json();
+    responseText = await res.text();
+    body = responseText ? JSON.parse(responseText) : null;
   } catch (_) {
-    // Respuesta sin cuerpo JSON (p.ej. 204)
+    // Respuesta sin cuerpo JSON (p.ej. 204 o una pagina HTML de error).
   }
 
   if (!res.ok) {
-    throw new ApiError(body?.error || 'Ha ocurrido un error inesperado.', res.status);
+    const fallbackMessage =
+      responseText && responseText.trim()
+        ? responseText.trim().startsWith('<')
+          ? `El backend no devolvio JSON en ${path}. Revisa el despliegue de la API en Vercel.`
+          : `Error ${res.status} al llamar a ${path}.`
+        : res.status >= 500
+          ? `El backend devolvio un error ${res.status} sin detalle en ${path}. Revisa los logs de la API.`
+          : 'Ha ocurrido un error inesperado.';
+    throw new ApiError(body?.error || fallbackMessage, res.status);
   }
 
   return body;

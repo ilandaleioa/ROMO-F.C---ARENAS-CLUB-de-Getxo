@@ -43,6 +43,10 @@ const HEADER_TO_COLUMN = {
 };
 
 const ID_SYNC_HEADER = 'ID_SYNC';
+// Campos que se editan en la web app y no deben ser sobreescritos por la hoja.
+// Aunque alguien amplie el mapeo del Sheet en el futuro, estos datos siguen
+// viviendo solo en Supabase.
+const MANUAL_WEBAPP_COLUMNS = new Set(['dorsal', 'lateralidad', 'demarcacion']);
 const CAMPOS_NUMERICOS = new Set(['altura_cm', 'peso_kg']);
 const CAMPOS_FECHA = new Set(['marca_temporal', 'fecha_nacimiento']);
 const CAMPOS_BOOLEANOS = new Set(['tiene_hermanos_club', 'acepta_condiciones']);
@@ -158,7 +162,7 @@ function mapearFila(headers, filaValores) {
   const datos = {};
   headers.forEach((header, i) => {
     const columna = HEADER_TO_COLUMN[normalizarCabecera(header)];
-    if (!columna) return;
+    if (!columna || MANUAL_WEBAPP_COLUMNS.has(columna)) return;
     const valorCrudo = filaValores[i] !== undefined ? String(filaValores[i]).trim() : '';
     if (valorCrudo === '') {
       datos[columna] = null;

@@ -10,9 +10,40 @@ const campogramasRoutes = require('./routes/campogramas');
 
 const app = express();
 
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+
+  if (env.frontendOrigin && origin === env.frontendOrigin) {
+    return true;
+  }
+
+  try {
+    const url = new URL(origin);
+    const hostname = url.hostname.toLowerCase();
+
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return true;
+    }
+
+    if (hostname.endsWith('.vercel.app')) {
+      return true;
+    }
+
+    if (env.isProduction && process.env.VERCEL_URL) {
+      return origin === `https://${process.env.VERCEL_URL}`;
+    }
+  } catch (_) {
+    return false;
+  }
+
+  return false;
+}
+
 app.use(
   cors({
-    origin: env.frontendOrigin,
+    origin(origin, callback) {
+      callback(null, isAllowedOrigin(origin));
+    },
     credentials: true,
   })
 );

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useClub } from '../context/ClubContext';
 
 const HOJAS = {
   ROMO: {
@@ -12,25 +12,16 @@ const HOJAS = {
 };
 
 export default function HojasCalculo() {
-  const [equipo, setEquipo] = useState('ROMO');
-  const hoja = HOJAS[equipo];
-
-  const tabClass = (key) =>
-    `px-4 py-2 rounded-md text-sm font-semibold transition-colors ${
-      equipo === key ? 'bg-club-red text-white' : 'bg-white text-club-black/70 hover:bg-red-50'
-    }`;
+  const { club } = useClub();
+  const hoja = HOJAS[club] || HOJAS.ROMO;
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
-      <h1 className="text-2xl font-bold text-club-black mb-6">Hojas de calculo</h1>
-
-      <div className="flex gap-2 mb-6">
-        <button type="button" className={tabClass('ROMO')} onClick={() => setEquipo('ROMO')}>
-          ROMO
-        </button>
-        <button type="button" className={tabClass('ARENAS')} onClick={() => setEquipo('ARENAS')}>
-          ARENAS CLUB
-        </button>
+      <div className="mb-6">
+        <p className="text-sm font-semibold uppercase tracking-wide text-club-black/50 mb-2">
+          Hoja activa
+        </p>
+        <h1 className="text-2xl font-bold text-club-black">Hojas de calculo</h1>
       </div>
 
       <div className="bg-white rounded-lg shadow p-6">
