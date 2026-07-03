@@ -1,4 +1,10 @@
-require('dotenv').config();
+const path = require('path');
+const dotenv = require('dotenv');
+
+// Cargamos explícitamente `backend/.env` para que el backend funcione igual si
+// se arranca desde `backend/`, desde la raíz del repo o dentro de una función
+// serverless. Si no existe el archivo, dotenv simplemente no altera nada.
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 function required(name) {
   const value = process.env[name];

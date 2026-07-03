@@ -11,9 +11,10 @@
 
 html[data-club='ARENAS'],
 body[data-club='ARENAS'] {
-  --club-red: 17 17 17;
-  --club-red-dark: 0 0 0;
-  --club-black: 200 16 46;
+  /* En ARENAS mantenemos el texto negro y usamos el rojo solo como acento. */
+  --club-red: 200 16 46;
+  --club-red-dark: 154 12 34;
+  --club-black: 17 17 17;
   --club-white: 255 255 255;
 }
 

@@ -7,20 +7,22 @@ const linkClass = ({ isActive }) =>
     isActive ? 'bg-club-red text-white' : 'text-club-black/80 hover:bg-club-red/10 hover:text-club-black'
   }`;
 
-const NAV_ITEMS = [
-  { to: '/', label: 'Inicio', end: true },
-  { to: '/campogramas', label: 'Campogramas' },
-  { to: '/hojas-calculo', label: 'Hojas de calculo' },
-];
+const NAV_ITEMS = [{ to: '/', label: 'Inicio', end: true }];
 
-const ADMIN_NAV_ITEMS = [
-  { to: '/usuarios', label: 'Usuarios' },
+const SECONDARY_NAV_ITEMS = [
+  { to: '/campogramas', label: 'Campogramas' },
   { to: '/municipios', label: 'Municipios' },
 ];
 
+const FINAL_NAV_ITEMS = [
+  { to: '/usuarios', label: 'Usuarios' },
+  { to: '/hojas-calculo', label: 'Hojas de calculo' },
+];
+
 const VISTA_OPCIONES = [
-  { valor: 'tarjeta', label: 'Tarjetas' },
-  { valor: 'graficas', label: 'Gráficas' },
+  { valor: 'tabla', label: 'Vista tabla' },
+  { valor: 'tarjetas', label: 'Vista tarjetas' },
+  { valor: 'graficas', label: 'Vista graficas' },
 ];
 
 export default function Sidebar({ isOpen, onClose }) {
@@ -30,7 +32,6 @@ export default function Sidebar({ isOpen, onClose }) {
 
   if (!user) return null;
 
-  const isAdminOrDirector = user.rol === 'administrador' || user.rol === 'director';
   const enPlantillas = pathname === '/';
 
   const nav = (
@@ -40,15 +41,9 @@ export default function Sidebar({ isOpen, onClose }) {
           {item.label}
         </NavLink>
       ))}
-      {isAdminOrDirector &&
-        ADMIN_NAV_ITEMS.map((item) => (
-          <NavLink key={item.to} to={item.to} className={linkClass} onClick={onClose}>
-            {item.label}
-          </NavLink>
-        ))}
 
       {enPlantillas && (
-        <div className="mt-4 pt-3 border-t border-gray-200">
+        <div className="mt-2 pl-2">
           {VISTA_OPCIONES.map((opcion) => (
             <button
               key={opcion.valor}
@@ -68,6 +63,23 @@ export default function Sidebar({ isOpen, onClose }) {
           ))}
         </div>
       )}
+
+      <div className="mt-2">
+        {SECONDARY_NAV_ITEMS.map((item) => (
+          <NavLink key={item.to} to={item.to} className={linkClass} onClick={onClose}>
+            {item.label}
+          </NavLink>
+        ))}
+      </div>
+
+      <div className="mt-2">
+        {(user.rol === 'administrador' || user.rol === 'director') &&
+          FINAL_NAV_ITEMS.map((item) => (
+            <NavLink key={item.to} to={item.to} className={linkClass} onClick={onClose}>
+              {item.label}
+            </NavLink>
+          ))}
+      </div>
     </nav>
   );
 

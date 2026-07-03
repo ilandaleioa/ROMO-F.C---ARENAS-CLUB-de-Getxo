@@ -41,78 +41,106 @@ async function conFotoUrl(row) {
   if (!foto_path) {
     return { ...resto, foto_url: null };
   }
-  const { data, error } = await supabaseAdmin.storage
-    .from(FOTO_BUCKET)
-    .createSignedUrl(foto_path, FOTO_URL_TTL_SEGUNDOS);
-  return { ...resto, foto_url: error ? null : data.signedUrl };
+  try {
+    const { data, error } = await supabaseAdmin.storage
+      .from(FOTO_BUCKET)
+      .createSignedUrl(foto_path, FOTO_URL_TTL_SEGUNDOS);
+    return { ...resto, foto_url: error ? null : data.signedUrl };
+  } catch (err) {
+    console.warn(`No se pudo firmar la foto "${foto_path}":`, err.message);
+    return { ...resto, foto_url: null };
+  }
 }
 
 // GET /api/jugadores?equipo=xxx&q=busqueda
 // Tecnico: se fuerza siempre su equipo_asignado, ignorando "equipo" del query.
 // Administrador/Responsable: pueden filtrar por cualquier equipo o pedir todos.
 router.get('/', async (req, res) => {
-  const { rol, equipo_asignado } = req.user;
-  const columns = columnsForRole(rol);
-  const search = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+  try {
+    const { rol, equipo_asignado } = req.user;
+    const columns = columnsForRole(rol);
+    const search = typeof req.query.q === 'string' ? req.query.q.trim() : '';
 
-  let query = supabaseAdmin.from('jugadores').select(columns.join(',')).eq('club', req.club);
+    let query = supabaseAdmin.from('jugadores').select(columns.join(',')).eq('club', req.club);
 
-  if (rol === ROLES.TECNICO && equipo_asignado !== 'Todos') {
-    if (!equipo_asignado) {
-      return res.status(409).json({ error: 'Tu usuario no tiene un equipo asignado. Contacta con el administrador.' });
+    if (rol === ROLES.TECNICO && equipo_asignado !== 'Todos') {
+      if (!equipo_asignado) {
+        return res.status(409).json({ error: 'Tu usuario no tiene un equipo asignado. Contacta con el administrador.' });
+      }
+      query = query.eq('equipo', equipo_asignado);
+    } else if (req.query.equipo !== undefined) {
+      const equiposFiltro = (Array.isArray(req.query.equipo) ? req.query.equipo : [req.query.equipo])
+        .map((e) => String(e).trim())
+        .filter(Boolean);
+      if (equiposFiltro.length === 1) {
+        query = query.eq('equipo', equiposFiltro[0]);
+      } else if (equiposFiltro.length > 1) {
+        query = query.in('equipo', equiposFiltro);
+      }
     }
-    query = query.eq('equipo', equipo_asignado);
-  } else if (req.query.equipo !== undefined) {
-    const equiposFiltro = (Array.isArray(req.query.equipo) ? req.query.equipo : [req.query.equipo])
-      .map((e) => String(e).trim())
-      .filter(Boolean);
-    if (equiposFiltro.length === 1) {
-      query = query.eq('equipo', equiposFiltro[0]);
-    } else if (equiposFiltro.length > 1) {
-      query = query.in('equipo', equiposFiltro);
+
+    if (search) {
+      query = query.or(
+        `nombre.ilike.%${search}%,primer_apellido.ilike.%${search}%,segundo_apellido.ilike.%${search}%`
+      );
     }
-  }
 
-  if (search) {
-    query = query.or(
-      `nombre.ilike.%${search}%,primer_apellido.ilike.%${search}%,segundo_apellido.ilike.%${search}%`
-    );
-  }
+    query = query.order('primer_apellido', { ascending: true });
 
-  query = query.order('primer_apellido', { ascending: true });
+    const { data, error } = await query;
+    if (error) {
+      console.error('Error consultando jugadores:', error);
+      return res.status(503).json({ error: 'No se pudo consultar la base de datos de jugadores.' });
+    }
 
-  const { data, error } = await query;
-  if (error) {
-    console.error('Error consultando jugadores:', error);
+    const sanitized = await Promise.all((data || []).map((row) => conFotoUrl(sanitizeRow(row, rol))));
+    res.json({ jugadores: sanitized });
+  } catch (err) {
+    console.error('Error inesperado al listar jugadores:', err);
     return res.status(503).json({ error: 'No se pudo consultar la base de datos de jugadores.' });
   }
-
-  const sanitized = await Promise.all((data || []).map((row) => conFotoUrl(sanitizeRow(row, rol))));
-  res.json({ jugadores: sanitized });
 });
 
-// Orden de categorías de mayor a menor edad; dentro de cada una, ROMO antes que ITZU.
-const ORDEN_EQUIPOS = [
-  'ROMO JUVENIL',
-  'ITZU JUVENIL',
-  'ROMO CADETE',
-  'ITZU CADETE',
-  'ROMO INFANTIL 2013',
-  'ROMO INFANTIL 2014',
-  'ROMO ALEVIN 2015 Gobela',
-  'ROMO ALEVIN 2015 Ibaiondo',
-  'ROMO ALEVIN 2016',
-  'ROMO BENJAMIN 2017 Gobela',
-  'ROMO BENJAMIN 2017 Ibaiondo',
-  'ROMO BENJAMIN 2018',
-  'ROMO PREBENJAMIN 2019',
-  'ROMO PREBENJAMIN 2020',
-];
+// Orden de equipos mostrado en la app. Separamos por club para respetar la
+// jerarquía real de cada cantera sin depender del orden alfabético.
+const ORDEN_EQUIPOS_POR_CLUB = {
+  ARENAS: [
+    'Juvenil A',
+    'Juvenil B',
+    'Cadete A',
+    'Cadete B',
+    'Infantil 13',
+    'Infantil 14',
+    'Alevín 15A',
+    'Alevín 15B',
+    'Alevín 16A',
+    'Alevín 16B',
+    'Benjamín 17',
+    'Benjamín 18',
+  ],
+  ROMO: [
+    'ROMO JUVENIL',
+    'ITZU JUVENIL',
+    'ROMO CADETE',
+    'ITZU CADETE',
+    'ROMO INFANTIL 2013',
+    'ROMO INFANTIL 2014',
+    'ROMO ALEVIN 2015 Gobela',
+    'ROMO ALEVIN 2015 Ibaiondo',
+    'ROMO ALEVIN 2016',
+    'ROMO BENJAMIN 2017 Gobela',
+    'ROMO BENJAMIN 2017 Ibaiondo',
+    'ROMO BENJAMIN 2018',
+    'ROMO PREBENJAMIN 2019',
+    'ROMO PREBENJAMIN 2020',
+  ],
+};
 
-function ordenarEquipos(equipos) {
+function ordenarEquipos(equipos, club) {
+  const ordenClub = ORDEN_EQUIPOS_POR_CLUB[club] || [];
   return [...equipos].sort((a, b) => {
-    const ia = ORDEN_EQUIPOS.indexOf(a);
-    const ib = ORDEN_EQUIPOS.indexOf(b);
+    const ia = ordenClub.indexOf(a);
+    const ib = ordenClub.indexOf(b);
     if (ia === -1 && ib === -1) return a.localeCompare(b);
     if (ia === -1) return 1;
     if (ib === -1) return -1;
@@ -134,7 +162,7 @@ router.get('/equipos', async (req, res) => {
     return res.status(503).json({ error: 'No se pudo consultar la base de datos de jugadores.' });
   }
 
-  const equipos = ordenarEquipos(Array.from(new Set((data || []).map((r) => r.equipo).filter(Boolean))));
+  const equipos = ordenarEquipos(Array.from(new Set((data || []).map((r) => r.equipo).filter(Boolean))), req.club);
   res.json({ equipos });
 });
 

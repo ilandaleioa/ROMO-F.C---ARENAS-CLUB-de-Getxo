@@ -8,6 +8,7 @@ export const ETIQUETAS_JUGADOR = {
   segundo_apellido: 'Segundo apellido',
   equipo: 'Equipo',
   fecha_nacimiento: 'Fecha de nacimiento',
+  anio_nacimiento: 'Año de nacimiento',
   edad: 'Edad',
   lugar_nacimiento: 'Lugar de nacimiento',
   dni_jugador: 'DNI del jugador',
@@ -53,30 +54,36 @@ export const DEMARCACION_OPCIONES = ['Portero', 'Lateral', 'Central', 'Medio', '
 // Orden de las secciones/campos en la ficha de detalle.
 export const SECCIONES_FICHA = [
   {
+    titulo: 'Datos deportivos',
+    campos: ['dorsal', 'lateralidad', 'demarcacion'],
+  },
+  {
     titulo: 'Datos del jugador',
     campos: [
       'nombre',
       'primer_apellido',
       'segundo_apellido',
       'equipo',
-      'fecha_nacimiento',
-      'edad',
       'lugar_nacimiento',
       'dni_jugador',
       'altura_cm',
       'peso_kg',
       'tiene_hermanos_club',
-      'telefono_jugador',
-      'email_jugador',
-      'colegio_instituto',
-      'hora_salida_colegio',
       'club_procedencia',
       'temporada_ingreso',
     ],
   },
   {
-    titulo: 'Datos deportivos',
-    campos: ['dorsal', 'lateralidad', 'demarcacion'],
+    titulo: 'Contacto',
+    campos: ['telefono_jugador', 'email_jugador'],
+  },
+  {
+    titulo: 'Nacimiento',
+    campos: ['fecha_nacimiento', 'anio_nacimiento', 'edad'],
+  },
+  {
+    titulo: 'Colegio',
+    campos: ['colegio_instituto', 'hora_salida_colegio'],
   },
   {
     titulo: 'Domicilio',

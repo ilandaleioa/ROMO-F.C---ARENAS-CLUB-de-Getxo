@@ -27,6 +27,13 @@ function formatearValor(valor, campo) {
   return String(valor);
 }
 
+function calcularAnioNacimiento(fechaNacimiento) {
+  if (!fechaNacimiento) return null;
+  const nacimiento = new Date(fechaNacimiento);
+  if (Number.isNaN(nacimiento.getTime())) return null;
+  return nacimiento.getFullYear();
+}
+
 function calcularEdad(fechaNacimiento) {
   if (!fechaNacimiento) return null;
   const nacimiento = new Date(fechaNacimiento);
@@ -38,6 +45,22 @@ function calcularEdad(fechaNacimiento) {
     (hoy.getMonth() === nacimiento.getMonth() && hoy.getDate() < nacimiento.getDate());
   if (aunNoCumplida) edad -= 1;
   return edad;
+}
+
+function tieneDatoCampo(jugador, campo) {
+  if (!jugador) return false;
+  if (campo === 'anio_nacimiento' || campo === 'edad') {
+    return Boolean(jugador.fecha_nacimiento);
+  }
+  return Object.prototype.hasOwnProperty.call(jugador, campo);
+}
+
+function obtenerValorCampoFicha(jugador, campo) {
+  if (!jugador) return null;
+  if (campo === 'fecha_nacimiento') return jugador.fecha_nacimiento;
+  if (campo === 'anio_nacimiento') return calcularAnioNacimiento(jugador.fecha_nacimiento);
+  if (campo === 'edad') return jugador.edad ?? calcularEdad(jugador.fecha_nacimiento);
+  return jugador[campo];
 }
 
 export default function FichaJugador() {
@@ -140,11 +163,14 @@ export default function FichaJugador() {
       doc.line(14, y, anchoPagina - 14, y);
 
       const filas = [
-        ['Fecha de nacimiento', formatearValor(jugador.fecha_nacimiento, 'fecha_nacimiento')],
-        ['Edad', jugador.edad !== undefined && jugador.edad !== null ? `${jugador.edad} años` : '-'],
         ['Demarcación', formatearValor(jugador.demarcacion)],
         ['Lateralidad', formatearValor(jugador.lateralidad)],
         ['Dorsal', formatearValor(jugador.dorsal)],
+        ['Telefono', formatearValor(jugador.telefono_jugador)],
+        ['Email', formatearValor(jugador.email_jugador)],
+        ['Fecha de nacimiento', formatearValor(jugador.fecha_nacimiento, 'fecha_nacimiento')],
+        ['Año de nacimiento', calcularAnioNacimiento(jugador.fecha_nacimiento) ?? '-'],
+        ['Edad', jugador.edad !== undefined && jugador.edad !== null ? `${jugador.edad} años` : '-'],
       ];
 
       y += 14;
@@ -309,7 +335,7 @@ export default function FichaJugador() {
 
           <div className="p-4 sm:p-6 space-y-6">
             {SECCIONES_FICHA.map((seccion) => {
-              const camposDisponibles = seccion.campos.filter((c) => c in jugador);
+              const camposDisponibles = seccion.campos.filter((campo) => tieneDatoCampo(jugador, campo));
               if (camposDisponibles.length === 0) return null;
               const esDeportivo = seccion.titulo === 'Datos deportivos';
               const editable = esDeportivo && puedeEditarDeportivo;
@@ -351,7 +377,9 @@ export default function FichaJugador() {
                             ))}
                           </select>
                         ) : (
-                          <dd className="text-club-black">{formatearValor(jugador[campo], campo)}</dd>
+                          <dd className="text-club-black">
+                            {formatearValor(obtenerValorCampoFicha(jugador, campo), campo)}
+                          </dd>
                         )}
                       </div>
                     ))}

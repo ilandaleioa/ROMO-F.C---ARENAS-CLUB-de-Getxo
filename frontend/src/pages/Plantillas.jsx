@@ -7,6 +7,33 @@ import { useVistaPlantillas } from '../context/VistaPlantillasContext';
 import { api } from '../lib/api';
 import { LATERALIDAD_OPCIONES, DEMARCACION_OPCIONES } from '../lib/campos';
 
+const ORDEN_EQUIPOS_ARENAS = [
+  'Juvenil A',
+  'Juvenil B',
+  'Cadete A',
+  'Cadete B',
+  'Infantil 13',
+  'Infantil 14',
+  'Alevín 15A',
+  'Alevín 15B',
+  'Alevín 16A',
+  'Alevín 16B',
+  'Benjamín 17',
+  'Benjamín 18',
+];
+
+function ordenarEquiposParaVista(equipos, club) {
+  const ordenClub = club === 'ARENAS' ? ORDEN_EQUIPOS_ARENAS : [];
+  return [...equipos].sort((a, b) => {
+    const ia = ordenClub.indexOf(a);
+    const ib = ordenClub.indexOf(b);
+    if (ia === -1 && ib === -1) return a.localeCompare(b);
+    if (ia === -1) return 1;
+    if (ib === -1) return -1;
+    return ia - ib;
+  });
+}
+
 export default function Plantillas() {
   const { user } = useAuth();
   const { club } = useClub();
@@ -90,7 +117,7 @@ export default function Plantillas() {
     (acc[j.equipo] ||= []).push(j);
     return acc;
   }, {});
-  const gruposEquipos = Object.keys(jugadoresPorEquipo).sort((a, b) => a.localeCompare(b));
+  const gruposEquipos = ordenarEquiposParaVista(Object.keys(jugadoresPorEquipo), club);
 
   const calcularEdad = (fechaNacimiento) => {
     if (!fechaNacimiento) return null;
@@ -170,6 +197,12 @@ export default function Plantillas() {
     );
   };
 
+  const renderIconoOjo = () => (
+    <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4" aria-hidden="true">
+      <path d="M10 3.5c-4.14 0-7.4 2.6-9 6.5 1.6 3.9 4.86 6.5 9 6.5s7.4-2.6 9-6.5c-1.6-3.9-4.86-6.5-9-6.5zm0 10.83A4.33 4.33 0 1110 5.67a4.33 4.33 0 010 8.66zm0-6.83a2.5 2.5 0 100 5 2.5 2.5 0 000-5z" />
+    </svg>
+  );
+
   const renderGraficas = (lista) => {
     const porEquipo = contarPor(lista, (j) => j.equipo);
     const porDemarcacion = contarPor(lista, (j) => j.demarcacion);
@@ -230,9 +263,11 @@ export default function Plantillas() {
               <td className="px-4 py-3 text-right">
                 <Link
                   to={`/plantillas/${j.id}`}
-                  className="text-club-red font-semibold hover:underline text-sm"
+                  className="inline-flex items-center justify-center w-8 h-8 rounded-full text-club-red hover:bg-red-50 hover:text-club-redDark transition-colors"
+                  aria-label={`Ver ficha de ${j.nombre} ${j.primer_apellido} ${j.segundo_apellido || ''}`.trim()}
+                  title={`Ver ficha de ${j.nombre} ${j.primer_apellido} ${j.segundo_apellido || ''}`.trim()}
                 >
-                  Ver ficha
+                  {renderIconoOjo()}
                 </Link>
               </td>
             </tr>
@@ -271,9 +306,11 @@ export default function Plantillas() {
           </p>
           <Link
             to={`/plantillas/${j.id}`}
-            className="mt-2 text-club-red font-semibold hover:underline text-sm"
+            className="mt-2 inline-flex items-center justify-center w-8 h-8 rounded-full text-club-red hover:bg-red-50 hover:text-club-redDark transition-colors"
+            aria-label={`Ver ficha de ${j.nombre} ${j.primer_apellido} ${j.segundo_apellido || ''}`.trim()}
+            title={`Ver ficha de ${j.nombre} ${j.primer_apellido} ${j.segundo_apellido || ''}`.trim()}
           >
-            Ver ficha
+            {renderIconoOjo()}
           </Link>
         </div>
       ))}
