@@ -44,7 +44,18 @@ router.get('/', async (req, res) => {
     return res.status(503).json({ error: 'No se pudo consultar el campograma.' });
   }
 
-  res.json({ campograma: data || { equipo, sistema, asignaciones: {} } });
+  const asignacionesSaneadas = {};
+  for (const [posicionId, jugadorIdsPuesto] of Object.entries(data?.asignaciones || {})) {
+    if (Array.isArray(jugadorIdsPuesto) && jugadorIdsPuesto.length > 0) {
+      asignacionesSaneadas[posicionId] = jugadorIdsPuesto;
+    }
+  }
+
+  res.json({
+    campograma: data
+      ? { ...data, asignaciones: asignacionesSaneadas }
+      : { equipo, sistema, asignaciones: {} },
+  });
 });
 
 // PUT /api/campogramas -> guarda/actualiza la asignacion de jugadores a posiciones.

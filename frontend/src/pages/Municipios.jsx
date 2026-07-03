@@ -1,6 +1,31 @@
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '../lib/api';
 
+const COLORES_CIRCULAR = [
+  '#2a78d6', // azul
+  '#1baf7a', // aqua
+  '#eda100', // amarillo
+  '#008300', // verde
+  '#4a3aa7', // violeta
+  '#e34948', // rojo
+  '#e87ba4', // magenta
+  '#eb6834', // naranja
+];
+
+const TOP_MUNICIPIOS_CIRCULAR = 7;
+
+function polarToCartesian(cx, cy, radio, anguloGrados) {
+  const anguloRad = ((anguloGrados - 90) * Math.PI) / 180;
+  return { x: cx + radio * Math.cos(anguloRad), y: cy + radio * Math.sin(anguloRad) };
+}
+
+function arcoSvg(cx, cy, radio, anguloInicio, anguloFin) {
+  const inicio = polarToCartesian(cx, cy, radio, anguloFin);
+  const fin = polarToCartesian(cx, cy, radio, anguloInicio);
+  const arcoGrande = anguloFin - anguloInicio > 180 ? 1 : 0;
+  return `M ${cx} ${cy} L ${inicio.x} ${inicio.y} A ${radio} ${radio} 0 ${arcoGrande} 0 ${fin.x} ${fin.y} Z`;
+}
+
 export default function Municipios() {
   const [jugadores, setJugadores] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -35,6 +60,36 @@ export default function Municipios() {
     .sort((a, b) => b.total - a.total || a.municipio.localeCompare(b.municipio));
 
   const maxTotal = filas.reduce((max, f) => Math.max(max, f.total), 0);
+  const totalGeneral = filas.reduce((sum, f) => sum + f.total, 0);
+
+  const filasCircular =
+    filas.length <= TOP_MUNICIPIOS_CIRCULAR
+      ? filas
+      : [
+          ...filas.slice(0, TOP_MUNICIPIOS_CIRCULAR),
+          {
+            municipio: 'Otros',
+            total: filas.slice(TOP_MUNICIPIOS_CIRCULAR).reduce((sum, f) => sum + f.total, 0),
+          },
+        ];
+
+  let anguloAcumulado = 0;
+  const sectores = filasCircular.map((f, i) => {
+    const porcentaje = totalGeneral > 0 ? (f.total / totalGeneral) * 100 : 0;
+    const anguloInicio = anguloAcumulado;
+    const anguloFin = anguloAcumulado + (porcentaje / 100) * 360;
+    anguloAcumulado = anguloFin;
+    const anguloMedio = (anguloInicio + anguloFin) / 2;
+    const puntoEtiqueta = polarToCartesian(100, 100, 65, anguloMedio);
+    return {
+      ...f,
+      porcentaje,
+      color: COLORES_CIRCULAR[i % COLORES_CIRCULAR.length],
+      path: arcoSvg(100, 100, 100, anguloInicio, anguloFin),
+      etiquetaX: puntoEtiqueta.x,
+      etiquetaY: puntoEtiqueta.y,
+    };
+  });
 
   const toggleMunicipio = (municipio) => {
     setMunicipioExpandido((actual) => (actual === municipio ? null : municipio));
@@ -62,6 +117,55 @@ export default function Municipios() {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+
+  const renderGraficaCircular = () => (
+    <div className="rounded-lg border border-gray-200 bg-white p-4 sm:p-6 mb-6">
+      <h3 className="text-sm font-semibold uppercase tracking-wide text-club-black/70 mb-4">
+        Distribución por municipio
+      </h3>
+      <div className="flex flex-col md:flex-row items-center gap-6">
+        <svg viewBox="0 0 200 200" className="w-56 h-56 shrink-0" role="img" aria-label="Gráfica circular de jugadores por municipio">
+          {sectores.map((s) => (
+            <path key={s.municipio} d={s.path} fill={s.color} stroke="#fcfcfb" strokeWidth="2" />
+          ))}
+          {sectores
+            .filter((s) => s.porcentaje >= 8)
+            .map((s) => (
+              <text
+                key={`etq-${s.municipio}`}
+                x={s.etiquetaX}
+                y={s.etiquetaY}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fill="#ffffff"
+                fontSize="10"
+                fontWeight="600"
+              >
+                {`${Math.round(s.porcentaje)}%`}
+              </text>
+            ))}
+        </svg>
+        <ul className="w-full flex flex-col gap-1.5">
+          {sectores.map((s) => (
+            <li key={s.municipio} className="flex items-center gap-2 text-sm">
+              <span
+                className="inline-block w-3 h-3 rounded-sm shrink-0"
+                style={{ backgroundColor: s.color }}
+                aria-hidden="true"
+              />
+              <span className="text-club-black flex-1 truncate" title={s.municipio}>
+                {s.municipio}
+              </span>
+              <span className="text-club-black/70 tabular-nums">{s.total}</span>
+              <span className="text-club-black/50 tabular-nums w-14 text-right">
+                {s.porcentaje.toFixed(1)}%
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 
@@ -124,7 +228,10 @@ export default function Municipios() {
       ) : error ? null : filas.length === 0 ? (
         <p className="text-club-black/60">No hay datos de localidad disponibles.</p>
       ) : (
-        renderGrafica()
+        <>
+          {renderGraficaCircular()}
+          {renderGrafica()}
+        </>
       )}
     </div>
   );

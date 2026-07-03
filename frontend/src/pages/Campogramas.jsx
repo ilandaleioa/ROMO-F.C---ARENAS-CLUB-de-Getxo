@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../lib/api';
 
@@ -11,6 +11,7 @@ function nombreCompleto(j) {
 
 export default function Campogramas() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const esTecnico = user.rol === 'tecnico';
   const puedeEditar = ['administrador', 'responsable', 'tecnico'].includes(user.rol);
   const [searchParams] = useSearchParams();
@@ -68,7 +69,14 @@ export default function Campogramas() {
         api.get(`/campogramas?${params.toString()}`),
       ]);
       setJugadores(listaJugadores);
-      setAsignaciones(campograma?.asignaciones || {});
+      const asignacionesRecibidas = campograma?.asignaciones || {};
+      const asignacionesValidas = {};
+      for (const [posicionId, jugadorIdsPuesto] of Object.entries(asignacionesRecibidas)) {
+        if (Array.isArray(jugadorIdsPuesto)) {
+          asignacionesValidas[posicionId] = jugadorIdsPuesto;
+        }
+      }
+      setAsignaciones(asignacionesValidas);
     } catch (err) {
       setError(err.message);
     }
@@ -274,7 +282,7 @@ export default function Campogramas() {
                       )}
                     </div>
                     {puestoJugadores.length === 0 && (
-                      <span className="text-[10px] font-semibold text-white bg-club-black/70 px-1.5 py-0.5 rounded whitespace-nowrap">
+                      <span className="text-[10px] font-semibold text-club-black bg-white px-1.5 py-0.5 rounded shadow-md whitespace-nowrap">
                         {pos.label}
                       </span>
                     )}
