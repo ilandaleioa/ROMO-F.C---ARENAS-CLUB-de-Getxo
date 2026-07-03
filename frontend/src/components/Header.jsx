@@ -21,7 +21,11 @@ function SelectorClub() {
           type="button"
           onClick={() => setClub(c.valor)}
           className={`px-3 py-2 text-xs sm:text-sm font-bold tracking-wide transition-colors ${
-            club === c.valor ? 'bg-club-red text-white' : 'bg-white/5 text-white/70 hover:bg-white/15 hover:text-white'
+            club === c.valor
+              ? c.valor === 'ARENAS'
+                ? 'bg-club-red text-black'
+                : 'bg-club-red text-white'
+              : 'bg-white/5 text-white/70 hover:bg-white/15 hover:text-white'
           }`}
         >
           {c.label}
@@ -207,7 +211,7 @@ export default function Header({ onToggleSidebar }) {
           )}
           <ClubLogo />
           <div className="leading-tight min-w-0">
-            <h1 className="text-base sm:text-xl font-bold tracking-wide truncate">
+            <h1 className={`text-base sm:text-xl font-bold tracking-wide truncate ${club === 'ARENAS' ? 'text-black' : 'text-white'}`}>
               {NOMBRE_CLUB[club] || 'ROMO F.C. - ARENAS CLUB'}
             </h1>
           </div>

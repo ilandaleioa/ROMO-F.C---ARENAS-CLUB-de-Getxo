@@ -13,7 +13,6 @@ import Plantillas from './pages/Plantillas';
 import FichaJugador from './pages/FichaJugador';
 import Usuarios from './pages/Usuarios';
 import Campogramas from './pages/Campogramas';
-import Municipios from './pages/Municipios';
 import HojasCalculo from './pages/HojasCalculo';
 
 function ClubThemeSync() {
@@ -87,16 +86,6 @@ function AppRoutes() {
           <ProtectedRoute allowedRoles={['administrador', 'director']}>
             <Layout>
               <Usuarios />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/municipios"
-        element={
-          <ProtectedRoute allowedRoles={['administrador', 'director']}>
-            <Layout>
-              <Municipios />
             </Layout>
           </ProtectedRoute>
         }

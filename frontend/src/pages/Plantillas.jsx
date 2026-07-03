@@ -7,6 +7,19 @@ import { useVistaPlantillas } from '../context/VistaPlantillasContext';
 import { api } from '../lib/api';
 import { LATERALIDAD_OPCIONES, DEMARCACION_OPCIONES } from '../lib/campos';
 
+const COLORES_MUNICIPIOS = [
+  '#2a78d6',
+  '#1baf7a',
+  '#eda100',
+  '#008300',
+  '#4a3aa7',
+  '#e34948',
+  '#e87ba4',
+  '#eb6834',
+];
+
+const TOP_MUNICIPIOS_CIRCULAR = 7;
+
 const ORDEN_EQUIPOS_ARENAS = [
   'Juvenil A',
   'Juvenil B',
@@ -32,6 +45,27 @@ function ordenarEquiposParaVista(equipos, club) {
     if (ib === -1) return -1;
     return ia - ib;
   });
+}
+
+function normalizarLocalidad(valor) {
+  let v = valor.trim();
+  v = v.replace(/\(.*$/, '').trim();
+  v = v.replace(/[.,]+$/, '').trim();
+  v = v.replace(/\s+/g, ' ');
+  v = v.toLowerCase().replace(/(^|\s)\p{L}/gu, (c) => c.toUpperCase());
+  return v;
+}
+
+function polarToCartesian(cx, cy, radio, anguloGrados) {
+  const anguloRad = ((anguloGrados - 90) * Math.PI) / 180;
+  return { x: cx + radio * Math.cos(anguloRad), y: cy + radio * Math.sin(anguloRad) };
+}
+
+function arcoSvg(cx, cy, radio, anguloInicio, anguloFin) {
+  const inicio = polarToCartesian(cx, cy, radio, anguloFin);
+  const fin = polarToCartesian(cx, cy, radio, anguloInicio);
+  const arcoGrande = anguloFin - anguloInicio > 180 ? 1 : 0;
+  return `M ${cx} ${cy} L ${inicio.x} ${inicio.y} A ${radio} ${radio} 0 ${arcoGrande} 0 ${fin.x} ${fin.y} Z`;
 }
 
 export default function Plantillas() {
@@ -208,6 +242,131 @@ export default function Plantillas() {
     const porDemarcacion = contarPor(lista, (j) => j.demarcacion);
     const porLateralidad = contarPor(lista, (j) => j.lateralidad);
     const porAnio = contarPor(lista, (j) => anioNacimiento(j.fecha_nacimiento));
+    const conLocalidad = lista.filter((j) => j.localidad && j.localidad.trim() !== '');
+    const conteoPorMunicipio = conLocalidad.reduce((acc, j) => {
+      const municipio = normalizarLocalidad(j.localidad);
+      (acc[municipio] ||= []).push(j);
+      return acc;
+    }, {});
+    const filasMunicipio = Object.entries(conteoPorMunicipio)
+      .map(([municipio, jugadoresMunicipio]) => ({ municipio, total: jugadoresMunicipio.length }))
+      .sort((a, b) => b.total - a.total || a.municipio.localeCompare(b.municipio));
+    const totalMunicipios = filasMunicipio.reduce((sum, f) => sum + f.total, 0);
+    const maxMunicipios = filasMunicipio.reduce((max, f) => Math.max(max, f.total), 0);
+    const filasCircular =
+      filasMunicipio.length <= TOP_MUNICIPIOS_CIRCULAR
+        ? filasMunicipio
+        : [
+            ...filasMunicipio.slice(0, TOP_MUNICIPIOS_CIRCULAR),
+            {
+              municipio: 'Otros',
+              total: filasMunicipio.slice(TOP_MUNICIPIOS_CIRCULAR).reduce((sum, f) => sum + f.total, 0),
+            },
+          ];
+
+    let anguloAcumulado = 0;
+    const sectoresMunicipio = filasCircular.map((f, i) => {
+      const porcentaje = totalMunicipios > 0 ? (f.total / totalMunicipios) * 100 : 0;
+      const anguloInicio = anguloAcumulado;
+      const anguloFin = anguloAcumulado + (porcentaje / 100) * 360;
+      anguloAcumulado = anguloFin;
+      const anguloMedio = (anguloInicio + anguloFin) / 2;
+      const puntoEtiqueta = polarToCartesian(100, 100, 65, anguloMedio);
+      return {
+        ...f,
+        porcentaje,
+        color: COLORES_MUNICIPIOS[i % COLORES_MUNICIPIOS.length],
+        path: arcoSvg(100, 100, 100, anguloInicio, anguloFin),
+        etiquetaX: puntoEtiqueta.x,
+        etiquetaY: puntoEtiqueta.y,
+      };
+    });
+
+    const renderGraficaCircularMunicipios = () => (
+      <div className="rounded-lg border border-gray-200 bg-white p-4 sm:p-6">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-club-black/70 mb-4">
+          Distribución por municipio
+        </h3>
+        {filasMunicipio.length === 0 ? (
+          <p className="text-sm text-club-black/50">Sin datos disponibles.</p>
+        ) : (
+          <div className="flex flex-col md:flex-row items-center gap-6">
+            <svg viewBox="0 0 200 200" className="w-56 h-56 shrink-0" role="img" aria-label="Gráfica circular de jugadores por municipio">
+              {sectoresMunicipio.map((s) => (
+                <path key={s.municipio} d={s.path} fill={s.color} stroke="#fcfcfb" strokeWidth="2" />
+              ))}
+              {sectoresMunicipio
+                .filter((s) => s.porcentaje >= 8)
+                .map((s) => (
+                  <text
+                    key={`etq-${s.municipio}`}
+                    x={s.etiquetaX}
+                    y={s.etiquetaY}
+                    textAnchor="middle"
+                    fill="#ffffff"
+                    fontSize="10"
+                    fontWeight="600"
+                  >
+                    <tspan x={s.etiquetaX} dy="-2">{`${Math.round(s.porcentaje)}%`}</tspan>
+                    <tspan x={s.etiquetaX} dy="12">{`(${s.total})`}</tspan>
+                  </text>
+                ))}
+            </svg>
+            <ul className="w-full max-w-xs flex flex-col gap-1.5">
+              {sectoresMunicipio.map((s) => (
+                <li key={s.municipio} className="flex items-center gap-2 text-sm">
+                  <span
+                    className="inline-block w-3 h-3 rounded-sm shrink-0"
+                    style={{ backgroundColor: s.color }}
+                    aria-hidden="true"
+                  />
+                  <span className="text-club-black flex-1 truncate" title={s.municipio}>
+                    {s.municipio}
+                  </span>
+                  <span className="text-club-black/70 tabular-nums">{s.total}</span>
+                  <span className="text-club-black/50 tabular-nums w-14 text-right">
+                    {s.porcentaje.toFixed(1)}%
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    );
+
+    const renderGraficaBarrasMunicipios = () => (
+      <div className="rounded-lg border border-gray-200 bg-white p-4 sm:p-6">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-club-black/70 mb-4">
+          Jugadores por municipio
+        </h3>
+        {filasMunicipio.length === 0 ? (
+          <p className="text-sm text-club-black/50">Sin datos disponibles.</p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {filasMunicipio.map((f) => {
+              const anchoPct = maxMunicipios > 0 ? (f.total / maxMunicipios) * 100 : 0;
+              return (
+                <div key={f.municipio} className="flex flex-col gap-1">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-sm font-medium text-club-black truncate" title={f.municipio}>
+                      {f.municipio}
+                    </span>
+                    <span className="text-sm text-club-black/70 shrink-0 tabular-nums">{f.total}</span>
+                  </div>
+                  <span className="block w-full h-4 rounded-sm bg-gray-100 overflow-hidden">
+                    <span
+                      className="block h-full rounded-sm bg-club-red transition-all"
+                      style={{ width: `${anchoPct}%` }}
+                    />
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
 
     return (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -215,6 +374,8 @@ export default function Plantillas() {
         {renderBarras('Jugadores por demarcación', porDemarcacion)}
         {renderBarras('Jugadores por lateralidad', porLateralidad)}
         {renderBarras('Jugadores por año de nacimiento', porAnio, { ordenNumerico: true })}
+        {renderGraficaCircularMunicipios()}
+        {renderGraficaBarrasMunicipios()}
       </div>
     );
   };
