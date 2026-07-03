@@ -3,6 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useFiltroEquipos } from '../context/FiltroEquiposContext';
 import { useClub, CLUBES } from '../context/ClubContext';
+
+const NOMBRE_CLUB = {
+  ROMO: 'ROMO F.C.',
+  ARENAS: 'ARENAS CLUB',
+};
 import ClubLogo from './ClubLogo';
 
 function SelectorClub() {
@@ -173,7 +178,7 @@ function BotonesHistorial() {
 
 export default function Header({ onToggleSidebar }) {
   const { user, logout } = useAuth();
-  const { setClub } = useClub();
+  const { club, setClub } = useClub();
   const [menuAbierto, setMenuAbierto] = useState(false);
   const puedeCambiarClub = user && (!user.club || user.club === 'TODOS');
 
@@ -202,7 +207,7 @@ export default function Header({ onToggleSidebar }) {
           <ClubLogo />
           <div className="leading-tight min-w-0">
             <h1 className="text-base sm:text-xl font-bold tracking-wide truncate">
-              ROMO FC <span className="text-club-red">-</span> ARENAS CLUB
+              {NOMBRE_CLUB[club] || 'ROMO F.C. - ARENAS CLUB'}
             </h1>
           </div>
         </div>
