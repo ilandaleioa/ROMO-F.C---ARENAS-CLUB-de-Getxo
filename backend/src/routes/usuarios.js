@@ -7,8 +7,8 @@ const { ROLES, ALL_ROLES } = require('../config/roles');
 
 const router = express.Router();
 
-// Pantalla y endpoints exclusivos de Administrador.
-router.use(requireAuth, requireRole(ROLES.ADMINISTRADOR));
+// Pantalla y endpoints exclusivos de Administrador y Director.
+router.use(requireAuth, requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR));
 
 const PUBLIC_USER_FIELDS = 'id, username, rol, equipo_asignado, activo, creado_en';
 

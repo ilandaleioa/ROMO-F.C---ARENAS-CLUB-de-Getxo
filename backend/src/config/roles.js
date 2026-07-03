@@ -1,5 +1,6 @@
 const ROLES = {
   ADMINISTRADOR: 'administrador',
+  DIRECTOR: 'director',
   RESPONSABLE: 'responsable',
   TECNICO: 'tecnico',
 };

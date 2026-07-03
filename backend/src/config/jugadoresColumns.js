@@ -15,6 +15,9 @@ const FULL_COLUMNS = [
   'dni_jugador',
   'altura_cm',
   'peso_kg',
+  'dorsal',
+  'lateralidad',
+  'demarcacion',
   'tiene_hermanos_club',
   'domicilio',
   'numero',
@@ -45,6 +48,33 @@ const FULL_COLUMNS = [
   'foto_path',
 ];
 
+// Columnas visibles para Responsable: todo menos datos de los tutores
+// (aita/ama) y datos identificativos/sensibles del propio jugador.
+const RESPONSABLE_EXCLUDED = new Set([
+  'nombre_aita',
+  'primer_apellido_aita',
+  'segundo_apellido_aita',
+  'dni_aita',
+  'telefono_aita',
+  'email_aita',
+  'nombre_ama',
+  'primer_apellido_ama',
+  'segundo_apellido_ama',
+  'dni_ama',
+  'telefono_ama',
+  'email_ama',
+  'dni_jugador',
+  'domicilio',
+  'numero',
+  'piso_letra',
+  'localidad',
+  'telefono_jugador',
+  'email_jugador',
+  'dni_aceptante',
+  'nombre_aceptante',
+]);
+const RESPONSABLE_COLUMNS = FULL_COLUMNS.filter((c) => !RESPONSABLE_EXCLUDED.has(c));
+
 // Columnas visibles para Tecnico (sin datos sensibles).
 const TECNICO_COLUMNS = [
   'id',
@@ -53,6 +83,9 @@ const TECNICO_COLUMNS = [
   'segundo_apellido',
   'equipo',
   'fecha_nacimiento',
+  'dorsal',
+  'lateralidad',
+  'demarcacion',
   'colegio_instituto',
   'hora_salida_colegio',
   'telefono_jugador',
@@ -79,7 +112,8 @@ const { ROLES } = require('./roles');
 
 function columnsForRole(rol) {
   if (rol === ROLES.TECNICO) return TECNICO_COLUMNS;
-  return FULL_COLUMNS;
+  if (rol === ROLES.RESPONSABLE) return RESPONSABLE_COLUMNS;
+  return FULL_COLUMNS; // administrador, director
 }
 
 // Elimina de cada fila cualquier campo que no este en la whitelist del rol,
@@ -95,6 +129,7 @@ function sanitizeRow(row, rol) {
 
 module.exports = {
   FULL_COLUMNS,
+  RESPONSABLE_COLUMNS,
   TECNICO_COLUMNS,
   SENSITIVE_COLUMNS,
   columnsForRole,

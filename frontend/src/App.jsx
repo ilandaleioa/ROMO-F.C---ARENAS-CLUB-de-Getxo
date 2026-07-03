@@ -1,11 +1,14 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { FiltroEquiposProvider } from './context/FiltroEquiposContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Header from './components/Header';
 import Login from './pages/Login';
 import Plantillas from './pages/Plantillas';
 import FichaJugador from './pages/FichaJugador';
 import Usuarios from './pages/Usuarios';
+import Campogramas from './pages/Campogramas';
+import Municipios from './pages/Municipios';
 
 function Layout({ children }) {
   return (
@@ -47,11 +50,31 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/campogramas"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <Campogramas />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/usuarios"
         element={
-          <ProtectedRoute allowedRoles={['administrador']}>
+          <ProtectedRoute allowedRoles={['administrador', 'director']}>
             <Layout>
               <Usuarios />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/municipios"
+        element={
+          <ProtectedRoute allowedRoles={['administrador', 'director']}>
+            <Layout>
+              <Municipios />
             </Layout>
           </ProtectedRoute>
         }
@@ -65,7 +88,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppRoutes />
+        <FiltroEquiposProvider>
+          <AppRoutes />
+        </FiltroEquiposProvider>
       </AuthProvider>
     </BrowserRouter>
   );

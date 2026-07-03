@@ -5,6 +5,7 @@ const requireAuth = require('../middleware/requireAuth');
 const requireRole = require('../middleware/requireRole');
 const { ROLES } = require('../config/roles');
 const { columnsForRole, sanitizeRow, FULL_COLUMNS } = require('../config/jugadoresColumns');
+const { LATERALIDAD_VALUES, DEMARCACION_VALUES } = require('../config/datosDeportivos');
 
 const router = express.Router();
 
@@ -55,11 +56,18 @@ router.get('/', async (req, res) => {
 
   if (rol === ROLES.TECNICO) {
     if (!equipo_asignado) {
-      return res.json({ jugadores: [] });
+      return res.status(409).json({ error: 'Tu usuario no tiene un equipo asignado. Contacta con el administrador.' });
     }
     query = query.eq('equipo', equipo_asignado);
-  } else if (typeof req.query.equipo === 'string' && req.query.equipo.trim() !== '') {
-    query = query.eq('equipo', req.query.equipo.trim());
+  } else if (req.query.equipo !== undefined) {
+    const equiposFiltro = (Array.isArray(req.query.equipo) ? req.query.equipo : [req.query.equipo])
+      .map((e) => String(e).trim())
+      .filter(Boolean);
+    if (equiposFiltro.length === 1) {
+      query = query.eq('equipo', equiposFiltro[0]);
+    } else if (equiposFiltro.length > 1) {
+      query = query.in('equipo', equiposFiltro);
+    }
   }
 
   if (search) {
@@ -72,6 +80,7 @@ router.get('/', async (req, res) => {
 
   const { data, error } = await query;
   if (error) {
+    console.error('Error consultando jugadores:', error);
     return res.status(503).json({ error: 'No se pudo consultar la base de datos de jugadores.' });
   }
 
@@ -155,7 +164,7 @@ router.get('/:id', async (req, res) => {
 // Tecnico solo puede subir fotos de jugadores de su propio equipo asignado.
 router.post(
   '/:id/foto',
-  requireRole(ROLES.ADMINISTRADOR, ROLES.RESPONSABLE, ROLES.TECNICO),
+  requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR, ROLES.RESPONSABLE, ROLES.TECNICO),
   (req, res) => {
     uploadFoto.single('foto')(req, res, async (uploadErr) => {
       if (uploadErr) {
@@ -214,6 +223,62 @@ router.post(
 
       res.json({ foto_url: signError ? null : signed.signedUrl });
     });
+  }
+);
+
+// PATCH /api/jugadores/:id/datos-deportivos -> actualiza dorsal/lateralidad/demarcacion.
+// Solo Administrador y Responsable pueden editar estos datos.
+router.patch(
+  '/:id/datos-deportivos',
+  requireRole(ROLES.ADMINISTRADOR, ROLES.RESPONSABLE),
+  async (req, res) => {
+    const { dorsal, lateralidad, demarcacion } = req.body || {};
+    const updates = {};
+
+    if (dorsal !== undefined) {
+      if (dorsal !== null) {
+        const dorsalNum = Number(dorsal);
+        if (!Number.isInteger(dorsalNum) || dorsalNum < 1 || dorsalNum > 99) {
+          return res.status(400).json({ error: 'Dorsal no valido. Debe ser un numero entre 1 y 99.' });
+        }
+        updates.dorsal = dorsalNum;
+      } else {
+        updates.dorsal = null;
+      }
+    }
+    if (lateralidad !== undefined) {
+      if (lateralidad !== null && !LATERALIDAD_VALUES.includes(lateralidad)) {
+        return res.status(400).json({ error: 'Lateralidad no valida.' });
+      }
+      updates.lateralidad = lateralidad;
+    }
+    if (demarcacion !== undefined) {
+      if (demarcacion !== null && !DEMARCACION_VALUES.includes(demarcacion)) {
+        return res.status(400).json({ error: 'Demarcacion no valida.' });
+      }
+      updates.demarcacion = demarcacion;
+    }
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: 'No hay datos para actualizar.' });
+    }
+
+    const { rol } = req.user;
+
+    const { data, error } = await supabaseAdmin
+      .from('jugadores')
+      .update(updates)
+      .eq('id', req.params.id)
+      .select(columnsForRole(rol).join(','))
+      .maybeSingle();
+
+    if (error) {
+      return res.status(503).json({ error: 'No se pudo actualizar el jugador.' });
+    }
+    if (!data) {
+      return res.status(404).json({ error: 'Jugador no encontrado.' });
+    }
+
+    res.json({ jugador: await conFotoUrl(sanitizeRow(data, rol)) });
   }
 );
 

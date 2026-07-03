@@ -1,8 +1,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '../lib/api';
+import { useFiltroEquipos } from '../context/FiltroEquiposContext';
 
 const ROLES = [
   { value: 'administrador', label: 'Administrador' },
+  { value: 'director', label: 'Director' },
   { value: 'responsable', label: 'Responsable' },
   { value: 'tecnico', label: 'Tecnico' },
 ];
@@ -10,6 +12,7 @@ const ROLES = [
 const FORM_VACIO = { username: '', password: '', rol: 'tecnico', equipo_asignado: '', activo: true };
 
 export default function Usuarios() {
+  const { equiposDisponibles } = useFiltroEquipos();
   const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -142,13 +145,21 @@ export default function Usuarios() {
           {form.rol === 'tecnico' && (
             <div>
               <label className="block text-sm font-semibold text-club-black mb-1">Equipo asignado</label>
-              <input
-                type="text"
+              <select
                 required
                 value={form.equipo_asignado}
                 onChange={(e) => setForm({ ...form, equipo_asignado: e.target.value })}
                 className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
-              />
+              >
+                <option value="" disabled>
+                  Selecciona un equipo...
+                </option>
+                {equiposDisponibles.map((eq) => (
+                  <option key={eq} value={eq}>
+                    {eq}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
 

@@ -1,15 +1,43 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { jsPDF } from 'jspdf';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
-import { ETIQUETAS_JUGADOR, SECCIONES_FICHA } from '../lib/campos';
+import {
+  ETIQUETAS_JUGADOR,
+  SECCIONES_FICHA,
+  LATERALIDAD_OPCIONES,
+  DEMARCACION_OPCIONES,
+} from '../lib/campos';
 
-const ROLES_QUE_PUEDEN_SUBIR_FOTO = ['administrador', 'responsable', 'tecnico'];
+const ROLES_QUE_PUEDEN_SUBIR_FOTO = ['administrador', 'director', 'responsable', 'tecnico'];
+const ROLES_QUE_PUEDEN_EDITAR_DEPORTIVO = ['administrador', 'responsable'];
+const OPCIONES_POR_CAMPO = {
+  lateralidad: LATERALIDAD_OPCIONES,
+  demarcacion: DEMARCACION_OPCIONES,
+};
 
-function formatearValor(valor) {
+function formatearValor(valor, campo) {
   if (valor === null || valor === undefined || valor === '') return '-';
   if (typeof valor === 'boolean') return valor ? 'Si' : 'No';
+  if (campo === 'fecha_nacimiento') {
+    const [anio, mes, dia] = String(valor).split('-');
+    if (anio && mes && dia) return `${dia}-${mes}-${anio}`;
+  }
   return String(valor);
+}
+
+function calcularEdad(fechaNacimiento) {
+  if (!fechaNacimiento) return null;
+  const nacimiento = new Date(fechaNacimiento);
+  if (Number.isNaN(nacimiento.getTime())) return null;
+  const hoy = new Date();
+  let edad = hoy.getFullYear() - nacimiento.getFullYear();
+  const aunNoCumplida =
+    hoy.getMonth() < nacimiento.getMonth() ||
+    (hoy.getMonth() === nacimiento.getMonth() && hoy.getDate() < nacimiento.getDate());
+  if (aunNoCumplida) edad -= 1;
+  return edad;
 }
 
 export default function FichaJugador() {
@@ -20,8 +48,153 @@ export default function FichaJugador() {
   const [loading, setLoading] = useState(true);
   const [subiendoFoto, setSubiendoFoto] = useState(false);
   const [errorFoto, setErrorFoto] = useState('');
+  const [datosDeportivos, setDatosDeportivos] = useState({ dorsal: '', lateralidad: '', demarcacion: '' });
+  const [guardandoDeportivo, setGuardandoDeportivo] = useState(false);
+  const [errorDeportivo, setErrorDeportivo] = useState('');
+  const [guardadoOkDeportivo, setGuardadoOkDeportivo] = useState(false);
+  const [generandoInforme, setGenerandoInforme] = useState(false);
 
   const puedeSubirFoto = user && ROLES_QUE_PUEDEN_SUBIR_FOTO.includes(user.rol);
+  const puedeEditarDeportivo = user && ROLES_QUE_PUEDEN_EDITAR_DEPORTIVO.includes(user.rol);
+
+  async function cargarImagenComoDataUrl(url) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      const blob = await res.blob();
+      return await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(blob);
+      });
+    } catch (_) {
+      return null;
+    }
+  }
+
+  async function handleGenerarInforme() {
+    if (!jugador || generandoInforme) return;
+
+    setGenerandoInforme(true);
+    try {
+      const fotoDataUrl = jugador.foto_url ? await cargarImagenComoDataUrl(jugador.foto_url) : null;
+
+      const doc = new jsPDF();
+      const rojoClub = [200, 16, 46];
+      const negro = [17, 17, 17];
+      const gris = [110, 110, 110];
+      const anchoPagina = doc.internal.pageSize.getWidth();
+
+      doc.setFillColor(...negro);
+      doc.rect(0, 0, anchoPagina, 32, 'F');
+      doc.setFillColor(...rojoClub);
+      doc.rect(0, 32, anchoPagina, 2, 'F');
+
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(18);
+      doc.text('Informe del jugador', 14, 20);
+
+      const nombreCompleto = [jugador.nombre, jugador.primer_apellido, jugador.segundo_apellido]
+        .filter(Boolean)
+        .join(' ');
+
+      const fotoTamano = 28;
+      const fotoX = 14;
+      const fotoY = 42;
+      const textoX = fotoDataUrl ? fotoX + fotoTamano + 8 : 14;
+
+      if (fotoDataUrl) {
+        try {
+          doc.saveGraphicsState();
+          doc.roundedRect(fotoX, fotoY, fotoTamano, fotoTamano, fotoTamano / 2, fotoTamano / 2, null);
+          doc.clip();
+          doc.discardPath();
+          const formatoImagen = fotoDataUrl.includes('image/png') ? 'PNG' : 'JPEG';
+          doc.addImage(fotoDataUrl, formatoImagen, fotoX, fotoY, fotoTamano, fotoTamano);
+          doc.restoreGraphicsState();
+        } catch (_) {
+          // Si la imagen no se puede procesar, se omite sin bloquear el informe.
+        }
+      }
+
+      let y = fotoDataUrl ? fotoY + 10 : 50;
+      doc.setTextColor(...negro);
+      doc.setFontSize(22);
+      doc.text(nombreCompleto, textoX, y);
+
+      if (jugador.equipo) {
+        y += 8;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(12);
+        doc.setTextColor(...gris);
+        doc.text(`Equipo: ${jugador.equipo}`, textoX, y);
+      }
+
+      y = Math.max(y, fotoDataUrl ? fotoY + fotoTamano : y);
+
+      y += 14;
+      doc.setDrawColor(...rojoClub);
+      doc.setLineWidth(0.5);
+      doc.line(14, y, anchoPagina - 14, y);
+
+      const filas = [
+        ['Fecha de nacimiento', formatearValor(jugador.fecha_nacimiento, 'fecha_nacimiento')],
+        ['Edad', jugador.edad !== undefined && jugador.edad !== null ? `${jugador.edad} años` : '-'],
+        ['Demarcación', formatearValor(jugador.demarcacion)],
+        ['Lateralidad', formatearValor(jugador.lateralidad)],
+        ['Dorsal', formatearValor(jugador.dorsal)],
+      ];
+
+      y += 14;
+      filas.forEach(([etiqueta, valor]) => {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.setTextColor(...gris);
+        doc.text(etiqueta, 14, y);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(13);
+        doc.setTextColor(...negro);
+        doc.text(String(valor), 90, y);
+
+        y += 12;
+      });
+
+      doc.setFontSize(9);
+      doc.setTextColor(...gris);
+      doc.text('Athletic Club', 14, doc.internal.pageSize.getHeight() - 10);
+
+      const nombreArchivo = `informe_${nombreCompleto.replace(/\s+/g, '_').toLowerCase()}.pdf`;
+      doc.setProperties({ title: nombreArchivo });
+
+      const blobUrl = doc.output('bloburl');
+      window.open(blobUrl, '_blank');
+    } finally {
+      setGenerandoInforme(false);
+    }
+  }
+
+  async function handleGuardarDatosDeportivos() {
+    setGuardandoDeportivo(true);
+    setErrorDeportivo('');
+    setGuardadoOkDeportivo(false);
+    try {
+      const { jugador: actualizado } = await api.patch(`/jugadores/${id}/datos-deportivos`, {
+        dorsal: datosDeportivos.dorsal !== '' ? Number(datosDeportivos.dorsal) : null,
+        lateralidad: datosDeportivos.lateralidad || null,
+        demarcacion: datosDeportivos.demarcacion || null,
+      });
+      setJugador((prev) => (prev ? { ...prev, ...actualizado } : actualizado));
+      setGuardadoOkDeportivo(true);
+      setTimeout(() => setGuardadoOkDeportivo(false), 3000);
+    } catch (err) {
+      setErrorDeportivo(err.message);
+    } finally {
+      setGuardandoDeportivo(false);
+    }
+  }
 
   async function handleFotoChange(e) {
     const file = e.target.files?.[0];
@@ -49,7 +222,15 @@ export default function FichaJugador() {
     api
       .get(`/jugadores/${id}`)
       .then(({ jugador }) => {
-        if (activo) setJugador(jugador);
+        if (activo) {
+          const edad = calcularEdad(jugador.fecha_nacimiento);
+          setJugador(edad !== null ? { ...jugador, edad } : jugador);
+          setDatosDeportivos({
+            dorsal: jugador.dorsal ?? '',
+            lateralidad: jugador.lateralidad || '',
+            demarcacion: jugador.demarcacion || '',
+          });
+        }
       })
       .catch((err) => {
         if (activo) setError(err.message);
@@ -77,8 +258,8 @@ export default function FichaJugador() {
       )}
 
       {jugador && (
-        <div className="mt-4 bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-          <div className="bg-club-black text-white px-6 py-4 flex items-center gap-4">
+        <div className="mt-4 bg-white border border-gray-200 rounded-xl shadow-sm">
+          <div className="sticky top-[72px] z-40 bg-club-black text-white px-6 py-4 flex items-center gap-4 rounded-t-xl">
             {jugador.foto_url ? (
               <img
                 src={jugador.foto_url}
@@ -98,8 +279,8 @@ export default function FichaJugador() {
             </div>
           </div>
 
-          {puedeSubirFoto && (
-            <div className="px-6 pt-4">
+          <div className="px-6 pt-4 flex flex-wrap items-center gap-4">
+            {puedeSubirFoto && (
               <label className="inline-block text-sm font-medium text-club-red cursor-pointer hover:underline">
                 {subiendoFoto ? 'Subiendo foto...' : 'Cambiar foto'}
                 <input
@@ -110,14 +291,23 @@ export default function FichaJugador() {
                   disabled={subiendoFoto}
                 />
               </label>
-              {errorFoto && <p className="text-sm text-club-red mt-1">{errorFoto}</p>}
-            </div>
-          )}
+            )}
+            <button
+              onClick={handleGenerarInforme}
+              disabled={generandoInforme}
+              className="text-sm font-semibold bg-club-black text-white px-3 py-1.5 rounded-md hover:bg-club-black/80 disabled:opacity-60"
+            >
+              {generandoInforme ? 'Generando informe...' : 'Informe jugador'}
+            </button>
+          </div>
+          {errorFoto && <p className="px-6 text-sm text-club-red mt-1">{errorFoto}</p>}
 
           <div className="p-6 space-y-6">
             {SECCIONES_FICHA.map((seccion) => {
               const camposDisponibles = seccion.campos.filter((c) => c in jugador);
               if (camposDisponibles.length === 0) return null;
+              const esDeportivo = seccion.titulo === 'Datos deportivos';
+              const editable = esDeportivo && puedeEditarDeportivo;
               return (
                 <div key={seccion.titulo}>
                   <h3 className="text-club-red font-bold text-sm uppercase tracking-wide mb-2">
@@ -129,10 +319,53 @@ export default function FichaJugador() {
                         <dt className="text-xs text-club-black/50 font-semibold">
                           {ETIQUETAS_JUGADOR[campo] || campo}
                         </dt>
-                        <dd className="text-club-black">{formatearValor(jugador[campo])}</dd>
+                        {editable && campo === 'dorsal' ? (
+                          <input
+                            type="number"
+                            min="1"
+                            max="99"
+                            value={datosDeportivos.dorsal}
+                            onChange={(e) =>
+                              setDatosDeportivos((prev) => ({ ...prev, dorsal: e.target.value }))
+                            }
+                            className="mt-0.5 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
+                          />
+                        ) : editable ? (
+                          <select
+                            value={datosDeportivos[campo] || ''}
+                            onChange={(e) =>
+                              setDatosDeportivos((prev) => ({ ...prev, [campo]: e.target.value }))
+                            }
+                            className="mt-0.5 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
+                          >
+                            <option value="">-</option>
+                            {OPCIONES_POR_CAMPO[campo].map((opcion) => (
+                              <option key={opcion} value={opcion}>
+                                {opcion}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <dd className="text-club-black">{formatearValor(jugador[campo], campo)}</dd>
+                        )}
                       </div>
                     ))}
                   </dl>
+                  {editable && (
+                    <div className="mt-3 flex items-center gap-3">
+                      <button
+                        onClick={handleGuardarDatosDeportivos}
+                        disabled={guardandoDeportivo}
+                        className="text-sm font-semibold bg-club-red text-white px-3 py-1.5 rounded-md hover:bg-club-red/90 disabled:opacity-60"
+                      >
+                        {guardandoDeportivo ? 'Guardando...' : 'Guardar'}
+                      </button>
+                      {guardadoOkDeportivo && (
+                        <p className="text-sm text-green-600 font-medium">Guardado</p>
+                      )}
+                      {errorDeportivo && <p className="text-sm text-club-red">{errorDeportivo}</p>}
+                    </div>
+                  )}
                 </div>
               );
             })}

@@ -1,47 +1,37 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useFiltroEquipos } from '../context/FiltroEquiposContext';
 import { api } from '../lib/api';
+import { LATERALIDAD_OPCIONES, DEMARCACION_OPCIONES } from '../lib/campos';
 
 export default function Plantillas() {
   const { user } = useAuth();
   const esTecnico = user.rol === 'tecnico';
+  const { equiposDisponibles, equiposSeleccionados, seleccionarEquipoUnico, limpiarSeleccion, recargarEquipos } =
+    useFiltroEquipos();
 
-  const [equipos, setEquipos] = useState([]);
-  const [equipoSeleccionado, setEquipoSeleccionado] = useState('');
   const [busqueda, setBusqueda] = useState('');
+  const [filtroLateralidad, setFiltroLateralidad] = useState('');
+  const [filtroDemarcacion, setFiltroDemarcacion] = useState('');
   const [jugadores, setJugadores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [refrescando, setRefrescando] = useState(false);
   const [vista, setVista] = useState('tabla');
 
-  const cargarEquipos = useCallback(async () => {
-    if (esTecnico) return;
-    try {
-      const { equipos } = await api.get('/jugadores/equipos');
-      setEquipos(equipos);
-    } catch (err) {
-      setError(err.message);
-    }
-  }, [esTecnico]);
-
   const cargarJugadores = useCallback(async () => {
     setError('');
     try {
       const params = new URLSearchParams();
-      if (!esTecnico && equipoSeleccionado) params.set('equipo', equipoSeleccionado);
+      if (!esTecnico) equiposSeleccionados.forEach((eq) => params.append('equipo', eq));
       if (busqueda.trim()) params.set('q', busqueda.trim());
       const { jugadores } = await api.get(`/jugadores?${params.toString()}`);
       setJugadores(jugadores);
     } catch (err) {
       setError(err.message);
     }
-  }, [esTecnico, equipoSeleccionado, busqueda]);
-
-  useEffect(() => {
-    cargarEquipos();
-  }, [cargarEquipos]);
+  }, [esTecnico, equiposSeleccionados, busqueda]);
 
   useEffect(() => {
     setLoading(true);
@@ -51,38 +41,93 @@ export default function Plantillas() {
   const handleActualizar = async () => {
     setRefrescando(true);
     try {
-      await cargarEquipos();
+      await recargarEquipos();
       await cargarJugadores();
     } finally {
       setRefrescando(false);
     }
   };
 
-  const jugadoresPorEquipo = jugadores.reduce((acc, j) => {
+  const jugadoresFiltrados = jugadores.filter((j) => {
+    if (filtroLateralidad && j.lateralidad !== filtroLateralidad) return false;
+    if (filtroDemarcacion && j.demarcacion !== filtroDemarcacion) return false;
+    return true;
+  });
+
+  const jugadoresPorEquipo = jugadoresFiltrados.reduce((acc, j) => {
     (acc[j.equipo] ||= []).push(j);
     return acc;
   }, {});
   const gruposEquipos = Object.keys(jugadoresPorEquipo).sort((a, b) => a.localeCompare(b));
+
+  const calcularEdad = (fechaNacimiento) => {
+    if (!fechaNacimiento) return null;
+    const nacimiento = new Date(fechaNacimiento);
+    if (Number.isNaN(nacimiento.getTime())) return null;
+    const hoy = new Date();
+    let edad = hoy.getFullYear() - nacimiento.getFullYear();
+    const noHaCumplidoAun =
+      hoy.getMonth() < nacimiento.getMonth() ||
+      (hoy.getMonth() === nacimiento.getMonth() && hoy.getDate() < nacimiento.getDate());
+    if (noHaCumplidoAun) edad -= 1;
+    return edad;
+  };
+
+  const formatearFecha = (fechaNacimiento) => {
+    if (!fechaNacimiento) return null;
+    const [anio, mes, dia] = fechaNacimiento.split('-');
+    if (!anio || !mes || !dia) return fechaNacimiento;
+    return `${dia}-${mes}-${anio}`;
+  };
+
+  const anioNacimiento = (fechaNacimiento) => {
+    if (!fechaNacimiento) return null;
+    const nacimiento = new Date(fechaNacimiento);
+    if (Number.isNaN(nacimiento.getTime())) return null;
+    return nacimiento.getFullYear();
+  };
 
   const renderTablaJugadores = (lista) => (
     <div className="overflow-x-auto rounded-lg border border-gray-200">
       <table className="min-w-full divide-y divide-gray-200 bg-white">
         <thead className="bg-club-black text-white">
           <tr>
+            <th className="px-4 py-3" />
             <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Nombre</th>
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Equipo</th>
             <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Fecha nacimiento</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Año</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Edad</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Dorsal</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Lateralidad</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Demarcación</th>
             <th className="px-4 py-3" />
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
           {lista.map((j) => (
             <tr key={j.id} className="hover:bg-red-50/40 transition-colors">
+              <td className="px-4 py-3">
+                {j.foto_url ? (
+                  <img
+                    src={j.foto_url}
+                    alt={`Foto de ${j.nombre}`}
+                    className="w-9 h-9 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="w-9 h-9 rounded-full bg-gray-200 flex items-center justify-center text-[9px] text-club-black/40">
+                    S/F
+                  </div>
+                )}
+              </td>
               <td className="px-4 py-3 font-medium text-club-black">
                 {j.nombre} {j.primer_apellido} {j.segundo_apellido || ''}
               </td>
-              <td className="px-4 py-3 text-club-black/80">{j.equipo}</td>
-              <td className="px-4 py-3 text-club-black/80">{j.fecha_nacimiento || '-'}</td>
+              <td className="px-4 py-3 text-club-black/80">{formatearFecha(j.fecha_nacimiento) || '-'}</td>
+              <td className="px-4 py-3 text-club-black/80">{anioNacimiento(j.fecha_nacimiento) ?? '-'}</td>
+              <td className="px-4 py-3 text-club-black/80">{calcularEdad(j.fecha_nacimiento) ?? '-'}</td>
+              <td className="px-4 py-3 text-club-black/80">{j.dorsal ?? '-'}</td>
+              <td className="px-4 py-3 text-club-black/80">{j.lateralidad || '-'}</td>
+              <td className="px-4 py-3 text-club-black/80">{j.demarcacion || '-'}</td>
               <td className="px-4 py-3 text-right">
                 <Link
                   to={`/plantillas/${j.id}`}
@@ -105,12 +150,25 @@ export default function Plantillas() {
           key={j.id}
           className="rounded-lg border border-gray-200 bg-white p-4 flex flex-col gap-1 hover:shadow-md transition-shadow"
         >
-          <p className="font-semibold text-club-black">
-            {j.nombre} {j.primer_apellido} {j.segundo_apellido || ''}
-          </p>
+          <div className="flex items-center gap-3 mb-1">
+            {j.foto_url ? (
+              <img
+                src={j.foto_url}
+                alt={`Foto de ${j.nombre}`}
+                className="w-10 h-10 rounded-full object-cover shrink-0"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-[9px] text-club-black/40 shrink-0">
+                S/F
+              </div>
+            )}
+            <p className="font-semibold text-club-black">
+              {j.nombre} {j.primer_apellido} {j.segundo_apellido || ''}
+            </p>
+          </div>
           <p className="text-sm text-club-black/80">{j.equipo}</p>
           <p className="text-sm text-club-black/60">
-            Fecha nacimiento: {j.fecha_nacimiento || '-'}
+            Fecha nacimiento: {formatearFecha(j.fecha_nacimiento) || '-'}
           </p>
           <Link
             to={`/plantillas/${j.id}`}
@@ -126,8 +184,83 @@ export default function Plantillas() {
   const renderJugadores = (lista) =>
     vista === 'tabla' ? renderTablaJugadores(lista) : renderTarjetasJugadores(lista);
 
+  const renderFiltroEquipos = () => (
+    <aside className="md:w-64 shrink-0">
+      <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+        <button
+          onClick={limpiarSeleccion}
+          className={`w-full text-left px-4 py-2.5 text-sm font-semibold border-b border-gray-100 transition-colors ${
+            equiposSeleccionados.length === 0
+              ? 'bg-club-red text-white'
+              : 'text-club-black hover:bg-red-50/60'
+          }`}
+        >
+          Todos los equipos
+        </button>
+        {equiposDisponibles.map((eq) => (
+          <label
+            key={eq}
+            className="flex items-center gap-2 px-4 py-2.5 text-sm border-b border-gray-100 last:border-b-0 text-club-black/80 hover:bg-red-50/60 cursor-pointer"
+          >
+            <input
+              type="radio"
+              name="filtro-equipo"
+              checked={equiposSeleccionados.includes(eq)}
+              onClick={() => seleccionarEquipoUnico(eq)}
+              onChange={() => {}}
+              className="h-4 w-4 accent-club-red"
+            />
+            {eq}
+          </label>
+        ))}
+      </div>
+    </aside>
+  );
+
+  const renderFiltrosDeportivos = () => (
+    <div className="flex flex-col sm:flex-row gap-3 mb-4">
+      <div className="w-full sm:w-auto sm:flex-1 flex flex-col gap-1">
+        <label htmlFor="filtro-jugadores" className="text-xs font-semibold text-club-black/60 uppercase tracking-wide">
+          Jugadores
+        </label>
+        <input
+          id="filtro-jugadores"
+          type="text"
+          placeholder="Buscar por nombre o apellidos..."
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
+        />
+      </div>
+      <select
+        value={filtroLateralidad}
+        onChange={(e) => setFiltroLateralidad(e.target.value)}
+        className="w-full sm:w-auto rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
+      >
+        <option value="">Todas las lateralidades</option>
+        {LATERALIDAD_OPCIONES.map((opcion) => (
+          <option key={opcion} value={opcion}>
+            {opcion}
+          </option>
+        ))}
+      </select>
+      <select
+        value={filtroDemarcacion}
+        onChange={(e) => setFiltroDemarcacion(e.target.value)}
+        className="w-full sm:w-auto rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
+      >
+        <option value="">Todas las demarcaciones</option>
+        {DEMARCACION_OPCIONES.map((opcion) => (
+          <option key={opcion} value={opcion}>
+            {opcion}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6">
+    <div className="w-full px-4 sm:px-6 py-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <h2 className="text-2xl font-bold text-club-black">Plantillas</h2>
         <div className="flex items-center gap-3">
@@ -161,16 +294,20 @@ export default function Plantillas() {
 
       {esTecnico ? (
         <div className="mb-6">
-          <div className="text-sm font-semibold bg-club-black text-white px-4 py-2 rounded-md inline-block mb-4">
-            Equipo: {user.equipo_asignado || 'sin asignar'}
+          <div className="flex flex-wrap items-center gap-3 mb-4">
+            <div className="text-sm font-semibold bg-club-black text-white px-4 py-2 rounded-md inline-block">
+              Equipo: {user.equipo_asignado || 'sin asignar'}
+            </div>
+            {user.equipo_asignado && (
+              <Link
+                to={`/campogramas?equipo=${encodeURIComponent(user.equipo_asignado)}`}
+                className="inline-flex items-center gap-1.5 bg-club-red hover:bg-club-redDark text-white font-semibold px-3 py-2 rounded-md text-sm transition-colors"
+              >
+                <span className="text-base leading-none">+</span> Campograma
+              </Link>
+            )}
           </div>
-          <input
-            type="text"
-            placeholder="Buscar por nombre o apellidos..."
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red mb-4"
-          />
+          {renderFiltrosDeportivos()}
           {error && (
             <p className="text-sm text-club-red font-medium bg-red-50 border border-club-red/30 rounded-md px-3 py-2 mb-4">
               {error}
@@ -178,50 +315,18 @@ export default function Plantillas() {
           )}
           {loading ? (
             <p className="text-club-black/60">Cargando jugadores...</p>
-          ) : jugadores.length === 0 ? (
+          ) : error ? null : jugadoresFiltrados.length === 0 ? (
             <p className="text-club-black/60">No se han encontrado jugadores.</p>
           ) : (
-            renderJugadores(jugadores)
+            renderJugadores(jugadoresFiltrados)
           )}
         </div>
       ) : (
         <div className="flex flex-col md:flex-row gap-6">
-          <aside className="md:w-64 shrink-0">
-            <input
-              type="text"
-              placeholder="Buscar por nombre o apellidos..."
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red mb-3"
-            />
-            <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
-              <button
-                onClick={() => setEquipoSeleccionado('')}
-                className={`w-full text-left px-4 py-2.5 text-sm font-semibold border-b border-gray-100 transition-colors ${
-                  equipoSeleccionado === ''
-                    ? 'bg-club-red text-white'
-                    : 'text-club-black hover:bg-red-50/60'
-                }`}
-              >
-                Todos los equipos
-              </button>
-              {equipos.map((eq) => (
-                <button
-                  key={eq}
-                  onClick={() => setEquipoSeleccionado(eq)}
-                  className={`w-full text-left px-4 py-2.5 text-sm border-b border-gray-100 last:border-b-0 transition-colors ${
-                    equipoSeleccionado === eq
-                      ? 'bg-club-red text-white font-semibold'
-                      : 'text-club-black/80 hover:bg-red-50/60'
-                  }`}
-                >
-                  {eq}
-                </button>
-              ))}
-            </div>
-          </aside>
+          {renderFiltroEquipos()}
 
           <div className="flex-1 min-w-0">
+            {renderFiltrosDeportivos()}
             {error && (
               <p className="text-sm text-club-red font-medium bg-red-50 border border-club-red/30 rounded-md px-3 py-2 mb-4">
                 {error}
@@ -230,15 +335,21 @@ export default function Plantillas() {
 
             {loading ? (
               <p className="text-club-black/60">Cargando jugadores...</p>
-            ) : jugadores.length === 0 ? (
+            ) : jugadoresFiltrados.length === 0 ? (
               <p className="text-club-black/60">No se han encontrado jugadores.</p>
-            ) : equipoSeleccionado ? (
-              renderJugadores(jugadores)
             ) : (
               <div className="space-y-8">
                 {gruposEquipos.map((eq) => (
                   <div key={eq}>
-                    <h3 className="text-lg font-bold text-club-black mb-2">{eq}</h3>
+                    <div className="flex flex-wrap items-center gap-3 mb-2">
+                      <h3 className="text-lg font-bold text-club-black">{eq}</h3>
+                      <Link
+                        to={`/campogramas?equipo=${encodeURIComponent(eq)}`}
+                        className="inline-flex items-center gap-1.5 bg-club-red hover:bg-club-redDark text-white font-semibold px-3 py-1.5 rounded-md text-sm transition-colors"
+                      >
+                        <span className="text-base leading-none">+</span> Campograma
+                      </Link>
+                    </div>
                     {renderJugadores(jugadoresPorEquipo[eq])}
                   </div>
                 ))}
