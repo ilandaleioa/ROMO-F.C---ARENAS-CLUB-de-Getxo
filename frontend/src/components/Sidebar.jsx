@@ -42,7 +42,7 @@ export default function Sidebar({ isOpen, onClose }) {
       ))}
 
       {enPlantillas && (
-        <div className="mt-2 pl-2">
+        <div className="mt-2 pl-2 hidden md:block">
           {VISTA_OPCIONES.map((opcion) => (
             <button
               key={opcion.valor}

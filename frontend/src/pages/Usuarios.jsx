@@ -103,14 +103,14 @@ export default function Usuarios() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6">
-      <div className="flex items-center justify-between mb-6">
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <h2 className="text-2xl font-bold text-club-black">Gestion de usuarios</h2>
         {!mostrarFormulario && (
           <button
             type="button"
             onClick={() => setMostrarFormulario(true)}
-            className="flex items-center gap-2 bg-club-red hover:bg-club-redDark text-white font-semibold px-4 py-2 rounded-md transition-colors"
+            className="flex items-center justify-center gap-2 w-full sm:w-auto bg-club-red hover:bg-club-redDark text-white font-semibold px-4 py-2 rounded-md transition-colors"
           >
             <span className="text-lg leading-none">+</span>
             Añadir usuario
@@ -121,7 +121,7 @@ export default function Usuarios() {
       {mostrarFormulario && (
       <form
         onSubmit={handleSubmit}
-        className="bg-white border border-gray-200 rounded-xl p-6 mb-8 shadow-sm space-y-4"
+        className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6 mb-8 shadow-sm space-y-4"
       >
         <h3 className="font-bold text-club-black">
           {editandoId ? 'Editar usuario' : 'Nuevo usuario'}
@@ -220,18 +220,18 @@ export default function Usuarios() {
           </p>
         )}
 
-        <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row gap-3">
           <button
             type="submit"
             disabled={guardando}
-            className="bg-club-red hover:bg-club-redDark disabled:opacity-60 text-white font-semibold px-5 py-2 rounded-md transition-colors"
+            className="w-full sm:w-auto bg-club-red hover:bg-club-redDark disabled:opacity-60 text-white font-semibold px-5 py-2 rounded-md transition-colors"
           >
             {guardando ? 'Guardando...' : editandoId ? 'Guardar cambios' : 'Crear usuario'}
           </button>
           <button
             type="button"
             onClick={cancelarEdicion}
-            className="px-5 py-2 rounded-md font-semibold text-club-black border border-gray-300 hover:bg-gray-50"
+            className="w-full sm:w-auto px-5 py-2 rounded-md font-semibold text-club-black border border-gray-300 hover:bg-gray-50"
           >
             Cancelar
           </button>
@@ -249,14 +249,14 @@ export default function Usuarios() {
         <p className="text-club-black/60">Cargando usuarios...</p>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-gray-200">
-          <table className="min-w-full divide-y divide-gray-200 bg-white">
+          <table className="min-w-[540px] sm:min-w-full divide-y divide-gray-200 bg-white">
             <thead className="bg-club-black text-white">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Usuario</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Rol</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Club</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Equipo</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Estado</th>
+                <th className="hidden sm:table-cell px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Club</th>
+                <th className="hidden sm:table-cell px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Equipo</th>
+                <th className="hidden sm:table-cell px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Estado</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
@@ -265,11 +265,11 @@ export default function Usuarios() {
                 <tr key={u.id} className="hover:bg-red-50/40 transition-colors">
                   <td className="px-4 py-3 font-medium text-club-black">{u.username}</td>
                   <td className="px-4 py-3 text-club-black/80 capitalize">{u.rol}</td>
-                  <td className="px-4 py-3 text-club-black/80">
+                  <td className="hidden sm:table-cell px-4 py-3 text-club-black/80">
                     {u.club === 'ROMO' ? 'ROMO' : u.club === 'ARENAS' ? 'ARENAS' : 'ROMO y ARENAS'}
                   </td>
-                  <td className="px-4 py-3 text-club-black/80">{u.equipo_asignado || '-'}</td>
-                  <td className="px-4 py-3">
+                  <td className="hidden sm:table-cell px-4 py-3 text-club-black/80">{u.equipo_asignado || '-'}</td>
+                  <td className="hidden sm:table-cell px-4 py-3">
                     <span
                       className={`text-xs font-semibold px-2 py-1 rounded-full ${
                         u.activo !== false ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'
@@ -278,7 +278,7 @@ export default function Usuarios() {
                       {u.activo !== false ? 'Activo' : 'Inactivo'}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right space-x-3">
+                  <td className="px-4 py-3 text-right whitespace-nowrap space-x-3">
                     <button
                       onClick={() => empezarEdicion(u)}
                       className="text-club-red font-semibold hover:underline text-sm"

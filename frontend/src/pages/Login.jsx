@@ -31,15 +31,15 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-club-black px-4">
-      <div className="w-full max-w-sm bg-white rounded-xl shadow-2xl overflow-hidden">
-        <div className="bg-club-black py-10 flex flex-col items-center gap-2">
-          <h1 className="text-white text-xl font-bold text-center leading-tight">
+    <div className="min-h-screen flex items-center justify-center bg-club-black px-4 py-6">
+      <div className="w-full max-w-sm sm:max-w-md bg-white rounded-xl shadow-2xl overflow-hidden">
+        <div className="bg-club-black py-8 sm:py-10 px-4 flex flex-col items-center gap-2">
+          <h1 className="text-white text-lg sm:text-xl font-bold text-center leading-tight">
             ROMO FC <span className="text-club-red">-</span> ARENAS
           </h1>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-4">
           <div>
             <label className="block text-sm font-semibold text-club-black mb-1" htmlFor="username">
               Usuario

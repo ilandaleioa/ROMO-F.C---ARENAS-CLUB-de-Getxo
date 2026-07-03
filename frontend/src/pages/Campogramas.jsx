@@ -235,7 +235,7 @@ export default function Campogramas() {
           <select
             value={sistemaId}
             onChange={(e) => setSistemaId(e.target.value)}
-            className="w-64 mb-6 rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
+            className="w-full sm:w-64 mb-6 rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
           >
             {sistemas.map((s) => (
               <option key={s.id} value={s.id}>
@@ -249,7 +249,7 @@ export default function Campogramas() {
           ) : (
             <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
               <div className="xl:col-span-3">
-            <div className="relative w-full aspect-[3/2] max-w-4xl mx-auto rounded-lg bg-green-700 border-4 border-white/80 overflow-hidden shadow-inner">
+            <div className="relative w-full aspect-[4/3] sm:aspect-[3/2] max-w-4xl mx-auto rounded-lg bg-green-700 border-4 border-white/80 overflow-hidden shadow-inner">
               {/* Linea de medio campo y circulo central */}
               <div className="absolute inset-y-0 left-1/2 border-l-2 border-white/60" />
               <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[14%] aspect-square rounded-full border-2 border-white/60" />
@@ -271,7 +271,7 @@ export default function Campogramas() {
                       {puestoJugadores.map((jugador) => (
                         <div
                           key={jugador.id}
-                          className="flex items-center bg-club-black rounded-full shadow-md overflow-hidden shrink-0"
+                          className="flex items-center bg-club-black rounded-full shadow-md overflow-hidden shrink-0 max-w-full"
                         >
                           {jugador.foto_url ? (
                             <img
@@ -284,7 +284,7 @@ export default function Campogramas() {
                               S/F
                             </div>
                           )}
-                          <span className="text-[11px] font-semibold text-white pl-2 pr-1 whitespace-nowrap">
+                          <span className="text-[10px] sm:text-[11px] font-semibold text-white pl-2 pr-1 whitespace-nowrap max-w-[110px] sm:max-w-none truncate">
                             {jugador.nombre} {jugador.primer_apellido}
                           </span>
                           {jugador.dorsal !== null && jugador.dorsal !== undefined && jugador.dorsal !== '' && (
@@ -386,7 +386,7 @@ export default function Campogramas() {
           onClick={cerrarModal}
         >
           <div
-            className="w-full max-w-2xl max-h-[80vh] bg-white rounded-lg shadow-xl flex flex-col overflow-hidden"
+            className="w-full max-w-2xl max-h-[90vh] bg-white rounded-lg shadow-xl flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-gray-200">

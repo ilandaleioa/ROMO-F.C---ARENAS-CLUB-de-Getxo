@@ -7,6 +7,7 @@ const authRoutes = require('./routes/auth');
 const jugadoresRoutes = require('./routes/jugadores');
 const usuariosRoutes = require('./routes/usuarios');
 const campogramasRoutes = require('./routes/campogramas');
+const configRoutes = require('./routes/config');
 
 const app = express();
 
@@ -56,6 +57,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/jugadores', jugadoresRoutes);
 app.use('/api/usuarios', usuariosRoutes);
 app.use('/api/campogramas', campogramasRoutes);
+app.use('/api/config', configRoutes);
 
 // Manejador de errores generico: nunca exponer detalles internos ni datos sensibles.
 app.use((err, req, res, next) => {

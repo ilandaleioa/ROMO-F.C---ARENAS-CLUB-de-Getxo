@@ -17,7 +17,7 @@ export default function HojasCalculo() {
   const faltaGid = club === 'ARENAS';
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
+    <div className="px-4 sm:px-6 py-6 max-w-3xl mx-auto">
       <div className="mb-6">
         <p className="text-sm font-semibold uppercase tracking-wide text-club-black/50 mb-2">
           Hoja activa
@@ -25,7 +25,7 @@ export default function HojasCalculo() {
         <h1 className="text-2xl font-bold text-club-black">Hojas de calculo</h1>
       </div>
 
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white rounded-lg shadow p-4 sm:p-6">
         <h2 className="text-lg font-semibold text-club-black mb-3">{hoja.nombre}</h2>
         {hoja.url ? (
           <div className="space-y-3">
@@ -33,7 +33,7 @@ export default function HojasCalculo() {
               href={hoja.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-block px-4 py-2 rounded-md bg-club-red hover:bg-club-redDark text-white font-semibold text-sm transition-colors"
+              className="inline-flex w-full sm:w-auto items-center justify-center px-4 py-2 rounded-md bg-club-red hover:bg-club-redDark text-white font-semibold text-sm transition-colors"
             >
               Abrir hoja de calculo
             </a>

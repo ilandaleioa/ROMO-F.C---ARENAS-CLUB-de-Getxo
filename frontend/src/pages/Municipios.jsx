@@ -140,7 +140,7 @@ export default function Municipios() {
         Distribución por municipio
       </h3>
       <div className="flex flex-col md:flex-row items-center gap-6">
-        <svg viewBox="0 0 200 200" className="w-56 h-56 shrink-0" role="img" aria-label="Gráfica circular de jugadores por municipio">
+        <svg viewBox="0 0 200 200" className="w-44 h-44 sm:w-56 sm:h-56 shrink-0" role="img" aria-label="Gráfica circular de jugadores por municipio">
           {sectores.map((s) => (
             <path key={s.municipio} d={s.path} fill={s.color} stroke="#fcfcfb" strokeWidth="2" />
           ))}
@@ -161,7 +161,7 @@ export default function Municipios() {
               </text>
             ))}
         </svg>
-        <ul className="w-full max-w-xs flex flex-col gap-1.5">
+        <ul className="w-full max-w-full md:max-w-xs flex flex-col gap-1.5">
           {sectores.map((s) => (
             <li key={s.municipio} className="flex items-center gap-2 text-sm">
               <span

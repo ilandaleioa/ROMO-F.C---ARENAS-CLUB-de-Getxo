@@ -270,7 +270,7 @@ export default function FichaJugador() {
   }, [id]);
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <Link to="/" className="text-club-red font-semibold hover:underline text-sm">
           &larr; Volver a plantillas
@@ -290,7 +290,7 @@ export default function FichaJugador() {
 
       {jugador && (
         <div className="mt-4 bg-white border border-gray-200 rounded-xl shadow-sm">
-          <div className="sticky top-[72px] z-40 bg-club-black text-white px-4 sm:px-6 py-4 flex items-center gap-4 rounded-t-xl">
+          <div className="sticky top-[72px] z-40 bg-club-black text-white px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center gap-4 rounded-t-xl">
             {jugador.foto_url ? (
               <img
                 src={jugador.foto_url}
@@ -310,9 +310,9 @@ export default function FichaJugador() {
             </div>
           </div>
 
-          <div className="px-4 sm:px-6 pt-4 flex flex-wrap items-center gap-4">
+          <div className="px-4 sm:px-6 pt-4 flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 sm:gap-4">
             {puedeSubirFoto && (
-              <label className="inline-block text-sm font-medium text-club-red cursor-pointer hover:underline">
+              <label className="inline-flex w-full sm:w-auto items-center justify-center text-sm font-medium text-club-red cursor-pointer hover:underline">
                 {subiendoFoto ? 'Subiendo foto...' : 'Cambiar foto'}
                 <input
                   type="file"
@@ -326,7 +326,7 @@ export default function FichaJugador() {
             <button
               onClick={handleGenerarInforme}
               disabled={generandoInforme}
-              className="text-sm font-semibold bg-club-black text-white px-3 py-1.5 rounded-md hover:bg-club-black/80 disabled:opacity-60"
+              className="w-full sm:w-auto text-sm font-semibold bg-club-black text-white px-3 py-2 rounded-md hover:bg-club-black/80 disabled:opacity-60"
             >
               {generandoInforme ? 'Generando informe...' : 'Informe jugador'}
             </button>
@@ -344,7 +344,7 @@ export default function FichaJugador() {
                   <h3 className="text-club-red font-bold text-sm uppercase tracking-wide mb-2">
                     {seccion.titulo}
                   </h3>
-                  <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+                  <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 sm:gap-x-6 gap-y-3">
                     {camposDisponibles.map((campo) => (
                       <div key={campo}>
                         <dt className="text-xs text-club-black/50 font-semibold">
@@ -385,11 +385,11 @@ export default function FichaJugador() {
                     ))}
                   </dl>
                   {editable && (
-                    <div className="mt-3 flex items-center gap-3">
+                    <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-3">
                       <button
                         onClick={handleGuardarDatosDeportivos}
                         disabled={guardandoDeportivo}
-                        className="text-sm font-semibold bg-club-red text-white px-3 py-1.5 rounded-md hover:bg-club-red/90 disabled:opacity-60"
+                        className="w-full sm:w-auto text-sm font-semibold bg-club-red text-white px-3 py-2 rounded-md hover:bg-club-red/90 disabled:opacity-60"
                       >
                         {guardandoDeportivo ? 'Guardando...' : 'Guardar'}
                       </button>

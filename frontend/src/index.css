@@ -20,4 +20,5 @@ body[data-club='ARENAS'] {
 
 body {
   @apply bg-white text-club-black;
+  overflow-x: hidden;
 }
