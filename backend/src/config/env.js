@@ -3,6 +3,7 @@ require('dotenv').config();
 function required(name) {
   const value = process.env[name];
   if (!value) {
+    console.error(`Falta la variable de entorno obligatoria: ${name}`);
     throw new Error(`Falta la variable de entorno obligatoria: ${name}`);
   }
   return value;

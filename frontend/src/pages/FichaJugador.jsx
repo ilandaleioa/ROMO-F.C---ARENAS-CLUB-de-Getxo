@@ -245,9 +245,14 @@ export default function FichaJugador() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
-      <Link to="/plantillas" className="text-club-red font-semibold hover:underline text-sm">
-        &larr; Volver a plantillas
-      </Link>
+      <div className="flex items-center gap-4">
+        <Link to="/plantillas" className="text-club-red font-semibold hover:underline text-sm">
+          &larr; Volver a plantillas
+        </Link>
+        <Link to="/campogramas" className="text-club-red font-semibold hover:underline text-sm">
+          &larr; Volver a campograma
+        </Link>
+      </div>
 
       {loading && <p className="mt-6 text-club-black/60">Cargando ficha...</p>}
 
