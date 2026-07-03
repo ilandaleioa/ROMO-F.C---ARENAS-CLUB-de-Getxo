@@ -2,7 +2,29 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useFiltroEquipos } from '../context/FiltroEquiposContext';
+import { useClub, CLUBES } from '../context/ClubContext';
 import ClubLogo from './ClubLogo';
+
+function SelectorClub() {
+  const { club, setClub } = useClub();
+
+  return (
+    <div className="inline-flex rounded-md border border-white/20 overflow-hidden shrink-0">
+      {CLUBES.map((c) => (
+        <button
+          key={c.valor}
+          type="button"
+          onClick={() => setClub(c.valor)}
+          className={`px-3 py-2 text-xs sm:text-sm font-bold tracking-wide transition-colors ${
+            club === c.valor ? 'bg-club-red text-white' : 'bg-white/5 text-white/70 hover:bg-white/15 hover:text-white'
+          }`}
+        >
+          {c.label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 const ROLE_LABELS = {
   administrador: 'Administrador',
@@ -151,7 +173,15 @@ function BotonesHistorial() {
 
 export default function Header({ onToggleSidebar }) {
   const { user, logout } = useAuth();
+  const { setClub } = useClub();
   const [menuAbierto, setMenuAbierto] = useState(false);
+  const puedeCambiarClub = user && (!user.club || user.club === 'TODOS');
+
+  useEffect(() => {
+    if (user && user.club && user.club !== 'TODOS') {
+      setClub(user.club);
+    }
+  }, [user, setClub]);
 
   return (
     <header className="sticky top-0 z-50 bg-club-black text-white shadow-md">
@@ -179,6 +209,7 @@ export default function Header({ onToggleSidebar }) {
 
         {user && (
           <div className="hidden md:flex items-center gap-2">
+            {puedeCambiarClub && <SelectorClub />}
             <BotonesHistorial />
           </div>
         )}
@@ -223,6 +254,8 @@ export default function Header({ onToggleSidebar }) {
 
       {user && menuAbierto && (
         <div className="md:hidden border-t border-white/10 px-4 py-3 flex flex-col gap-3">
+          {puedeCambiarClub && <SelectorClub />}
+
           <div className="flex items-center gap-2">
             <BotonesHistorial />
             <BotonPantallaCompleta />

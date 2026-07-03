@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ClubProvider } from './context/ClubContext';
 import { FiltroEquiposProvider } from './context/FiltroEquiposContext';
 import { VistaPlantillasProvider } from './context/VistaPlantillasContext';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -107,11 +108,13 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <FiltroEquiposProvider>
-          <VistaPlantillasProvider>
-            <AppRoutes />
-          </VistaPlantillasProvider>
-        </FiltroEquiposProvider>
+        <ClubProvider>
+          <FiltroEquiposProvider>
+            <VistaPlantillasProvider>
+              <AppRoutes />
+            </VistaPlantillasProvider>
+          </FiltroEquiposProvider>
+        </ClubProvider>
       </AuthProvider>
     </BrowserRouter>
   );

@@ -9,7 +9,13 @@ const ROLES = [
   { value: 'tecnico', label: 'Tecnico' },
 ];
 
-const FORM_VACIO = { username: '', password: '', rol: 'tecnico', equipo_asignado: 'Todos', activo: true };
+const CLUBES = [
+  { value: 'TODOS', label: 'ROMO y ARENAS' },
+  { value: 'ROMO', label: 'ROMO' },
+  { value: 'ARENAS', label: 'ARENAS' },
+];
+
+const FORM_VACIO = { username: '', password: '', rol: 'tecnico', equipo_asignado: 'Todos', club: 'TODOS', activo: true };
 
 export default function Usuarios() {
   const { equiposDisponibles } = useFiltroEquipos();
@@ -44,6 +50,7 @@ export default function Usuarios() {
       password: '',
       rol: usuario.rol,
       equipo_asignado: usuario.equipo_asignado || 'Todos',
+      club: usuario.club || 'TODOS',
       activo: usuario.activo !== false,
     });
     setFormError('');
@@ -66,6 +73,7 @@ export default function Usuarios() {
         username: form.username,
         rol: form.rol,
         equipo_asignado: form.rol === 'tecnico' ? form.equipo_asignado : null,
+        club: form.club,
         activo: form.activo,
       };
       if (form.password) payload.password = form.password;
@@ -158,6 +166,21 @@ export default function Usuarios() {
             </select>
           </div>
 
+          <div>
+            <label className="block text-sm font-semibold text-club-black mb-1">Club</label>
+            <select
+              value={form.club}
+              onChange={(e) => setForm({ ...form, club: e.target.value })}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
+            >
+              {CLUBES.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {form.rol === 'tecnico' && (
             <div>
               <label className="block text-sm font-semibold text-club-black mb-1">Equipo asignado</label>
@@ -231,6 +254,7 @@ export default function Usuarios() {
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Usuario</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Rol</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Club</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Equipo</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Estado</th>
                 <th className="px-4 py-3" />
@@ -241,6 +265,9 @@ export default function Usuarios() {
                 <tr key={u.id} className="hover:bg-red-50/40 transition-colors">
                   <td className="px-4 py-3 font-medium text-club-black">{u.username}</td>
                   <td className="px-4 py-3 text-club-black/80 capitalize">{u.rol}</td>
+                  <td className="px-4 py-3 text-club-black/80">
+                    {u.club === 'ROMO' ? 'ROMO' : u.club === 'ARENAS' ? 'ARENAS' : 'ROMO y ARENAS'}
+                  </td>
                   <td className="px-4 py-3 text-club-black/80">{u.equipo_asignado || '-'}</td>
                   <td className="px-4 py-3">
                     <span

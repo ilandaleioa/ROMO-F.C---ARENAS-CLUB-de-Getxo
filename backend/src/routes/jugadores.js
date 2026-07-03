@@ -3,6 +3,7 @@ const multer = require('multer');
 const supabaseAdmin = require('../config/supabaseClient');
 const requireAuth = require('../middleware/requireAuth');
 const requireRole = require('../middleware/requireRole');
+const resolveClub = require('../middleware/resolveClub');
 const { ROLES } = require('../config/roles');
 const { columnsForRole, sanitizeRow, FULL_COLUMNS } = require('../config/jugadoresColumns');
 const { LATERALIDAD_VALUES, DEMARCACION_VALUES } = require('../config/datosDeportivos');
@@ -11,6 +12,7 @@ const sheetsSync = require('../config/googleSheetsSync');
 const router = express.Router();
 
 router.use(requireAuth);
+router.use(resolveClub);
 
 // Fotos de jugadores: bucket privado en Supabase Storage (son datos de menores),
 // se sirven siempre mediante URLs firmadas y temporales, nunca publicas.
@@ -53,7 +55,7 @@ router.get('/', async (req, res) => {
   const columns = columnsForRole(rol);
   const search = typeof req.query.q === 'string' ? req.query.q.trim() : '';
 
-  let query = supabaseAdmin.from('jugadores').select(columns.join(','));
+  let query = supabaseAdmin.from('jugadores').select(columns.join(',')).eq('club', req.club);
 
   if (rol === ROLES.TECNICO && equipo_asignado !== 'Todos') {
     if (!equipo_asignado) {
@@ -127,7 +129,7 @@ router.get('/equipos', async (req, res) => {
     return res.json({ equipos: equipo_asignado ? [equipo_asignado] : [] });
   }
 
-  const { data, error } = await supabaseAdmin.from('jugadores').select('equipo');
+  const { data, error } = await supabaseAdmin.from('jugadores').select('equipo').eq('club', req.club);
   if (error) {
     return res.status(503).json({ error: 'No se pudo consultar la base de datos de jugadores.' });
   }
@@ -145,6 +147,7 @@ router.get('/:id', async (req, res) => {
     .from('jugadores')
     .select(columns.join(','))
     .eq('id', req.params.id)
+    .eq('club', req.club)
     .maybeSingle();
 
   if (error) {
@@ -288,9 +291,11 @@ router.patch(
 // "jugadores". Solo Administrador: escribe en bloque datos sensibles de
 // menores (DNI, telefono, domicilio, datos de padres/madres).
 router.post('/sync', requireRole(ROLES.ADMINISTRADOR), async (req, res) => {
-  if (!sheetsSync.estaConfigurado()) {
+  const club = req.club;
+
+  if (!sheetsSync.estaConfigurado(club)) {
     return res.status(503).json({
-      error: 'La sincronizacion con Google Sheets no esta configurada en el servidor.',
+      error: `La sincronizacion con Google Sheets no esta configurada para el club ${club}.`,
     });
   }
 
@@ -298,7 +303,7 @@ router.post('/sync', requireRole(ROLES.ADMINISTRADOR), async (req, res) => {
   let tabTitle;
   try {
     sheets = sheetsSync.getSheetsClient();
-    tabTitle = await sheetsSync.resolverPestana(sheets);
+    tabTitle = await sheetsSync.resolverPestana(sheets, club);
   } catch (err) {
     console.error('Error conectando con Google Sheets:', err.message);
     return res.status(503).json({ error: 'No se pudo conectar con Google Sheets.' });
@@ -309,7 +314,7 @@ router.post('/sync', requireRole(ROLES.ADMINISTRADOR), async (req, res) => {
   let pendientes;
   let omitidas;
   try {
-    ({ headers, idxIdSync, pendientes, omitidas } = await sheetsSync.leerFilasPendientes(sheets, tabTitle));
+    ({ headers, idxIdSync, pendientes, omitidas } = await sheetsSync.leerFilasPendientes(sheets, tabTitle, club));
   } catch (err) {
     console.error('Error leyendo filas de Google Sheets:', err.message);
     return res.status(503).json({ error: 'No se pudo leer la hoja de calculo.' });
@@ -321,7 +326,7 @@ router.post('/sync', requireRole(ROLES.ADMINISTRADOR), async (req, res) => {
 
   const { data: insertados, error: insertError } = await supabaseAdmin
     .from('jugadores')
-    .insert(pendientes.map((p) => p.datos))
+    .insert(pendientes.map((p) => ({ ...p.datos, club })))
     .select('id');
 
   if (insertError) {
@@ -331,7 +336,7 @@ router.post('/sync', requireRole(ROLES.ADMINISTRADOR), async (req, res) => {
 
   try {
     const filasConId = pendientes.map((p, i) => ({ numeroFila: p.numeroFila, id: insertados[i].id }));
-    await sheetsSync.marcarComoSincronizadas(sheets, tabTitle, idxIdSync, filasConId);
+    await sheetsSync.marcarComoSincronizadas(sheets, tabTitle, idxIdSync, filasConId, club);
   } catch (err) {
     // Los jugadores ya se han insertado; si falla solo el marcado en el Sheet,
     // avisamos pero no lo tratamos como fallo total (evita duplicados se

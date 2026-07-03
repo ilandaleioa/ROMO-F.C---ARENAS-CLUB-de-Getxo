@@ -4,13 +4,14 @@ const supabaseAdmin = require('../config/supabaseClient');
 const requireAuth = require('../middleware/requireAuth');
 const requireRole = require('../middleware/requireRole');
 const { ROLES, ALL_ROLES } = require('../config/roles');
+const { CLUBES_USUARIO } = require('../config/clubs');
 
 const router = express.Router();
 
 // Pantalla y endpoints exclusivos de Administrador y Director.
 router.use(requireAuth, requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR));
 
-const PUBLIC_USER_FIELDS = 'id, username, rol, equipo_asignado, activo, creado_en';
+const PUBLIC_USER_FIELDS = 'id, username, rol, equipo_asignado, club, activo, creado_en';
 
 router.get('/', async (req, res) => {
   const { data, error } = await supabaseAdmin
@@ -25,7 +26,7 @@ router.get('/', async (req, res) => {
 });
 
 function validarPayload(body, { requierePassword }) {
-  const { username, password, rol, equipo_asignado } = body || {};
+  const { username, password, rol, equipo_asignado, club } = body || {};
 
   if (!username || typeof username !== 'string' || username.trim().length < 3) {
     return 'El nombre de usuario es obligatorio (minimo 3 caracteres).';
@@ -35,6 +36,9 @@ function validarPayload(body, { requierePassword }) {
   }
   if (rol === ROLES.TECNICO && (!equipo_asignado || typeof equipo_asignado !== 'string')) {
     return 'Los usuarios con rol Tecnico deben tener un equipo asignado.';
+  }
+  if (!CLUBES_USUARIO.includes(club)) {
+    return 'El club no es valido.';
   }
   if (requierePassword && (!password || typeof password !== 'string' || password.length < 8)) {
     return 'La contrasena es obligatoria (minimo 8 caracteres).';
@@ -49,7 +53,7 @@ router.post('/', async (req, res) => {
   const error = validarPayload(req.body, { requierePassword: true });
   if (error) return res.status(400).json({ error });
 
-  const { username, password, rol, equipo_asignado, activo } = req.body;
+  const { username, password, rol, equipo_asignado, club, activo } = req.body;
   const password_hash = await bcrypt.hash(password, 12);
 
   const { data, error: dbError } = await supabaseAdmin
@@ -59,6 +63,7 @@ router.post('/', async (req, res) => {
       password_hash,
       rol,
       equipo_asignado: rol === ROLES.TECNICO ? equipo_asignado.trim() : null,
+      club,
       activo: activo !== false,
     })
     .select(PUBLIC_USER_FIELDS)
@@ -78,12 +83,13 @@ router.put('/:id', async (req, res) => {
   const error = validarPayload(req.body, { requierePassword: false });
   if (error) return res.status(400).json({ error });
 
-  const { username, password, rol, equipo_asignado, activo } = req.body;
+  const { username, password, rol, equipo_asignado, club, activo } = req.body;
 
   const update = {
     username: username.trim(),
     rol,
     equipo_asignado: rol === ROLES.TECNICO ? equipo_asignado.trim() : null,
+    club,
     activo: activo !== false,
   };
 

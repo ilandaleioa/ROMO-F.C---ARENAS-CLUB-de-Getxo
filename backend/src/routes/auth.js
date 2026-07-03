@@ -18,7 +18,7 @@ router.post('/login', async (req, res) => {
   try {
     const result = await supabaseAdmin
       .from('usuarios')
-      .select('id, username, password_hash, rol, equipo_asignado, activo')
+      .select('id, username, password_hash, rol, equipo_asignado, club, activo')
       .eq('username', username)
       .maybeSingle();
 
@@ -49,6 +49,7 @@ router.post('/login', async (req, res) => {
       username: data.username,
       rol: data.rol,
       equipo_asignado: data.equipo_asignado || null,
+      club: data.club || null,
     },
   });
 });
@@ -64,6 +65,7 @@ router.get('/me', requireAuth, (req, res) => {
       username: req.user.username,
       rol: req.user.rol,
       equipo_asignado: req.user.equipo_asignado || null,
+      club: req.user.club || null,
     },
   });
 });

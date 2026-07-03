@@ -50,24 +50,30 @@ const CAMPOS_FECHA = new Set(['marca_temporal', 'fecha_nacimiento']);
 const CAMPOS_BOOLEANOS = new Set(['tiene_hermanos_club', 'acepta_condiciones']);
 const CAMPOS_OBLIGATORIOS = ['nombre', 'primer_apellido', 'equipo'];
 
-function estaConfigurado() {
-  const { spreadsheetId, serviceAccountEmail, privateKey } = env.googleSheets;
+function configDelClub(club) {
+  return env.googleSheetsPorClub[club] || {};
+}
+
+function estaConfigurado(club) {
+  const { spreadsheetId } = configDelClub(club);
+  const { serviceAccountEmail, privateKey } = env.googleServiceAccount;
   return Boolean(spreadsheetId && serviceAccountEmail && privateKey);
 }
 
 function getSheetsClient() {
   const auth = new google.auth.JWT({
-    email: env.googleSheets.serviceAccountEmail,
-    key: env.googleSheets.privateKey,
+    email: env.googleServiceAccount.serviceAccountEmail,
+    key: env.googleServiceAccount.privateKey,
     scopes: ['https://www.googleapis.com/auth/spreadsheets'],
   });
   return google.sheets({ version: 'v4', auth });
 }
 
-async function resolverPestana(sheets) {
-  const meta = await sheets.spreadsheets.get({ spreadsheetId: env.googleSheets.spreadsheetId });
+async function resolverPestana(sheets, club) {
+  const { spreadsheetId, gid } = configDelClub(club);
+  const meta = await sheets.spreadsheets.get({ spreadsheetId });
   const tabs = meta.data.sheets.map((s) => ({ title: s.properties.title, gid: s.properties.sheetId }));
-  const gidObjetivo = env.googleSheets.gid ? Number(env.googleSheets.gid) : null;
+  const gidObjetivo = gid ? Number(gid) : null;
   const tab = (gidObjetivo !== null && tabs.find((t) => t.gid === gidObjetivo)) || tabs[0];
   if (!tab) throw new Error('La hoja de calculo no tiene ninguna pestana.');
   return tab.title;
@@ -148,9 +154,10 @@ function mapearFila(headers, filaValores) {
 // Lee la hoja, devuelve las filas SIN sincronizar todavia (columna ID_SYNC
 // vacia) ya mapeadas, junto con el numero de fila real en el Sheet (base 1)
 // para poder escribir despues el ID_SYNC en la fila correcta.
-async function leerFilasPendientes(sheets, tabTitle) {
+async function leerFilasPendientes(sheets, tabTitle, club) {
+  const { spreadsheetId } = configDelClub(club);
   const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: env.googleSheets.spreadsheetId,
+    spreadsheetId,
     // A:BZ deja margen amplio de columnas: el Form tiene 38 preguntas + ID_SYNC.
     range: `'${tabTitle}'!A:BZ`,
   });
@@ -182,15 +189,16 @@ async function leerFilasPendientes(sheets, tabTitle) {
   return { headers, idxIdSync, pendientes, omitidas };
 }
 
-async function marcarComoSincronizadas(sheets, tabTitle, idxIdSync, filasConId) {
+async function marcarComoSincronizadas(sheets, tabTitle, idxIdSync, filasConId, club) {
   if (filasConId.length === 0) return;
+  const { spreadsheetId } = configDelClub(club);
   const columnaLetra = columnaAIndice(idxIdSync);
   const data = filasConId.map(({ numeroFila, id }) => ({
     range: `'${tabTitle}'!${columnaLetra}${numeroFila}`,
     values: [[id]],
   }));
   await sheets.spreadsheets.values.batchUpdate({
-    spreadsheetId: env.googleSheets.spreadsheetId,
+    spreadsheetId,
     requestBody: { valueInputOption: 'RAW', data },
   });
 }

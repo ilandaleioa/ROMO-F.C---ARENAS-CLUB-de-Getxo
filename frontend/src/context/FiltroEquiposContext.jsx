@@ -1,11 +1,13 @@
 import { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { useAuth } from './AuthContext';
+import { useClub } from './ClubContext';
 import { api } from '../lib/api';
 
 const FiltroEquiposContext = createContext(null);
 
 export function FiltroEquiposProvider({ children }) {
   const { user } = useAuth();
+  const { club } = useClub();
   const [equiposDisponibles, setEquiposDisponibles] = useState([]);
   const [equiposSeleccionados, setEquiposSeleccionados] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -24,12 +26,13 @@ export function FiltroEquiposProvider({ children }) {
 
   useEffect(() => {
     if (user) {
+      setEquiposSeleccionados([]);
       cargarEquipos();
     } else {
       setEquiposDisponibles([]);
       setEquiposSeleccionados([]);
     }
-  }, [user, cargarEquipos]);
+  }, [user, club, cargarEquipos]);
 
   const toggleEquipo = useCallback((equipo) => {
     setEquiposSeleccionados((prev) =>

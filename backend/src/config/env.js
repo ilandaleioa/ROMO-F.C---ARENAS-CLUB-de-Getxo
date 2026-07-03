@@ -18,11 +18,21 @@ module.exports = {
   frontendOrigin: process.env.FRONTEND_ORIGIN || 'http://localhost:5173',
   isProduction: process.env.NODE_ENV === 'production',
   // Opcionales: si faltan, el endpoint de sincronizacion con Google Sheets
-  // responde 503 en vez de tumbar el arranque del backend.
-  googleSheets: {
-    spreadsheetId: process.env.GOOGLE_SHEETS_SPREADSHEET_ID || null,
-    gid: process.env.GOOGLE_SHEETS_GID || null,
-    serviceAccountEmail: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || null,
+  // responde 503 en vez de tumbar el arranque del backend. Mismo service
+  // account para los dos clubes (hay que compartirle ambas hojas); solo
+  // cambia el spreadsheet/pestana segun el club activo.
+  googleServiceAccount: {
+    email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || null,
     privateKey: process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY || null,
+  },
+  googleSheetsPorClub: {
+    ROMO: {
+      spreadsheetId: process.env.GOOGLE_SHEETS_SPREADSHEET_ID || null,
+      gid: process.env.GOOGLE_SHEETS_GID || null,
+    },
+    ARENAS: {
+      spreadsheetId: process.env.GOOGLE_SHEETS_SPREADSHEET_ID_ARENAS || null,
+      gid: process.env.GOOGLE_SHEETS_GID_ARENAS || null,
+    },
   },
 };

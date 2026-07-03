@@ -10,6 +10,7 @@ function createSessionToken(user) {
       username: user.username,
       rol: user.rol,
       equipo_asignado: user.equipo_asignado || null,
+      club: user.club || null,
     },
     env.sessionSecret,
     { expiresIn: SESSION_TTL }

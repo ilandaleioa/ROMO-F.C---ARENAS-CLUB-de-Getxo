@@ -5,6 +5,7 @@
 // Columnas visibles para Administrador y Responsable (incluye sensibles).
 const FULL_COLUMNS = [
   'id',
+  'club',
   'marca_temporal',
   'nombre',
   'primer_apellido',
@@ -78,6 +79,7 @@ const RESPONSABLE_COLUMNS = FULL_COLUMNS.filter((c) => !RESPONSABLE_EXCLUDED.has
 // Columnas visibles para Tecnico (sin datos sensibles).
 const TECNICO_COLUMNS = [
   'id',
+  'club',
   'nombre',
   'primer_apellido',
   'segundo_apellido',

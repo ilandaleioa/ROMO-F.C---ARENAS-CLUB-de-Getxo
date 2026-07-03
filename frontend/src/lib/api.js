@@ -1,3 +1,5 @@
+import { getClub } from './clubStore';
+
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
 
 async function request(path, options = {}) {
@@ -5,8 +7,8 @@ async function request(path, options = {}) {
   // navegador necesita fijar el boundary del multipart el mismo.
   const isFormData = options.body instanceof FormData;
   const headers = isFormData
-    ? { ...(options.headers || {}) }
-    : { 'Content-Type': 'application/json', ...(options.headers || {}) };
+    ? { 'X-Club': getClub(), ...(options.headers || {}) }
+    : { 'Content-Type': 'application/json', 'X-Club': getClub(), ...(options.headers || {}) };
 
   let res;
   try {

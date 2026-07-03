@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useClub } from '../context/ClubContext';
 import { api } from '../lib/api';
 import { DEMARCACION_OPCIONES } from '../lib/campos';
 
@@ -12,6 +13,7 @@ function nombreCompleto(j) {
 
 export default function Campogramas() {
   const { user } = useAuth();
+  const { club } = useClub();
   const navigate = useNavigate();
   const esTecnico = user.rol === 'tecnico' && user.equipo_asignado !== 'Todos';
   const puedeEditar = ['administrador', 'responsable', 'tecnico'].includes(user.rol);
@@ -57,7 +59,7 @@ export default function Campogramas() {
         setLoading(false);
       }
     })();
-  }, [esTecnico, user.equipo_asignado, equipoInicial]);
+  }, [esTecnico, user.equipo_asignado, equipoInicial, club]);
 
   const cargarDatos = useCallback(async () => {
     if (!equipo || !sistemaId) return;

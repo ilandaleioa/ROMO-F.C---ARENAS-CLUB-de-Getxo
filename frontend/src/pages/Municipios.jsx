@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useClub } from '../context/ClubContext';
 import { api } from '../lib/api';
 
 const COLORES_CIRCULAR = [
@@ -39,6 +40,7 @@ function arcoSvg(cx, cy, radio, anguloInicio, anguloFin) {
 }
 
 export default function Municipios() {
+  const { club } = useClub();
   const [jugadores, setJugadores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -57,7 +59,7 @@ export default function Municipios() {
   useEffect(() => {
     setLoading(true);
     cargarJugadores().finally(() => setLoading(false));
-  }, [cargarJugadores]);
+  }, [cargarJugadores, club]);
 
   const conLocalidad = jugadores.filter((j) => j.localidad && j.localidad.trim() !== '');
 
