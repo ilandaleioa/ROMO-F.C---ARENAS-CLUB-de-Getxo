@@ -246,7 +246,7 @@ export default function FichaJugador() {
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <Link to="/plantillas" className="text-club-red font-semibold hover:underline text-sm">
+        <Link to="/" className="text-club-red font-semibold hover:underline text-sm">
           &larr; Volver a plantillas
         </Link>
         <Link to="/campogramas" className="text-club-red font-semibold hover:underline text-sm">

@@ -55,7 +55,7 @@ router.get('/', async (req, res) => {
 
   let query = supabaseAdmin.from('jugadores').select(columns.join(','));
 
-  if (rol === ROLES.TECNICO) {
+  if (rol === ROLES.TECNICO && equipo_asignado !== 'Todos') {
     if (!equipo_asignado) {
       return res.status(409).json({ error: 'Tu usuario no tiene un equipo asignado. Contacta con el administrador.' });
     }
@@ -123,7 +123,7 @@ function ordenarEquipos(equipos) {
 router.get('/equipos', async (req, res) => {
   const { rol, equipo_asignado } = req.user;
 
-  if (rol === ROLES.TECNICO) {
+  if (rol === ROLES.TECNICO && equipo_asignado !== 'Todos') {
     return res.json({ equipos: equipo_asignado ? [equipo_asignado] : [] });
   }
 
@@ -154,7 +154,7 @@ router.get('/:id', async (req, res) => {
     return res.status(404).json({ error: 'Jugador no encontrado.' });
   }
 
-  if (rol === ROLES.TECNICO && data.equipo !== equipo_asignado) {
+  if (rol === ROLES.TECNICO && equipo_asignado !== 'Todos' && data.equipo !== equipo_asignado) {
     return res.status(403).json({ error: 'No tienes permiso para ver este jugador.' });
   }
 
@@ -189,7 +189,7 @@ router.post(
       if (!jugador) {
         return res.status(404).json({ error: 'Jugador no encontrado.' });
       }
-      if (rol === ROLES.TECNICO && jugador.equipo !== equipo_asignado) {
+      if (rol === ROLES.TECNICO && equipo_asignado !== 'Todos' && jugador.equipo !== equipo_asignado) {
         return res.status(403).json({ error: 'No tienes permiso para editar este jugador.' });
       }
 

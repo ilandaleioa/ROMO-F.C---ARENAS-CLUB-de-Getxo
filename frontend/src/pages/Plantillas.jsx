@@ -2,12 +2,13 @@ import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useFiltroEquipos } from '../context/FiltroEquiposContext';
+import { useVistaPlantillas } from '../context/VistaPlantillasContext';
 import { api } from '../lib/api';
 import { LATERALIDAD_OPCIONES, DEMARCACION_OPCIONES } from '../lib/campos';
 
 export default function Plantillas() {
   const { user } = useAuth();
-  const esTecnico = user.rol === 'tecnico';
+  const esTecnico = user.rol === 'tecnico' && user.equipo_asignado !== 'Todos';
   const esAdministrador = user.rol === 'administrador';
   const { equiposDisponibles, equiposSeleccionados, seleccionarEquipoUnico, limpiarSeleccion, recargarEquipos } =
     useFiltroEquipos();
@@ -21,7 +22,7 @@ export default function Plantillas() {
   const [refrescando, setRefrescando] = useState(false);
   const [sincronizando, setSincronizando] = useState(false);
   const [mensajeSync, setMensajeSync] = useState('');
-  const [vista, setVista] = useState('tabla');
+  const { vista } = useVistaPlantillas();
 
   const cargarJugadores = useCallback(async () => {
     setError('');
@@ -354,32 +355,6 @@ export default function Plantillas() {
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           {renderFiltrosDeportivos()}
           <div className="flex items-center gap-3">
-            <div className="inline-flex rounded-md border border-gray-300 overflow-hidden">
-              <button
-                onClick={() => setVista('tabla')}
-                className={`px-3 py-2 text-sm font-semibold transition-colors ${
-                  vista === 'tabla' ? 'bg-club-red text-white' : 'bg-white text-club-black hover:bg-red-50/60'
-                }`}
-              >
-                Tabla
-              </button>
-              <button
-                onClick={() => setVista('tarjeta')}
-                className={`px-3 py-2 text-sm font-semibold border-l border-gray-300 transition-colors ${
-                  vista === 'tarjeta' ? 'bg-club-red text-white' : 'bg-white text-club-black hover:bg-red-50/60'
-                }`}
-              >
-                Tarjetas
-              </button>
-              <button
-                onClick={() => setVista('graficas')}
-                className={`px-3 py-2 text-sm font-semibold border-l border-gray-300 transition-colors ${
-                  vista === 'graficas' ? 'bg-club-red text-white' : 'bg-white text-club-black hover:bg-red-50/60'
-                }`}
-              >
-                Gráficas
-              </button>
-            </div>
             <button
               onClick={handleActualizar}
               disabled={refrescando}

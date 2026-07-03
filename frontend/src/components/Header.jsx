@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useFiltroEquipos } from '../context/FiltroEquiposContext';
 import ClubLogo from './ClubLogo';
@@ -149,24 +149,26 @@ function BotonesHistorial() {
   );
 }
 
-export default function Header() {
+export default function Header({ onToggleSidebar }) {
   const { user, logout } = useAuth();
   const [menuAbierto, setMenuAbierto] = useState(false);
-
-  const linkClass = ({ isActive }) =>
-    `px-3 py-2 rounded-md text-sm font-semibold transition-colors ${
-      isActive ? 'bg-club-red text-white' : 'text-white/80 hover:text-white hover:bg-white/10'
-    }`;
-
-  const linkClassMobile = ({ isActive }) =>
-    `block px-3 py-2 rounded-md text-sm font-semibold transition-colors ${
-      isActive ? 'bg-club-red text-white' : 'text-white/80 hover:text-white hover:bg-white/10'
-    }`;
 
   return (
     <header className="sticky top-0 z-50 bg-club-black text-white shadow-md">
       <div className="w-full px-4 py-3 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
+          {user && (
+            <button
+              type="button"
+              onClick={onToggleSidebar}
+              aria-label="Abrir menu de navegacion"
+              className="md:hidden shrink-0 p-2 rounded-md bg-white/10 hover:bg-white/20 text-white transition-colors"
+            >
+              <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+                <path fillRule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
+              </svg>
+            </button>
+          )}
           <ClubLogo />
           <div className="leading-tight min-w-0">
             <h1 className="text-base sm:text-xl font-bold tracking-wide truncate">
@@ -176,25 +178,9 @@ export default function Header() {
         </div>
 
         {user && (
-          <nav className="hidden md:flex items-center gap-2">
+          <div className="hidden md:flex items-center gap-2">
             <BotonesHistorial />
-            <NavLink to="/plantillas" className={linkClass}>
-              Plantillas
-            </NavLink>
-            <NavLink to="/campogramas" className={linkClass}>
-              Campogramas
-            </NavLink>
-            {(user.rol === 'administrador' || user.rol === 'director') && (
-              <NavLink to="/usuarios" className={linkClass}>
-                Usuarios
-              </NavLink>
-            )}
-            {(user.rol === 'administrador' || user.rol === 'director') && (
-              <NavLink to="/municipios" className={linkClass}>
-                Municipios
-              </NavLink>
-            )}
-          </nav>
+          </div>
         )}
 
         {user && (
@@ -218,7 +204,7 @@ export default function Header() {
           <button
             type="button"
             onClick={() => setMenuAbierto((v) => !v)}
-            aria-label={menuAbierto ? 'Cerrar menu' : 'Abrir menu'}
+            aria-label={menuAbierto ? 'Cerrar menu de usuario' : 'Abrir menu de usuario'}
             aria-expanded={menuAbierto}
             className="md:hidden shrink-0 p-2 rounded-md bg-white/10 hover:bg-white/20 text-white transition-colors"
           >
@@ -237,25 +223,6 @@ export default function Header() {
 
       {user && menuAbierto && (
         <div className="md:hidden border-t border-white/10 px-4 py-3 flex flex-col gap-3">
-          <nav className="flex flex-col gap-1">
-            <NavLink to="/plantillas" className={linkClassMobile} onClick={() => setMenuAbierto(false)}>
-              Plantillas
-            </NavLink>
-            <NavLink to="/campogramas" className={linkClassMobile} onClick={() => setMenuAbierto(false)}>
-              Campogramas
-            </NavLink>
-            {(user.rol === 'administrador' || user.rol === 'director') && (
-              <NavLink to="/usuarios" className={linkClassMobile} onClick={() => setMenuAbierto(false)}>
-                Usuarios
-              </NavLink>
-            )}
-            {(user.rol === 'administrador' || user.rol === 'director') && (
-              <NavLink to="/municipios" className={linkClassMobile} onClick={() => setMenuAbierto(false)}>
-                Municipios
-              </NavLink>
-            )}
-          </nav>
-
           <div className="flex items-center gap-2">
             <BotonesHistorial />
             <BotonPantallaCompleta />

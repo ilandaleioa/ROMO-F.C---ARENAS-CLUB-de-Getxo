@@ -13,7 +13,7 @@ export default function Login() {
   const [submitting, setSubmitting] = useState(false);
 
   if (user) {
-    const dest = location.state?.from?.pathname || '/plantillas';
+    const dest = location.state?.from?.pathname || '/';
     return <Navigate to={dest} replace />;
   }
 
@@ -23,7 +23,7 @@ export default function Login() {
     setSubmitting(true);
     try {
       await login(username, password);
-      navigate('/plantillas', { replace: true });
+      navigate('/', { replace: true });
     } catch (err) {
       setError(err.message || 'No se pudo iniciar sesion.');
     } finally {

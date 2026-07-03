@@ -1,20 +1,29 @@
+import { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { FiltroEquiposProvider } from './context/FiltroEquiposContext';
+import { VistaPlantillasProvider } from './context/VistaPlantillasContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Header from './components/Header';
+import Sidebar from './components/Sidebar';
 import Login from './pages/Login';
 import Plantillas from './pages/Plantillas';
 import FichaJugador from './pages/FichaJugador';
 import Usuarios from './pages/Usuarios';
 import Campogramas from './pages/Campogramas';
 import Municipios from './pages/Municipios';
+import HojasCalculo from './pages/HojasCalculo';
 
 function Layout({ children }) {
+  const [sidebarAbierto, setSidebarAbierto] = useState(false);
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <Header />
-      <main className="flex-1">{children}</main>
+      <Header onToggleSidebar={() => setSidebarAbierto((v) => !v)} />
+      <div className="flex flex-1 min-h-0">
+        <Sidebar isOpen={sidebarAbierto} onClose={() => setSidebarAbierto(false)} />
+        <main className="flex-1 min-w-0">{children}</main>
+      </div>
     </div>
   );
 }
@@ -30,7 +39,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route
-        path="/plantillas"
+        path="/"
         element={
           <ProtectedRoute>
             <Layout>
@@ -79,7 +88,17 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
-      <Route path="*" element={<Navigate to={user ? '/plantillas' : '/login'} replace />} />
+      <Route
+        path="/hojas-calculo"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <HojasCalculo />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route path="*" element={<Navigate to={user ? '/' : '/login'} replace />} />
     </Routes>
   );
 }
@@ -89,7 +108,9 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <FiltroEquiposProvider>
-          <AppRoutes />
+          <VistaPlantillasProvider>
+            <AppRoutes />
+          </VistaPlantillasProvider>
         </FiltroEquiposProvider>
       </AuthProvider>
     </BrowserRouter>

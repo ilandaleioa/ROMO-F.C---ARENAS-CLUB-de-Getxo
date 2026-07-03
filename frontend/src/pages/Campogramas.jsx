@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../lib/api';
+import { DEMARCACION_OPCIONES } from '../lib/campos';
 
 const MAX_JUGADORES_POR_PUESTO = 3;
 
@@ -9,65 +10,10 @@ function nombreCompleto(j) {
   return `${j.nombre} ${j.primer_apellido} ${j.segundo_apellido || ''}`.trim();
 }
 
-function SelectorEquipo({ equipo, equipos, onChange }) {
-  const [abierto, setAbierto] = useState(false);
-  const contenedorRef = useRef(null);
-
-  useEffect(() => {
-    const handleClickFuera = (e) => {
-      if (contenedorRef.current && !contenedorRef.current.contains(e.target)) {
-        setAbierto(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickFuera);
-    return () => document.removeEventListener('mousedown', handleClickFuera);
-  }, []);
-
-  return (
-    <div className="relative w-full sm:w-64" ref={contenedorRef}>
-      <button
-        type="button"
-        onClick={() => setAbierto((v) => !v)}
-        className="w-full flex items-center justify-between gap-2 rounded-md border border-gray-300 px-3 py-2 bg-white text-left focus:outline-none focus:ring-2 focus:ring-club-red"
-        aria-haspopup="listbox"
-        aria-expanded={abierto}
-      >
-        <span className="truncate">{equipo || 'Selecciona un equipo'}</span>
-        <span className="text-club-black/50 shrink-0">▾</span>
-      </button>
-
-      {abierto && (
-        <div
-          role="listbox"
-          className="absolute left-0 right-0 mt-1 max-h-72 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg z-50"
-        >
-          {equipos.map((eq) => (
-            <button
-              key={eq}
-              type="button"
-              role="option"
-              aria-selected={eq === equipo}
-              onClick={() => {
-                onChange(eq);
-                setAbierto(false);
-              }}
-              className={`w-full text-left px-3 py-2 text-sm transition-colors ${
-                eq === equipo ? 'bg-club-red text-white font-semibold' : 'text-club-black hover:bg-red-50/60'
-              }`}
-            >
-              {eq}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export default function Campogramas() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const esTecnico = user.rol === 'tecnico';
+  const esTecnico = user.rol === 'tecnico' && user.equipo_asignado !== 'Todos';
   const puedeEditar = ['administrador', 'responsable', 'tecnico'].includes(user.rol);
   const [searchParams] = useSearchParams();
   const equipoInicial = searchParams.get('equipo') || '';
@@ -153,6 +99,24 @@ export default function Campogramas() {
   );
   const jugadoresDisponibles = jugadores.filter((j) => !idsAsignados.has(j.id));
 
+  const gruposJugadoresDisponibles = useMemo(() => {
+    const grupos = new Map();
+    jugadoresDisponibles.forEach((j) => {
+      const clave = j.demarcacion || 'Sin demarcación';
+      if (!grupos.has(clave)) grupos.set(clave, []);
+      grupos.get(clave).push(j);
+    });
+    const orden = [...DEMARCACION_OPCIONES, 'Sin demarcación'];
+    return [...grupos.entries()].sort((a, b) => {
+      const ia = orden.indexOf(a[0]);
+      const ib = orden.indexOf(b[0]);
+      if (ia === -1 && ib === -1) return a[0].localeCompare(b[0]);
+      if (ia === -1) return 1;
+      if (ib === -1) return -1;
+      return ia - ib;
+    });
+  }, [jugadoresDisponibles]);
+
   const asignarJugadores = (posicionId, jugadorIdsNuevos) => {
     setAsignaciones((prev) => {
       const actuales = prev[posicionId] || [];
@@ -191,13 +155,6 @@ export default function Campogramas() {
   const abrirModal = (posicionId) => {
     setPosicionEligiendo(posicionId);
     setSeleccionModal([]);
-  };
-
-  const irEquipoRelativo = (delta) => {
-    if (equipos.length === 0) return;
-    const indiceActual = equipos.indexOf(equipo);
-    const siguiente = (indiceActual + delta + equipos.length) % equipos.length;
-    setEquipo(equipos[siguiente]);
   };
 
   const posicionSeleccionada = sistema?.positions.find((p) => p.id === posicionEligiendo) || null;
@@ -241,49 +198,6 @@ export default function Campogramas() {
         )}
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-3 mb-6">
-        {!esTecnico && (
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <button
-              type="button"
-              onClick={() => irEquipoRelativo(-1)}
-              disabled={equipos.length < 2}
-              title="Equipo anterior"
-              aria-label="Equipo anterior"
-              className="shrink-0 w-9 h-9 flex items-center justify-center rounded-md border border-gray-300 text-club-black/70 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                <path d="M12.7 4.3a1 1 0 010 1.4L8.4 10l4.3 4.3a1 1 0 01-1.4 1.4l-5-5a1 1 0 010-1.4l5-5a1 1 0 011.4 0z" />
-              </svg>
-            </button>
-            <SelectorEquipo equipo={equipo} equipos={equipos} onChange={setEquipo} />
-            <button
-              type="button"
-              onClick={() => irEquipoRelativo(1)}
-              disabled={equipos.length < 2}
-              title="Equipo siguiente"
-              aria-label="Equipo siguiente"
-              className="shrink-0 w-9 h-9 flex items-center justify-center rounded-md border border-gray-300 text-club-black/70 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                <path d="M7.3 15.7a1 1 0 010-1.4L11.6 10 7.3 5.7a1 1 0 011.4-1.4l5 5a1 1 0 010 1.4l-5 5a1 1 0 01-1.4 0z" />
-              </svg>
-            </button>
-          </div>
-        )}
-        <select
-          value={sistemaId}
-          onChange={(e) => setSistemaId(e.target.value)}
-          className="w-full sm:w-64 rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
-        >
-          {sistemas.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
       {error && (
         <p className="text-sm text-club-red font-medium bg-red-50 border border-club-red/30 rounded-md px-3 py-2 mb-4">
           {error}
@@ -295,11 +209,44 @@ export default function Campogramas() {
         </p>
       )}
 
-      {!equipo ? (
-        <p className="text-club-black/60">Selecciona un equipo.</p>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
+      <div className="flex flex-col md:flex-row gap-6">
+        {!esTecnico && (
+          <aside className="md:w-64 shrink-0">
+            <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+              {equipos.map((eq) => (
+                <button
+                  key={eq}
+                  type="button"
+                  onClick={() => setEquipo(eq)}
+                  className={`w-full text-left px-4 py-2.5 text-sm border-b border-gray-100 last:border-b-0 transition-colors ${
+                    eq === equipo ? 'bg-club-red text-white font-semibold' : 'text-club-black/80 hover:bg-red-50/60'
+                  }`}
+                >
+                  {eq}
+                </button>
+              ))}
+            </div>
+          </aside>
+        )}
+
+        <div className="flex-1 min-w-0">
+          <select
+            value={sistemaId}
+            onChange={(e) => setSistemaId(e.target.value)}
+            className="w-64 mb-6 rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
+          >
+            {sistemas.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+
+          {!equipo ? (
+            <p className="text-club-black/60">Selecciona un equipo.</p>
+          ) : (
+            <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+              <div className="xl:col-span-3">
             <div className="relative w-full aspect-[3/2] max-w-4xl mx-auto rounded-lg bg-green-700 border-4 border-white/80 overflow-hidden shadow-inner">
               {/* Linea de medio campo y circulo central */}
               <div className="absolute inset-y-0 left-1/2 border-l-2 border-white/60" />
@@ -393,22 +340,31 @@ export default function Campogramas() {
             <h3 className="text-lg font-bold text-club-black mb-3">
               Jugadores sin colocar ({jugadoresDisponibles.length})
             </h3>
-            <div className="space-y-2">
-              {jugadoresDisponibles.map((j) => (
-                <div
-                  key={j.id}
-                  className="flex items-center gap-3 rounded-md border border-gray-200 bg-white px-3 py-2"
-                >
-                  {j.foto_url ? (
-                    <img src={j.foto_url} alt={nombreCompleto(j)} className="w-8 h-8 rounded-full object-cover" />
-                  ) : (
-                    <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-[9px] text-club-black/40">
-                      S/F
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-club-black truncate">{nombreCompleto(j)}</p>
-                    <p className="text-xs text-club-black/50">{j.demarcacion || 'Sin demarcación'}</p>
+            <div className="space-y-4">
+              {gruposJugadoresDisponibles.map(([demarcacion, jugadoresGrupo]) => (
+                <div key={demarcacion}>
+                  <h4 className="text-xs font-semibold uppercase tracking-wide text-club-black/50 mb-2">
+                    {demarcacion} ({jugadoresGrupo.length})
+                  </h4>
+                  <div className="space-y-2">
+                    {jugadoresGrupo.map((j) => (
+                      <div
+                        key={j.id}
+                        className="flex items-center gap-3 rounded-md border border-gray-200 bg-white px-3 py-2"
+                      >
+                        {j.foto_url ? (
+                          <img src={j.foto_url} alt={nombreCompleto(j)} className="w-8 h-8 rounded-full object-cover" />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-[9px] text-club-black/40">
+                            S/F
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-club-black truncate">{nombreCompleto(j)}</p>
+                          <p className="text-xs text-club-black/50">{j.demarcacion || 'Sin demarcación'}</p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               ))}
@@ -417,8 +373,10 @@ export default function Campogramas() {
               )}
             </div>
           </div>
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {posicionSeleccionada && (
         <div

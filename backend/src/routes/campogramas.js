@@ -16,7 +16,7 @@ router.get('/sistemas', (req, res) => {
 
 function resolverEquipo(req) {
   const { rol, equipo_asignado } = req.user;
-  if (rol === ROLES.TECNICO) return equipo_asignado || null;
+  if (rol === ROLES.TECNICO && equipo_asignado !== 'Todos') return equipo_asignado || null;
   const equipo = typeof req.query.equipo === 'string' ? req.query.equipo.trim() : '';
   return equipo || null;
 }
@@ -69,7 +69,7 @@ router.put(
     if (typeof equipo !== 'string' || !equipo.trim()) {
       return res.status(400).json({ error: 'Falta indicar el equipo.' });
     }
-    if (rol === ROLES.TECNICO && equipo !== equipo_asignado) {
+    if (rol === ROLES.TECNICO && equipo_asignado !== 'Todos' && equipo !== equipo_asignado) {
       return res.status(403).json({ error: 'No tienes permiso para editar el campograma de otro equipo.' });
     }
 

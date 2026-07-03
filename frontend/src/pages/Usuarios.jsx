@@ -9,7 +9,7 @@ const ROLES = [
   { value: 'tecnico', label: 'Tecnico' },
 ];
 
-const FORM_VACIO = { username: '', password: '', rol: 'tecnico', equipo_asignado: '', activo: true };
+const FORM_VACIO = { username: '', password: '', rol: 'tecnico', equipo_asignado: 'Todos', activo: true };
 
 export default function Usuarios() {
   const { equiposDisponibles } = useFiltroEquipos();
@@ -43,7 +43,7 @@ export default function Usuarios() {
       username: usuario.username,
       password: '',
       rol: usuario.rol,
-      equipo_asignado: usuario.equipo_asignado || '',
+      equipo_asignado: usuario.equipo_asignado || 'Todos',
       activo: usuario.activo !== false,
     });
     setFormError('');
@@ -167,9 +167,7 @@ export default function Usuarios() {
                 onChange={(e) => setForm({ ...form, equipo_asignado: e.target.value })}
                 className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
               >
-                <option value="" disabled>
-                  Selecciona un equipo...
-                </option>
+                <option value="Todos">Todos</option>
                 {equiposDisponibles.map((eq) => (
                   <option key={eq} value={eq}>
                     {eq}
