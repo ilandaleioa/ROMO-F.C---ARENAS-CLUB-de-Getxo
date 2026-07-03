@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useFiltroEquipos } from '../context/FiltroEquiposContext';
 import ClubLogo from './ClubLogo';
@@ -118,6 +118,37 @@ function BotonPantallaCompleta() {
   );
 }
 
+function BotonesHistorial() {
+  const navigate = useNavigate();
+
+  return (
+    <div className="flex items-center gap-1">
+      <button
+        type="button"
+        onClick={() => navigate(-1)}
+        title="Página anterior"
+        aria-label="Página anterior"
+        className="p-2 rounded-md bg-white/10 hover:bg-white/20 text-white transition-colors"
+      >
+        <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+          <path d="M12.7 4.3a1 1 0 010 1.4L8.4 10l4.3 4.3a1 1 0 01-1.4 1.4l-5-5a1 1 0 010-1.4l5-5a1 1 0 011.4 0z" />
+        </svg>
+      </button>
+      <button
+        type="button"
+        onClick={() => navigate(1)}
+        title="Página siguiente"
+        aria-label="Página siguiente"
+        className="p-2 rounded-md bg-white/10 hover:bg-white/20 text-white transition-colors"
+      >
+        <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+          <path d="M7.3 15.7a1 1 0 010-1.4L11.6 10 7.3 5.7a1 1 0 011.4-1.4l5 5a1 1 0 010 1.4l-5 5a1 1 0 01-1.4 0z" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
 export default function Header() {
   const { user, logout } = useAuth();
 
@@ -140,6 +171,7 @@ export default function Header() {
 
         {user && (
           <nav className="flex items-center gap-2">
+            <BotonesHistorial />
             <NavLink to="/plantillas" className={linkClass}>
               Plantillas
             </NavLink>

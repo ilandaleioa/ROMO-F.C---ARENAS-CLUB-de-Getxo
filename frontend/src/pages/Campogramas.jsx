@@ -138,6 +138,13 @@ export default function Campogramas() {
     setSeleccionModal([]);
   };
 
+  const irEquipoRelativo = (delta) => {
+    if (equipos.length === 0) return;
+    const indiceActual = equipos.indexOf(equipo);
+    const siguiente = (indiceActual + delta + equipos.length) % equipos.length;
+    setEquipo(equipos[siguiente]);
+  };
+
   const posicionSeleccionada = sistema?.positions.find((p) => p.id === posicionEligiendo) || null;
   const jugadoresDelModal = jugadoresDisponibles.filter((j) =>
     nombreCompleto(j).toLowerCase().includes(busquedaModal.trim().toLowerCase())
@@ -181,17 +188,43 @@ export default function Campogramas() {
 
       <div className="flex flex-col sm:flex-row gap-3 mb-6">
         {!esTecnico && (
-          <select
-            value={equipo}
-            onChange={(e) => setEquipo(e.target.value)}
-            className="w-full sm:w-64 rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
-          >
-            {equipos.map((eq) => (
-              <option key={eq} value={eq}>
-                {eq}
-              </option>
-            ))}
-          </select>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => irEquipoRelativo(-1)}
+              disabled={equipos.length < 2}
+              title="Equipo anterior"
+              aria-label="Equipo anterior"
+              className="shrink-0 w-9 h-9 flex items-center justify-center rounded-md border border-gray-300 text-club-black/70 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                <path d="M12.7 4.3a1 1 0 010 1.4L8.4 10l4.3 4.3a1 1 0 01-1.4 1.4l-5-5a1 1 0 010-1.4l5-5a1 1 0 011.4 0z" />
+              </svg>
+            </button>
+            <select
+              value={equipo}
+              onChange={(e) => setEquipo(e.target.value)}
+              className="w-full sm:w-64 rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
+            >
+              {equipos.map((eq) => (
+                <option key={eq} value={eq}>
+                  {eq}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => irEquipoRelativo(1)}
+              disabled={equipos.length < 2}
+              title="Equipo siguiente"
+              aria-label="Equipo siguiente"
+              className="shrink-0 w-9 h-9 flex items-center justify-center rounded-md border border-gray-300 text-club-black/70 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                <path d="M7.3 15.7a1 1 0 010-1.4L11.6 10 7.3 5.7a1 1 0 011.4-1.4l5 5a1 1 0 010 1.4l-5 5a1 1 0 01-1.4 0z" />
+              </svg>
+            </button>
+          </div>
         )}
         <select
           value={sistemaId}
@@ -242,11 +275,8 @@ export default function Campogramas() {
                   >
                     <div className="flex flex-col items-center gap-1">
                       {puestoJugadores.map((jugador) => (
-                        <button
+                        <div
                           key={jugador.id}
-                          type="button"
-                          onClick={() => puedeEditar && quitarJugador(pos.id, jugador.id)}
-                          title={puedeEditar ? `Quitar a ${nombreCompleto(jugador)}` : nombreCompleto(jugador)}
                           className="flex items-center bg-club-black rounded-full shadow-md overflow-hidden shrink-0"
                         >
                           {jugador.foto_url ? (
@@ -260,15 +290,37 @@ export default function Campogramas() {
                               S/F
                             </div>
                           )}
-                          <span className="text-[11px] font-semibold text-white px-2 whitespace-nowrap">
+                          <span className="text-[11px] font-semibold text-white pl-2 pr-1 whitespace-nowrap">
                             {jugador.nombre} {jugador.primer_apellido}
                           </span>
                           {jugador.dorsal !== null && jugador.dorsal !== undefined && jugador.dorsal !== '' && (
-                            <span className="w-6 h-6 rounded-full bg-club-red text-white text-[11px] font-bold flex items-center justify-center mr-1 shrink-0">
+                            <span className="w-5 h-5 rounded-full bg-club-red text-white text-[10px] font-bold flex items-center justify-center shrink-0">
                               {jugador.dorsal}
                             </span>
                           )}
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/plantillas/${jugador.id}`)}
+                            title={`Ver ficha de ${nombreCompleto(jugador)}`}
+                            className="w-6 h-6 flex items-center justify-center text-white/80 hover:text-white shrink-0"
+                          >
+                            <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+                              <path d="M10 3.5c-4.14 0-7.4 2.6-9 6.5 1.6 3.9 4.86 6.5 9 6.5s7.4-2.6 9-6.5c-1.6-3.9-4.86-6.5-9-6.5zm0 10.83A4.33 4.33 0 1110 5.67a4.33 4.33 0 010 8.66zm0-6.83a2.5 2.5 0 100 5 2.5 2.5 0 000-5z" />
+                            </svg>
+                          </button>
+                          {puedeEditar && (
+                            <button
+                              type="button"
+                              onClick={() => quitarJugador(pos.id, jugador.id)}
+                              title={`Quitar a ${nombreCompleto(jugador)}`}
+                              className="w-6 h-6 flex items-center justify-center text-white/80 hover:text-white mr-0.5 shrink-0"
+                            >
+                              <svg viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
+                                <path d="M4.3 4.3a1 1 0 011.4 0L10 8.6l4.3-4.3a1 1 0 111.4 1.4L11.4 10l4.3 4.3a1 1 0 01-1.4 1.4L10 11.4l-4.3 4.3a1 1 0 01-1.4-1.4L8.6 10 4.3 5.7a1 1 0 010-1.4z" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
                       ))}
                       {puedeEditar && hayHueco && (
                         <button

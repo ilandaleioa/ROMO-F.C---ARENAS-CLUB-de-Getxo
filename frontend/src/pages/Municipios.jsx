@@ -138,12 +138,12 @@ export default function Municipios() {
                 x={s.etiquetaX}
                 y={s.etiquetaY}
                 textAnchor="middle"
-                dominantBaseline="middle"
                 fill="#ffffff"
                 fontSize="10"
                 fontWeight="600"
               >
-                {`${Math.round(s.porcentaje)}%`}
+                <tspan x={s.etiquetaX} dy="-2">{`${Math.round(s.porcentaje)}%`}</tspan>
+                <tspan x={s.etiquetaX} dy="12">{`(${s.total})`}</tspan>
               </text>
             ))}
         </svg>
