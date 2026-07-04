@@ -73,6 +73,14 @@ function detectarMovil() {
   return window.matchMedia('(max-width: 767px)').matches;
 }
 
+function ordenarJugadoresAlfabeticamente(jugadores) {
+  return [...jugadores].sort((a, b) => {
+    const nombreA = `${a.nombre || ''} ${a.primer_apellido || ''} ${a.segundo_apellido || ''}`.trim();
+    const nombreB = `${b.nombre || ''} ${b.primer_apellido || ''} ${b.segundo_apellido || ''}`.trim();
+    return nombreA.localeCompare(nombreB, 'es', { sensitivity: 'base' });
+  });
+}
+
 export default function Plantillas() {
   const { user } = useAuth();
   const { club } = useClub();
@@ -186,12 +194,14 @@ export default function Plantillas() {
     return edad;
   };
 
-  const jugadoresFiltrados = jugadores.filter((j) => {
-    if (filtroLateralidad && j.lateralidad !== filtroLateralidad) return false;
-    if (filtroDemarcacion && j.demarcacion !== filtroDemarcacion) return false;
-    if (filtroAnio && String(anioNacimiento(j.fecha_nacimiento) || '') !== filtroAnio) return false;
-    return true;
-  });
+  const jugadoresFiltrados = ordenarJugadoresAlfabeticamente(
+    jugadores.filter((j) => {
+      if (filtroLateralidad && j.lateralidad !== filtroLateralidad) return false;
+      if (filtroDemarcacion && j.demarcacion !== filtroDemarcacion) return false;
+      if (filtroAnio && String(anioNacimiento(j.fecha_nacimiento) || '') !== filtroAnio) return false;
+      return true;
+    })
+  );
 
   const aniosDisponibles = useMemo(() => {
     const anios = new Set();

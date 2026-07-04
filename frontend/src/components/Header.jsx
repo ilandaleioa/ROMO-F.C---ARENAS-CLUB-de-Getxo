@@ -3,12 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useFiltroEquipos } from '../context/FiltroEquiposContext';
 import { useClub, CLUBES } from '../context/ClubContext';
+import ClubLogo from './ClubLogo';
 
 const NOMBRE_CLUB = {
   ROMO: 'ROMO F.C.',
   ARENAS: 'ARENAS CLUB',
 };
-import ClubLogo from './ClubLogo';
 
 function SelectorClub() {
   const { club, setClub } = useClub();
