@@ -61,7 +61,7 @@ router.get('/', async (req, res) => {
 // PUT /api/campogramas -> guarda/actualiza la asignacion de jugadores a posiciones.
 router.put(
   '/',
-  requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR, ROLES.RESPONSABLE, ROLES.TECNICO),
+  requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR),
   async (req, res) => {
     const { rol, equipo_asignado } = req.user;
     const { equipo, sistema, asignaciones } = req.body || {};

@@ -16,7 +16,7 @@ export default function Campogramas() {
   const { club } = useClub();
   const navigate = useNavigate();
   const esTecnico = user.rol === 'tecnico' && user.equipo_asignado !== 'Todos';
-  const puedeEditar = ['administrador', 'responsable', 'tecnico', 'director'].includes(user.rol);
+  const puedeEditar = ['administrador', 'director'].includes(user.rol);
   const [searchParams] = useSearchParams();
   const equipoInicial = searchParams.get('equipo') || '';
 
