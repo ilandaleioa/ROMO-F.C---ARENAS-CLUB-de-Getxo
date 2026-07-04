@@ -159,6 +159,33 @@ export default function Plantillas() {
     }
   };
 
+  const formatearFecha = (fechaNacimiento) => {
+    if (!fechaNacimiento) return null;
+    const [anio, mes, dia] = fechaNacimiento.split('-');
+    if (!anio || !mes || !dia) return fechaNacimiento;
+    return `${dia}-${mes}-${anio}`;
+  };
+
+  const anioNacimiento = (fechaNacimiento) => {
+    if (!fechaNacimiento) return null;
+    const nacimiento = new Date(fechaNacimiento);
+    if (Number.isNaN(nacimiento.getTime())) return null;
+    return nacimiento.getFullYear();
+  };
+
+  const calcularEdad = (fechaNacimiento) => {
+    if (!fechaNacimiento) return null;
+    const nacimiento = new Date(fechaNacimiento);
+    if (Number.isNaN(nacimiento.getTime())) return null;
+    const hoy = new Date();
+    let edad = hoy.getFullYear() - nacimiento.getFullYear();
+    const noHaCumplidoAun =
+      hoy.getMonth() < nacimiento.getMonth() ||
+      (hoy.getMonth() === nacimiento.getMonth() && hoy.getDate() < nacimiento.getDate());
+    if (noHaCumplidoAun) edad -= 1;
+    return edad;
+  };
+
   const jugadoresFiltrados = jugadores.filter((j) => {
     if (filtroLateralidad && j.lateralidad !== filtroLateralidad) return false;
     if (filtroDemarcacion && j.demarcacion !== filtroDemarcacion) return false;
@@ -180,33 +207,6 @@ export default function Plantillas() {
     return acc;
   }, {});
   const gruposEquipos = ordenarEquiposParaVista(Object.keys(jugadoresPorEquipo), club);
-
-  const calcularEdad = (fechaNacimiento) => {
-    if (!fechaNacimiento) return null;
-    const nacimiento = new Date(fechaNacimiento);
-    if (Number.isNaN(nacimiento.getTime())) return null;
-    const hoy = new Date();
-    let edad = hoy.getFullYear() - nacimiento.getFullYear();
-    const noHaCumplidoAun =
-      hoy.getMonth() < nacimiento.getMonth() ||
-      (hoy.getMonth() === nacimiento.getMonth() && hoy.getDate() < nacimiento.getDate());
-    if (noHaCumplidoAun) edad -= 1;
-    return edad;
-  };
-
-  const formatearFecha = (fechaNacimiento) => {
-    if (!fechaNacimiento) return null;
-    const [anio, mes, dia] = fechaNacimiento.split('-');
-    if (!anio || !mes || !dia) return fechaNacimiento;
-    return `${dia}-${mes}-${anio}`;
-  };
-
-  const anioNacimiento = (fechaNacimiento) => {
-    if (!fechaNacimiento) return null;
-    const nacimiento = new Date(fechaNacimiento);
-    if (Number.isNaN(nacimiento.getTime())) return null;
-    return nacimiento.getFullYear();
-  };
 
   const contarPor = (lista, obtenerClave) =>
     lista.reduce((acc, j) => {
