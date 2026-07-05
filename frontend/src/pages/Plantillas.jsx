@@ -468,7 +468,13 @@ export default function Plantillas() {
           </div>
           <p className="text-sm text-club-black/80">{j.equipo}</p>
           <p className="text-sm text-club-black/60">
-            Fecha nacimiento: {formatearFecha(j.fecha_nacimiento) || '-'}
+            Año de nacimiento: {anioNacimiento(j.fecha_nacimiento) ?? '-'}
+          </p>
+          <p className="text-sm text-club-black/60">
+            Lateralidad: {j.lateralidad || '-'}
+          </p>
+          <p className="text-sm text-club-black/60">
+            Demarcación: {j.demarcacion || '-'}
           </p>
           <Link
             to={`/plantillas/${j.id}`}
