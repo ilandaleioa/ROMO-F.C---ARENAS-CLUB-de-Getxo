@@ -20,33 +20,6 @@ const COLORES_MUNICIPIOS = [
 
 const TOP_MUNICIPIOS_CIRCULAR = 7;
 
-const ORDEN_EQUIPOS_ARENAS = [
-  'Juvenil A',
-  'Juvenil B',
-  'Cadete A',
-  'Cadete B',
-  'Infantil 13',
-  'Infantil 14',
-  'Alevín 15A',
-  'Alevín 15B',
-  'Alevín 16A',
-  'Alevín 16B',
-  'Benjamín 17',
-  'Benjamín 18',
-];
-
-function ordenarEquiposParaVista(equipos, club) {
-  const ordenClub = club === 'ARENAS' ? ORDEN_EQUIPOS_ARENAS : [];
-  return [...equipos].sort((a, b) => {
-    const ia = ordenClub.indexOf(a);
-    const ib = ordenClub.indexOf(b);
-    if (ia === -1 && ib === -1) return a.localeCompare(b);
-    if (ia === -1) return 1;
-    if (ib === -1) return -1;
-    return ia - ib;
-  });
-}
-
 function normalizarLocalidad(valor) {
   let v = valor.trim();
   v = v.replace(/\(.*$/, '').trim();
@@ -211,12 +184,6 @@ export default function Plantillas() {
     });
     return Array.from(anios).sort((a, b) => b - a);
   }, [jugadores]);
-
-  const jugadoresPorEquipo = jugadoresFiltrados.reduce((acc, j) => {
-    (acc[j.equipo] ||= []).push(j);
-    return acc;
-  }, {});
-  const gruposEquipos = ordenarEquiposParaVista(Object.keys(jugadoresPorEquipo), club);
 
   const contarPor = (lista, obtenerClave) =>
     lista.reduce((acc, j) => {
@@ -419,9 +386,9 @@ export default function Plantillas() {
   };
 
   const renderTablaJugadores = (lista) => (
-    <div className="overflow-x-auto rounded-lg border border-gray-200">
+    <div className="overflow-x-auto overflow-y-auto max-h-[70vh] rounded-lg border border-gray-200">
       <table className="w-full divide-y divide-gray-200 bg-white text-sm sm:text-base">
-        <thead className="bg-club-black text-white">
+        <thead className="bg-club-black text-white sticky top-0 z-10">
           <tr>
             <th className="px-2 py-2 sm:px-4 sm:py-3" />
             <th className="px-2 py-2 sm:px-4 sm:py-3 text-left text-xs font-semibold uppercase tracking-wide">Nombre</th>
@@ -702,22 +669,19 @@ export default function Plantillas() {
                 {renderGraficas(jugadoresFiltrados)}
               </>
             ) : (
-              <div className="space-y-8">
-                {gruposEquipos.map((eq) => (
-                  <div key={eq}>
-                    <div className="flex flex-wrap items-center gap-3 mb-2">
-                      <h3 className="text-lg font-bold text-club-black">{eq}</h3>
-                      <Link
-                        to={`/campogramas?equipo=${encodeURIComponent(eq)}`}
-                        className="inline-flex items-center gap-1.5 bg-club-red hover:bg-club-redDark text-white font-semibold px-3 py-1.5 rounded-md text-sm transition-colors"
-                      >
-                        <span className="text-base leading-none">+</span> Campograma
-                      </Link>
-                      {renderContadorRegistros(jugadoresPorEquipo[eq].length)}
-                    </div>
-                    {renderJugadores(jugadoresPorEquipo[eq])}
-                  </div>
-                ))}
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  {equiposSeleccionados.length === 1 && (
+                    <Link
+                      to={`/campogramas?equipo=${encodeURIComponent(equiposSeleccionados[0])}`}
+                      className="inline-flex items-center gap-1.5 bg-club-red hover:bg-club-redDark text-white font-semibold px-3 py-1.5 rounded-md text-sm transition-colors"
+                    >
+                      <span className="text-base leading-none">+</span> Campograma
+                    </Link>
+                  )}
+                  {renderContadorRegistros(jugadoresFiltrados.length)}
+                </div>
+                {renderJugadores(jugadoresFiltrados)}
               </div>
             )}
           </div>
