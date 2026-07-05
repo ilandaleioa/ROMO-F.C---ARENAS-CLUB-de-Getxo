@@ -420,49 +420,49 @@ export default function Plantillas() {
 
   const renderTablaJugadores = (lista) => (
     <div className="overflow-x-auto rounded-lg border border-gray-200">
-      <table className="min-w-[620px] sm:min-w-full divide-y divide-gray-200 bg-white">
+      <table className="w-full divide-y divide-gray-200 bg-white text-sm sm:text-base">
         <thead className="bg-club-black text-white">
           <tr>
-            <th className="px-4 py-3" />
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Nombre</th>
+            <th className="px-2 py-2 sm:px-4 sm:py-3" />
+            <th className="px-2 py-2 sm:px-4 sm:py-3 text-left text-xs font-semibold uppercase tracking-wide">Nombre</th>
             <th className="hidden sm:table-cell px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Fecha nacimiento</th>
             <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Año</th>
             <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Edad</th>
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Dorsal</th>
+            <th className="px-2 py-2 sm:px-4 sm:py-3 text-left text-xs font-semibold uppercase tracking-wide">Dorsal</th>
             <th className="hidden lg:table-cell px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Lateralidad</th>
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Demarcación</th>
-            <th className="px-4 py-3" />
+            <th className="hidden min-[380px]:table-cell px-2 py-2 sm:px-4 sm:py-3 text-left text-xs font-semibold uppercase tracking-wide">Demarcación</th>
+            <th className="px-2 py-2 sm:px-4 sm:py-3" />
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
           {lista.map((j) => (
             <tr key={j.id} className="hover:bg-red-50/40 transition-colors">
-              <td className="px-4 py-3">
+              <td className="px-2 py-2 sm:px-4 sm:py-3">
                 {j.foto_url ? (
                   <img
                     src={j.foto_url}
                     alt={`Foto de ${j.nombre}`}
-                    className="w-9 h-9 rounded-full object-cover"
+                    className="w-7 h-7 sm:w-9 sm:h-9 rounded-full object-cover"
                   />
                 ) : (
-                  <div className="w-9 h-9 rounded-full bg-gray-200 flex items-center justify-center text-[9px] text-club-black/40">
+                  <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-full bg-gray-200 flex items-center justify-center text-[8px] sm:text-[9px] text-club-black/40">
                     S/F
                   </div>
                 )}
               </td>
-              <td className="px-4 py-3 font-medium text-club-black">
+              <td className="px-2 py-2 sm:px-4 sm:py-3 font-medium text-club-black max-w-[120px] sm:max-w-none truncate">
                 {j.nombre} {j.primer_apellido} {j.segundo_apellido || ''}
               </td>
               <td className="hidden sm:table-cell px-4 py-3 text-club-black/80">{formatearFecha(j.fecha_nacimiento) || '-'}</td>
               <td className="hidden md:table-cell px-4 py-3 text-club-black/80">{anioNacimiento(j.fecha_nacimiento) ?? '-'}</td>
               <td className="hidden md:table-cell px-4 py-3 text-club-black/80">{calcularEdad(j.fecha_nacimiento) ?? '-'}</td>
-              <td className="px-4 py-3 text-club-black/80">{j.dorsal ?? '-'}</td>
+              <td className="px-2 py-2 sm:px-4 sm:py-3 text-club-black/80">{j.dorsal ?? '-'}</td>
               <td className="hidden lg:table-cell px-4 py-3 text-club-black/80">{j.lateralidad || '-'}</td>
-              <td className="px-4 py-3 text-club-black/80">{j.demarcacion || '-'}</td>
-              <td className="px-4 py-3 text-right">
+              <td className="hidden min-[380px]:table-cell px-2 py-2 sm:px-4 sm:py-3 text-club-black/80 max-w-[110px] truncate">{j.demarcacion || '-'}</td>
+              <td className="px-2 py-2 sm:px-4 sm:py-3 text-right">
                 <Link
                   to={`/plantillas/${j.id}`}
-                  className="inline-flex items-center justify-center w-8 h-8 rounded-full text-club-red hover:bg-red-50 hover:text-club-redDark transition-colors"
+                  className="inline-flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-full text-club-red hover:bg-red-50 hover:text-club-redDark transition-colors"
                   aria-label={`Ver ficha de ${j.nombre} ${j.primer_apellido} ${j.segundo_apellido || ''}`.trim()}
                   title={`Ver ficha de ${j.nombre} ${j.primer_apellido} ${j.segundo_apellido || ''}`.trim()}
                 >
@@ -518,6 +518,13 @@ export default function Plantillas() {
 
   const renderJugadores = (lista) =>
     vistaVisible === 'tabla' ? renderTablaJugadores(lista) : renderTarjetasJugadores(lista);
+
+  const renderContadorRegistros = (total) => (
+    <div className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5">
+      <span className="text-2xl font-bold text-club-red tabular-nums">{total}</span>
+      <span className="text-sm font-medium text-club-black/70">{total === 1 ? 'jugador' : 'jugadores'}</span>
+    </div>
+  );
 
   const renderFiltroEquipos = () => (
     <aside className="md:w-64 shrink-0">
@@ -611,7 +618,7 @@ export default function Plantillas() {
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
         <h2 className="text-2xl font-bold text-club-black">Plantillas</h2>
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full lg:w-auto">
-          <div className="w-full lg:w-auto">
+          <div className="hidden md:block w-full lg:w-auto">
             {renderFiltrosDeportivos()}
           </div>
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
@@ -655,6 +662,7 @@ export default function Plantillas() {
                 <span className="text-base leading-none">+</span> Campograma
               </Link>
             )}
+            {!loading && !error && renderContadorRegistros(jugadoresFiltrados.length)}
           </div>
           {error && (
             <p className="text-sm text-club-red font-medium bg-red-50 border border-club-red/30 rounded-md px-3 py-2 mb-4">
@@ -665,7 +673,7 @@ export default function Plantillas() {
             <p className="text-club-black/60">Cargando jugadores...</p>
           ) : error ? null : jugadoresFiltrados.length === 0 ? (
             <p className="text-club-black/60">No se han encontrado jugadores.</p>
-          ) : vista === 'graficas' ? (
+          ) : vistaVisible === 'graficas' ? (
             renderGraficas(jugadoresFiltrados)
           ) : (
             renderJugadores(jugadoresFiltrados)
@@ -673,7 +681,7 @@ export default function Plantillas() {
         </div>
       ) : (
         <div className="flex flex-col md:flex-row gap-6">
-          <div className="hidden md:block">
+          <div>
             {renderFiltroEquipos()}
           </div>
 
@@ -689,7 +697,10 @@ export default function Plantillas() {
             ) : jugadoresFiltrados.length === 0 ? (
               <p className="text-club-black/60">No se han encontrado jugadores.</p>
             ) : vistaVisible === 'graficas' ? (
-              renderGraficas(jugadoresFiltrados)
+              <>
+                <div className="mb-4">{renderContadorRegistros(jugadoresFiltrados.length)}</div>
+                {renderGraficas(jugadoresFiltrados)}
+              </>
             ) : (
               <div className="space-y-8">
                 {gruposEquipos.map((eq) => (
@@ -702,6 +713,7 @@ export default function Plantillas() {
                       >
                         <span className="text-base leading-none">+</span> Campograma
                       </Link>
+                      {renderContadorRegistros(jugadoresPorEquipo[eq].length)}
                     </div>
                     {renderJugadores(jugadoresPorEquipo[eq])}
                   </div>

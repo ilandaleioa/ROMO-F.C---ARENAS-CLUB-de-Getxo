@@ -25,5 +25,5 @@ body {
 }
 
 body * {
-  color: rgb(var(--club-black)) !important;
+  color: rgb(var(--club-black));
 }
