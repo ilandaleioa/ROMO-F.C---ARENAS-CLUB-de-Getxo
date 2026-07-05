@@ -10,17 +10,23 @@ const NOMBRE_CLUB = {
   ARENAS: 'ARENAS CLUB',
 };
 
-function SelectorClub() {
+function SelectorClub({ grande = false }) {
   const { club, setClub } = useClub();
 
   return (
-    <div className="inline-flex rounded-md border border-white/20 overflow-hidden shrink-0">
+    <div
+      className={`rounded-md border border-white/20 overflow-hidden ${
+        grande ? 'flex w-full' : 'inline-flex shrink-0'
+      }`}
+    >
       {CLUBES.map((c) => (
         <button
           key={c.valor}
           type="button"
           onClick={() => setClub(c.valor)}
-          className={`px-3 py-2 text-xs sm:text-sm font-bold tracking-wide transition-colors ${
+          className={`font-bold tracking-wide transition-colors ${
+            grande ? 'flex-1 px-3 py-3 text-sm' : 'px-3 py-2 text-xs sm:text-sm'
+          } ${
             club === c.valor
               ? c.valor === 'ARENAS'
                 ? 'bg-club-red text-black'
@@ -263,14 +269,7 @@ export default function Header({ onToggleSidebar, menuAbierto, onToggleMenu }) {
 
       {user && menuAbierto && (
         <div className="md:hidden border-t border-white/10 px-4 py-3 flex flex-col gap-3">
-          {puedeCambiarClub && <SelectorClub />}
-
-          <div className="flex items-center gap-2">
-            <BotonesHistorial />
-            <BotonPantallaCompleta />
-          </div>
-
-          {user.rol !== 'tecnico' && <FiltroEquiposSelector />}
+          {puedeCambiarClub && <SelectorClub grande />}
 
           <div className="flex items-center justify-between gap-3 pt-2 border-t border-white/10">
             <div>

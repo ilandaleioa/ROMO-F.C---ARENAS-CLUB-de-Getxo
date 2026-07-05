@@ -399,7 +399,6 @@ export default function Plantillas() {
             <th className="px-2 py-2 sm:px-4 sm:py-3 text-left text-xs font-semibold uppercase tracking-wide">Dorsal</th>
             <th className="hidden lg:table-cell px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Lateralidad</th>
             <th className="hidden min-[380px]:table-cell px-2 py-2 sm:px-4 sm:py-3 text-left text-xs font-semibold uppercase tracking-wide">Demarcación</th>
-            <th className="px-2 py-2 sm:px-4 sm:py-3" />
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
@@ -419,7 +418,19 @@ export default function Plantillas() {
                 )}
               </td>
               <td className="px-2 py-2 sm:px-4 sm:py-3 font-medium text-club-black max-w-[120px] sm:max-w-none truncate">
-                {j.nombre} {j.primer_apellido} {j.segundo_apellido || ''}
+                <div className="flex items-center gap-1.5">
+                  <Link
+                    to={`/plantillas/${j.id}`}
+                    className="inline-flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 shrink-0 rounded-full text-club-red hover:bg-red-50 hover:text-club-redDark transition-colors"
+                    aria-label={`Ver ficha de ${j.nombre} ${j.primer_apellido} ${j.segundo_apellido || ''}`.trim()}
+                    title={`Ver ficha de ${j.nombre} ${j.primer_apellido} ${j.segundo_apellido || ''}`.trim()}
+                  >
+                    {renderIconoOjo()}
+                  </Link>
+                  <span className="truncate">
+                    {j.nombre} {j.primer_apellido} {j.segundo_apellido || ''}
+                  </span>
+                </div>
               </td>
               <td className="hidden sm:table-cell px-4 py-3 text-club-black/80">{formatearFecha(j.fecha_nacimiento) || '-'}</td>
               <td className="hidden md:table-cell px-4 py-3 text-club-black/80">{anioNacimiento(j.fecha_nacimiento) ?? '-'}</td>
@@ -427,16 +438,6 @@ export default function Plantillas() {
               <td className="px-2 py-2 sm:px-4 sm:py-3 text-club-black/80">{j.dorsal ?? '-'}</td>
               <td className="hidden lg:table-cell px-4 py-3 text-club-black/80">{j.lateralidad || '-'}</td>
               <td className="hidden min-[380px]:table-cell px-2 py-2 sm:px-4 sm:py-3 text-club-black/80 max-w-[110px] truncate">{j.demarcacion || '-'}</td>
-              <td className="px-2 py-2 sm:px-4 sm:py-3 text-right">
-                <Link
-                  to={`/plantillas/${j.id}`}
-                  className="inline-flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-full text-club-red hover:bg-red-50 hover:text-club-redDark transition-colors"
-                  aria-label={`Ver ficha de ${j.nombre} ${j.primer_apellido} ${j.segundo_apellido || ''}`.trim()}
-                  title={`Ver ficha de ${j.nombre} ${j.primer_apellido} ${j.segundo_apellido || ''}`.trim()}
-                >
-                  {renderIconoOjo()}
-                </Link>
-              </td>
             </tr>
           ))}
         </tbody>

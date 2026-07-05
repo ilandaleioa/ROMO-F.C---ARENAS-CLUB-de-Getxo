@@ -61,6 +61,24 @@ export default function Campogramas() {
     })();
   }, [esTecnico, user.equipo_asignado, equipoInicial, club]);
 
+  useEffect(() => {
+    if (!equipo || sistemas.length === 0) return;
+    let cancelado = false;
+    (async () => {
+      try {
+        const { sistema: ultimoSistema } = await api.get(`/campogramas/ultimo-sistema?equipo=${encodeURIComponent(equipo)}`);
+        if (cancelado) return;
+        const sistemaValido = sistemas.some((s) => s.id === ultimoSistema);
+        setSistemaId(sistemaValido ? ultimoSistema : sistemas[0]?.id || '');
+      } catch (err) {
+        if (!cancelado) setSistemaId(sistemas[0]?.id || '');
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [equipo, sistemas]);
+
   const cargarDatos = useCallback(async () => {
     if (!equipo || !sistemaId) return;
     setError('');
@@ -214,7 +232,18 @@ export default function Campogramas() {
       <div className="flex flex-col md:flex-row gap-6">
         {!esTecnico && (
           <aside className="md:w-64 shrink-0">
-            <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+            <select
+              value={equipo}
+              onChange={(e) => setEquipo(e.target.value)}
+              className="md:hidden w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
+            >
+              {equipos.map((eq) => (
+                <option key={eq} value={eq}>
+                  {eq}
+                </option>
+              ))}
+            </select>
+            <div className="hidden md:block rounded-lg border border-gray-200 bg-white overflow-hidden">
               {equipos.map((eq) => (
                 <button
                   key={eq}

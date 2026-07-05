@@ -21,6 +21,29 @@ function resolverEquipo(req) {
   return equipo || null;
 }
 
+// GET /api/campogramas/ultimo-sistema?equipo=xxx -> ultimo sistema tactico guardado para ese equipo.
+router.get('/ultimo-sistema', async (req, res) => {
+  const equipo = resolverEquipo(req);
+
+  if (!equipo) {
+    return res.status(400).json({ error: 'Falta indicar el equipo.' });
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('campogramas')
+    .select('sistema, updated_at')
+    .eq('equipo', equipo)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    return res.status(503).json({ error: 'No se pudo consultar el ultimo sistema del equipo.' });
+  }
+
+  res.json({ sistema: data?.sistema || null });
+});
+
 // GET /api/campogramas?equipo=xxx&sistema=1-4-4-2 -> campograma guardado (o vacio si no existe).
 router.get('/', async (req, res) => {
   const equipo = resolverEquipo(req);
