@@ -277,18 +277,18 @@ export default function Campogramas() {
                             <img
                               src={jugador.foto_url}
                               alt={nombreCompleto(jugador)}
-                              className="w-7 h-7 rounded-full object-cover shrink-0"
+                              className="w-5 h-5 sm:w-7 sm:h-7 rounded-full object-cover shrink-0"
                             />
                           ) : (
-                            <div className="w-7 h-7 rounded-full bg-gray-500 flex items-center justify-center text-[8px] text-white/80 shrink-0">
+                            <div className="w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-gray-500 flex items-center justify-center text-[6px] sm:text-[8px] text-white/80 shrink-0">
                               S/F
                             </div>
                           )}
-                          <span className="text-[10px] sm:text-[11px] font-semibold text-white pl-2 pr-1 whitespace-nowrap max-w-[110px] sm:max-w-none truncate">
+                          <span className="text-[8px] sm:text-[11px] font-semibold text-white pl-1 sm:pl-2 pr-1 whitespace-nowrap max-w-[70px] sm:max-w-none truncate">
                             {jugador.nombre} {jugador.primer_apellido}
                           </span>
                           {jugador.dorsal !== null && jugador.dorsal !== undefined && jugador.dorsal !== '' && (
-                            <span className="w-5 h-5 rounded-full bg-club-red text-white text-[10px] font-bold flex items-center justify-center shrink-0">
+                            <span className="w-3.5 h-3.5 sm:w-5 sm:h-5 rounded-full bg-club-red text-white text-[8px] sm:text-[10px] font-bold flex items-center justify-center shrink-0">
                               {jugador.dorsal}
                             </span>
                           )}
@@ -296,9 +296,9 @@ export default function Campogramas() {
                             type="button"
                             onClick={() => navigate(`/plantillas/${jugador.id}`)}
                             title={`Ver ficha de ${nombreCompleto(jugador)}`}
-                            className="w-6 h-6 flex items-center justify-center text-white/80 hover:text-white shrink-0"
+                            className="w-4 h-4 sm:w-6 sm:h-6 flex items-center justify-center text-white/80 hover:text-white shrink-0"
                           >
-                            <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+                            <svg viewBox="0 0 20 20" fill="currentColor" className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5">
                               <path d="M10 3.5c-4.14 0-7.4 2.6-9 6.5 1.6 3.9 4.86 6.5 9 6.5s7.4-2.6 9-6.5c-1.6-3.9-4.86-6.5-9-6.5zm0 10.83A4.33 4.33 0 1110 5.67a4.33 4.33 0 010 8.66zm0-6.83a2.5 2.5 0 100 5 2.5 2.5 0 000-5z" />
                             </svg>
                           </button>
@@ -307,9 +307,9 @@ export default function Campogramas() {
                               type="button"
                               onClick={() => quitarJugador(pos.id, jugador.id)}
                               title={`Quitar a ${nombreCompleto(jugador)}`}
-                              className="w-6 h-6 flex items-center justify-center text-white/80 hover:text-white mr-0.5 shrink-0"
+                              className="w-4 h-4 sm:w-6 sm:h-6 flex items-center justify-center text-white/80 hover:text-white mr-0.5 shrink-0"
                             >
-                              <svg viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
+                              <svg viewBox="0 0 20 20" fill="currentColor" className="w-2.5 h-2.5 sm:w-3 sm:h-3">
                                 <path d="M4.3 4.3a1 1 0 011.4 0L10 8.6l4.3-4.3a1 1 0 111.4 1.4L11.4 10l4.3 4.3a1 1 0 01-1.4 1.4L10 11.4l-4.3 4.3a1 1 0 01-1.4-1.4L8.6 10 4.3 5.7a1 1 0 010-1.4z" />
                               </svg>
                             </button>

@@ -85,22 +85,18 @@ export default function Sidebar({ isOpen, onClose }) {
         </div>
       )}
 
-      <div className="mt-2">
-        {SECONDARY_NAV_ITEMS.map((item) => (
+      {SECONDARY_NAV_ITEMS.map((item) => (
+        <NavLink key={item.to} to={item.to} className={linkClass} onClick={onClose}>
+          {item.label}
+        </NavLink>
+      ))}
+
+      {(user.rol === 'administrador' || user.rol === 'director') &&
+        FINAL_NAV_ITEMS.map((item) => (
           <NavLink key={item.to} to={item.to} className={linkClass} onClick={onClose}>
             {item.label}
           </NavLink>
         ))}
-      </div>
-
-      <div className="mt-2">
-        {(user.rol === 'administrador' || user.rol === 'director') &&
-          FINAL_NAV_ITEMS.map((item) => (
-            <NavLink key={item.to} to={item.to} className={linkClass} onClick={onClose}>
-              {item.label}
-            </NavLink>
-          ))}
-      </div>
     </nav>
   );
 

@@ -72,6 +72,7 @@ export default function Plantillas() {
   const [refrescando, setRefrescando] = useState(false);
   const [sincronizando, setSincronizando] = useState(false);
   const [mensajeSync, setMensajeSync] = useState('');
+  const [filtroEquiposAbierto, setFiltroEquiposAbierto] = useState(false);
   const { vista } = useVistaPlantillas();
   const [esMovil, setEsMovil] = useState(detectarMovil);
 
@@ -499,38 +500,59 @@ export default function Plantillas() {
     </div>
   );
 
-  const renderFiltroEquipos = () => (
-    <aside className="md:w-64 shrink-0">
-      <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
-        <button
-          onClick={limpiarSeleccion}
-          className={`w-full text-left px-4 py-2.5 text-sm font-semibold border-b border-gray-100 transition-colors ${
-            equiposSeleccionados.length === 0
-              ? 'bg-club-red text-white'
-              : 'text-club-black hover:bg-red-50/60'
-          }`}
-        >
-          Todos los equipos
-        </button>
-        {equiposDisponibles.map((eq) => (
-          <label
-            key={eq}
-            className="flex items-center gap-2 px-4 py-2.5 text-sm border-b border-gray-100 last:border-b-0 text-club-black/80 hover:bg-red-50/60 cursor-pointer"
+  const renderFiltroEquipos = () => {
+    const etiquetaSeleccion =
+      equiposSeleccionados.length === 0 ? 'Todos los equipos' : equiposSeleccionados[0];
+
+    return (
+      <aside className="md:w-64 shrink-0">
+        <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setFiltroEquiposAbierto((abierto) => !abierto)}
+            className="md:hidden w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm font-semibold text-club-black"
           >
-            <input
-              type="radio"
-              name="filtro-equipo"
-              checked={equiposSeleccionados.includes(eq)}
-              onClick={() => seleccionarEquipoUnico(eq)}
-              onChange={() => {}}
-              className="h-4 w-4 accent-club-red"
-            />
-            {eq}
-          </label>
-        ))}
-      </div>
-    </aside>
-  );
+            <span className="truncate">{etiquetaSeleccion}</span>
+            <span className={`transition-transform ${filtroEquiposAbierto ? 'rotate-180' : ''}`}>▾</span>
+          </button>
+          <div className={`${filtroEquiposAbierto ? 'block' : 'hidden'} md:block border-t border-gray-100 md:border-t-0`}>
+            <button
+              onClick={() => {
+                limpiarSeleccion();
+                setFiltroEquiposAbierto(false);
+              }}
+              className={`w-full text-left px-4 py-2.5 text-sm font-semibold border-b border-gray-100 transition-colors ${
+                equiposSeleccionados.length === 0
+                  ? 'bg-club-red text-white'
+                  : 'text-club-black hover:bg-red-50/60'
+              }`}
+            >
+              Todos los equipos
+            </button>
+            {equiposDisponibles.map((eq) => (
+              <label
+                key={eq}
+                className="flex items-center gap-2 px-4 py-2.5 text-sm border-b border-gray-100 last:border-b-0 text-club-black/80 hover:bg-red-50/60 cursor-pointer"
+              >
+                <input
+                  type="radio"
+                  name="filtro-equipo"
+                  checked={equiposSeleccionados.includes(eq)}
+                  onClick={() => {
+                    seleccionarEquipoUnico(eq);
+                    setFiltroEquiposAbierto(false);
+                  }}
+                  onChange={() => {}}
+                  className="h-4 w-4 accent-club-red"
+                />
+                {eq}
+              </label>
+            ))}
+          </div>
+        </div>
+      </aside>
+    );
+  };
 
   const renderFiltrosDeportivos = () => (
     <div className="flex flex-col sm:flex-row sm:items-center gap-3">
