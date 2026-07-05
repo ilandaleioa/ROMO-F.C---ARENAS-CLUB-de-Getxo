@@ -296,21 +296,27 @@ router.patch(
 
     const { rol } = req.user;
 
-    const { data, error } = await supabaseAdmin
-      .from('jugadores')
-      .update(updates)
-      .eq('id', req.params.id)
-      .select(columnsForRole(rol).join(','))
-      .maybeSingle();
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('jugadores')
+        .update(updates)
+        .eq('id', req.params.id)
+        .select(columnsForRole(rol).join(','))
+        .maybeSingle();
 
-    if (error) {
-      return res.status(503).json({ error: 'No se pudo actualizar el jugador.' });
-    }
-    if (!data) {
-      return res.status(404).json({ error: 'Jugador no encontrado.' });
-    }
+      if (error) {
+        console.error('Error de Supabase actualizando datos deportivos:', error.message);
+        return res.status(503).json({ error: 'No se pudo actualizar el jugador.' });
+      }
+      if (!data) {
+        return res.status(404).json({ error: 'Jugador no encontrado.' });
+      }
 
-    res.json({ jugador: await conFotoUrl(sanitizeRow(data, rol)) });
+      res.json({ jugador: await conFotoUrl(sanitizeRow(data, rol)) });
+    } catch (err) {
+      console.error('Excepcion actualizando datos deportivos:', err.message);
+      res.status(503).json({ error: 'No se pudo actualizar el jugador.' });
+    }
   }
 );
 

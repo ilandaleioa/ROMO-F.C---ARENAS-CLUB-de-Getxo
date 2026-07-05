@@ -392,18 +392,23 @@ export default function Plantillas() {
         <thead className="bg-club-black text-white sticky top-0 z-10">
           <tr>
             <th className="px-2 py-2 sm:px-4 sm:py-3" />
+            <th className="px-2 py-2 sm:px-4 sm:py-3 text-left text-xs font-semibold uppercase tracking-wide">Foto</th>
             <th className="px-2 py-2 sm:px-4 sm:py-3 text-left text-xs font-semibold uppercase tracking-wide">Nombre</th>
             <th className="hidden sm:table-cell px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Fecha nacimiento</th>
             <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Año</th>
             <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Edad</th>
-            <th className="px-2 py-2 sm:px-4 sm:py-3 text-left text-xs font-semibold uppercase tracking-wide">Dorsal</th>
             <th className="hidden lg:table-cell px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Lateralidad</th>
             <th className="hidden min-[380px]:table-cell px-2 py-2 sm:px-4 sm:py-3 text-left text-xs font-semibold uppercase tracking-wide">Demarcación</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
-          {lista.map((j) => (
+          {lista.map((j, index) => (
             <tr key={j.id} className="hover:bg-red-50/40 transition-colors">
+              <td className="px-2 py-2 sm:px-4 sm:py-3">
+                <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-full bg-gray-200 flex items-center justify-center text-[10px] sm:text-xs font-semibold text-club-black/60">
+                  {index + 1}
+                </div>
+              </td>
               <td className="px-2 py-2 sm:px-4 sm:py-3">
                 {j.foto_url ? (
                   <img
@@ -412,8 +417,8 @@ export default function Plantillas() {
                     className="w-7 h-7 sm:w-9 sm:h-9 rounded-full object-cover"
                   />
                 ) : (
-                  <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-full bg-gray-200 flex items-center justify-center text-[8px] sm:text-[9px] text-club-black/40">
-                    S/F
+                  <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-full bg-gray-200 flex items-center justify-center text-[10px] sm:text-xs font-semibold text-club-black/40">
+                    -
                   </div>
                 )}
               </td>
@@ -427,6 +432,9 @@ export default function Plantillas() {
                   >
                     {renderIconoOjo()}
                   </Link>
+                  <span className="shrink-0 min-w-[1.5rem] text-center rounded-full bg-club-red/10 px-1.5 py-0.5 text-xs font-semibold text-club-red">
+                    {j.dorsal ?? '-'}
+                  </span>
                   <span className="truncate">
                     {j.nombre} {j.primer_apellido} {j.segundo_apellido || ''}
                   </span>
@@ -435,7 +443,6 @@ export default function Plantillas() {
               <td className="hidden sm:table-cell px-4 py-3 text-club-black/80">{formatearFecha(j.fecha_nacimiento) || '-'}</td>
               <td className="hidden md:table-cell px-4 py-3 text-club-black/80">{anioNacimiento(j.fecha_nacimiento) ?? '-'}</td>
               <td className="hidden md:table-cell px-4 py-3 text-club-black/80">{calcularEdad(j.fecha_nacimiento) ?? '-'}</td>
-              <td className="px-2 py-2 sm:px-4 sm:py-3 text-club-black/80">{j.dorsal ?? '-'}</td>
               <td className="hidden lg:table-cell px-4 py-3 text-club-black/80">{j.lateralidad || '-'}</td>
               <td className="hidden min-[380px]:table-cell px-2 py-2 sm:px-4 sm:py-3 text-club-black/80 max-w-[110px] truncate">{j.demarcacion || '-'}</td>
             </tr>
@@ -460,8 +467,8 @@ export default function Plantillas() {
                 className="w-10 h-10 rounded-full object-cover shrink-0"
               />
             ) : (
-              <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-[9px] text-club-black/40 shrink-0">
-                S/F
+              <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-xs font-semibold text-club-black/60 shrink-0">
+                {j.dorsal ?? '-'}
               </div>
             )}
             <p className="font-semibold text-club-black">
