@@ -28,10 +28,21 @@ function ClubThemeSync() {
 
 function Layout({ children }) {
   const [sidebarAbierto, setSidebarAbierto] = useState(false);
+  const [menuUsuarioAbierto, setMenuUsuarioAbierto] = useState(false);
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <Header onToggleSidebar={() => setSidebarAbierto((v) => !v)} />
+      <Header
+        onToggleSidebar={() => {
+          setSidebarAbierto((v) => !v);
+          setMenuUsuarioAbierto(false);
+        }}
+        menuAbierto={menuUsuarioAbierto}
+        onToggleMenu={() => {
+          setMenuUsuarioAbierto((v) => !v);
+          setSidebarAbierto(false);
+        }}
+      />
       <div className="flex flex-1 min-h-0">
         <Sidebar isOpen={sidebarAbierto} onClose={() => setSidebarAbierto(false)} />
         <main className="flex-1 min-w-0">{children}</main>

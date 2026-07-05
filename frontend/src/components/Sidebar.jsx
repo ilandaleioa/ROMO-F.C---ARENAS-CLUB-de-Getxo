@@ -1,6 +1,7 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useVistaPlantillas } from '../context/VistaPlantillasContext';
+import { useClub, CLUBES } from '../context/ClubContext';
 
 const linkClass = ({ isActive }) =>
   `block px-4 py-2.5 rounded-md text-sm font-semibold transition-colors ${
@@ -28,13 +29,34 @@ export default function Sidebar({ isOpen, onClose }) {
   const { user } = useAuth();
   const { pathname } = useLocation();
   const { vista, setVista } = useVistaPlantillas();
+  const { club, setClub } = useClub();
 
   if (!user) return null;
 
   const enPlantillas = pathname === '/';
+  const puedeCambiarClub = !user.club || user.club === 'TODOS';
 
   const nav = (
     <nav className="flex flex-col gap-1 p-3">
+      {puedeCambiarClub && (
+        <div className="md:hidden mb-2 inline-flex rounded-md border border-gray-200 overflow-hidden self-start">
+          {CLUBES.map((c) => (
+            <button
+              key={c.valor}
+              type="button"
+              onClick={() => setClub(c.valor)}
+              className={`px-3 py-2 text-xs font-bold tracking-wide transition-colors ${
+                club === c.valor
+                  ? 'bg-club-red text-white'
+                  : 'bg-white text-club-black/60 hover:bg-club-red/10 hover:text-club-black'
+              }`}
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {NAV_ITEMS.map((item) => (
         <NavLink key={item.to} to={item.to} end={item.end} className={linkClass} onClick={onClose}>
           {item.label}

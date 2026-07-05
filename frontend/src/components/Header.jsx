@@ -180,10 +180,9 @@ function BotonesHistorial() {
   );
 }
 
-export default function Header({ onToggleSidebar }) {
+export default function Header({ onToggleSidebar, menuAbierto, onToggleMenu }) {
   const { user, logout } = useAuth();
   const { club, setClub } = useClub();
-  const [menuAbierto, setMenuAbierto] = useState(false);
   const puedeCambiarClub = user && (!user.club || user.club === 'TODOS');
   const headerBgClass = club === 'ARENAS' ? 'bg-club-red' : 'bg-club-black';
 
@@ -244,7 +243,7 @@ export default function Header({ onToggleSidebar }) {
         {user && (
           <button
             type="button"
-            onClick={() => setMenuAbierto((v) => !v)}
+            onClick={onToggleMenu}
             aria-label={menuAbierto ? 'Cerrar menu de usuario' : 'Abrir menu de usuario'}
             aria-expanded={menuAbierto}
             className="md:hidden shrink-0 p-2 rounded-md bg-white/10 hover:bg-white/20 text-white transition-colors"
