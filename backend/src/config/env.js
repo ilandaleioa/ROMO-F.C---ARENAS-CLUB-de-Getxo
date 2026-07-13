@@ -29,7 +29,13 @@ module.exports = {
   // cambia el spreadsheet/pestana segun el club activo.
   googleServiceAccount: {
     email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || null,
-    privateKey: process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY || null,
+    // La clave privada se pega en el panel de variables de entorno como texto de
+    // una sola linea; los saltos de linea reales del PEM llegan como "\n"
+    // literales y hay que convertirlos, o el decodificador de Node falla con
+    // "error:1E08010C:DECODER routines::unsupported".
+    privateKey: process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY
+      ? process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY.replace(/\\n/g, '\n')
+      : null,
   },
   googleSheetsPorClub: {
     ROMO: {
