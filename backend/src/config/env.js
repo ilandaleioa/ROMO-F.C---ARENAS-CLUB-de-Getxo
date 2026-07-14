@@ -32,9 +32,13 @@ module.exports = {
     // La clave privada se pega en el panel de variables de entorno como texto de
     // una sola linea; los saltos de linea reales del PEM llegan como "\n"
     // literales y hay que convertirlos, o el decodificador de Node falla con
-    // "error:1E08010C:DECODER routines::unsupported".
+    // "error:1E08010C:DECODER routines::unsupported". Tambien quitamos comillas
+    // envolventes por si se pego el valor JSON completo (con comillas incluidas)
+    // en vez de solo el contenido de "private_key".
     privateKey: process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY
-      ? process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY.replace(/\\n/g, '\n')
+      ? process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY.trim()
+          .replace(/^"|"$/g, '')
+          .replace(/\\n/g, '\n')
       : null,
   },
   googleSheetsPorClub: {
