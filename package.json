@@ -3,7 +3,10 @@
   "private": true,
   "type": "commonjs",
   "scripts": {
-    "build": "npm --prefix frontend install --include=dev && npm --prefix frontend run build"
+    "build": "npm --prefix frontend install --include=dev && npm --prefix frontend run build",
+    "dev": "concurrently \"npm --prefix backend run dev\" \"npm --prefix frontend run dev\"",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
@@ -14,6 +17,7 @@
     "express": "^4.19.2",
     "googleapis": "^173.0.0",
     "jsonwebtoken": "^9.0.2",
-    "multer": "^2.2.0"
-  }
+    "multer": "^2.2.0"  },
+  "devDependencies": {
+    "concurrently": "^9.2.0"  }
 }

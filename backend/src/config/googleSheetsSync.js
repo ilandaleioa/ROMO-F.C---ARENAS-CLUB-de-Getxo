@@ -58,19 +58,32 @@ function configDelClub(club) {
   return env.googleSheetsPorClub[club] || {};
 }
 
-function estaConfigurado(club) {
-  const { spreadsheetId } = configDelClub(club);
+function tieneCredencialesDeEscritura() {
   const { email, privateKey } = env.googleServiceAccount;
-  return Boolean(spreadsheetId && email && privateKey);
+  return Boolean(email && privateKey);
+}
+
+function estaConfigurado(club) {
+  const { spreadsheetId, gid } = configDelClub(club);
+  return Boolean(spreadsheetId && (gid || tieneCredencialesDeEscritura() || env.googleApiKey));
 }
 
 function getSheetsClient() {
-  const auth = new google.auth.JWT({
-    email: env.googleServiceAccount.email,
-    key: env.googleServiceAccount.privateKey,
-    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-  });
-  return google.sheets({ version: 'v4', auth });
+  if (tieneCredencialesDeEscritura()) {
+    const auth = new google.auth.JWT({
+      email: env.googleServiceAccount.email,
+      key: env.googleServiceAccount.privateKey,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+    return google.sheets({ version: 'v4', auth });
+  }
+
+  if (env.googleApiKey) {
+    const auth = google.auth.fromAPIKey(env.googleApiKey);
+    return google.sheets({ version: 'v4', auth });
+  }
+
+  return null;
 }
 
 function normalizarTexto(valor) {
@@ -88,9 +101,17 @@ function normalizarCabecera(header) {
 
 async function resolverPestana(sheets, club) {
   const { spreadsheetId, gid } = configDelClub(club);
+  const gidObjetivo = gid ? Number(gid) : null;
+
+  if (!sheets) {
+    if (gidObjetivo !== null) {
+      return 'PUBLIC_SHEET';
+    }
+    throw new Error('No hay cliente de Google Sheets disponible para resolver la pestana.');
+  }
+
   const meta = await sheets.spreadsheets.get({ spreadsheetId });
   const tabs = meta.data.sheets.map((s) => ({ title: s.properties.title, gid: s.properties.sheetId }));
-  const gidObjetivo = gid ? Number(gid) : null;
 
   const tabPorGid = gidObjetivo !== null ? tabs.find((t) => t.gid === gidObjetivo) : null;
   if (tabPorGid) return tabPorGid.title;
@@ -250,11 +271,71 @@ function mapearFila(headers, filaValores) {
   return { valido: true, datos };
 }
 
+function parsearRespuestaPublicaGviz(texto) {
+  const contenido = String(texto || '')
+    .replace(/^\/\*O_o\*\/\s*/, '')
+    .replace(/^google\.visualization\.Query\.setResponse\(/, '')
+    .replace(/\);?$/, '')
+    .trim();
+
+  const payload = JSON.parse(contenido);
+  const headers = (payload?.table?.cols || []).map((col) => String(col?.label || ''));
+  const filas = (payload?.table?.rows || []).map((row) =>
+    (row?.c || []).map((cell) => (cell && cell.v !== undefined ? String(cell.v) : ''))
+  );
+
+  return { headers, filas };
+}
+
+async function leerFilasPendientesPublic(spreadsheetId, gid, tabTitle) {
+  const params = new URLSearchParams({ tqx: 'out:json' });
+  if (gid) params.set('gid', String(gid));
+  if (tabTitle && tabTitle !== 'PUBLIC_SHEET') params.set('sheet', tabTitle);
+
+  const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?${params.toString()}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`No se pudo leer la hoja pública. HTTP ${res.status}`);
+  }
+
+  const texto = await res.text();
+  const { headers, filas } = parsearRespuestaPublicaGviz(texto);
+  if (filas.length === 0) return { headers: [], pendientes: [], omitidas: [] };
+
+  let idxIdSync = headers.indexOf(ID_SYNC_HEADER);
+  if (idxIdSync === -1) idxIdSync = headers.length;
+
+  const pendientes = [];
+  const omitidas = [];
+
+  for (let i = 1; i < filas.length; i += 1) {
+    const filaValores = filas[i];
+    const yaSincronizada = Boolean(filaValores[idxIdSync]);
+    if (yaSincronizada) continue;
+    if (filaValores.every((v) => !v)) continue;
+
+    const resultado = mapearFila(headers, filaValores);
+    const numeroFila = i + 1;
+    if (resultado.valido) {
+      pendientes.push({ numeroFila, datos: resultado.datos });
+    } else {
+      omitidas.push({ numeroFila, motivo: resultado.motivo });
+    }
+  }
+
+  return { headers, idxIdSync, pendientes, omitidas };
+}
+
 // Lee la hoja, devuelve las filas SIN sincronizar todavia (columna ID_SYNC
 // vacia) ya mapeadas, junto con el numero de fila real en el Sheet (base 1)
 // para poder escribir despues el ID_SYNC en la fila correcta.
 async function leerFilasPendientes(sheets, tabTitle, club) {
-  const { spreadsheetId } = configDelClub(club);
+  const { spreadsheetId, gid } = configDelClub(club);
+
+  if (!sheets) {
+    return leerFilasPendientesPublic(spreadsheetId, gid, tabTitle);
+  }
+
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId,
     // A:BZ deja margen amplio de columnas: el Form tiene 38 preguntas + ID_SYNC.

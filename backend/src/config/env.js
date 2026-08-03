@@ -41,6 +41,7 @@ module.exports = {
           .replace(/\\n/g, '\n')
       : null,
   },
+  googleApiKey: process.env.GOOGLE_API_KEY || null,
   googleSheetsPorClub: {
     ROMO: {
       spreadsheetId: process.env.GOOGLE_SHEETS_SPREADSHEET_ID || null,
