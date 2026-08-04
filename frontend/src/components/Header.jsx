@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useFiltroEquipos } from '../context/FiltroEquiposContext';
 import { useClub, CLUBES } from '../context/ClubContext';
+import { usuarioLimitadoAUnEquipo } from '../lib/equiposAsignados';
 import ClubLogo from './ClubLogo';
 
 const NOMBRE_CLUB = {
@@ -190,6 +191,7 @@ export default function Header({ onToggleSidebar, menuAbierto, onToggleMenu }) {
   const { user, logout } = useAuth();
   const { club, setClub } = useClub();
   const puedeCambiarClub = user && (!user.club || user.club === 'TODOS');
+  const mostrarFiltroEquipos = user && !usuarioLimitadoAUnEquipo(user);
   const headerBgClass = club === 'ARENAS' ? 'bg-club-red' : 'bg-club-black';
 
   useEffect(() => {
@@ -231,7 +233,7 @@ export default function Header({ onToggleSidebar, menuAbierto, onToggleMenu }) {
 
         {user && (
           <div className="hidden md:flex items-center gap-3 text-sm">
-            {user.rol !== 'tecnico' && <FiltroEquiposSelector />}
+            {mostrarFiltroEquipos && <FiltroEquiposSelector />}
             <BotonPantallaCompleta />
             <div className="text-right hidden lg:block">
               <p className="font-semibold">{user.username}</p>

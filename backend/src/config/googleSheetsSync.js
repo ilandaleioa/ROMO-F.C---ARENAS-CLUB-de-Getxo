@@ -50,7 +50,8 @@ const MANUAL_WEBAPP_COLUMNS = new Set(['dorsal', 'lateralidad', 'demarcacion']);
 const CAMPOS_NUMERICOS = new Set(['altura_cm', 'peso_kg']);
 const CAMPOS_FECHA = new Set(['marca_temporal', 'fecha_nacimiento']);
 const CAMPOS_BOOLEANOS = new Set(['tiene_hermanos_club', 'acepta_condiciones']);
-const CAMPOS_OBLIGATORIOS = ['nombre', 'primer_apellido', 'equipo'];
+const CAMPOS_OBLIGATORIOS = ['nombre', 'equipo'];
+const CAMPOS_NOMBRE = ['nombre', 'primer_apellido', 'segundo_apellido'];
 const TAB_TITLE_HINTS = ['Form Responses 1', 'Respuestas de formulario 1', 'Respuestas del formulario 1', 'PLANTILLAS 2627'];
 const CAMPOS_MAPA_PISTA = ['nombre', 'primer_apellido', 'segundo_apellido', 'equipo', 'fecha_nacimiento', 'dni_jugador'];
 
@@ -267,6 +268,10 @@ function mapearFila(headers, filaValores) {
   const faltante = CAMPOS_OBLIGATORIOS.find((campo) => !datos[campo]);
   if (faltante) {
     return { valido: false, motivo: `falta "${faltante}"` };
+  }
+  const tieneNombreVisible = CAMPOS_NOMBRE.some((campo) => datos[campo]);
+  if (!tieneNombreVisible) {
+    return { valido: false, motivo: 'falta "nombre"' };
   }
   return { valido: true, datos };
 }

@@ -4,18 +4,20 @@ import { useAuth } from '../context/AuthContext';
 import { useClub } from '../context/ClubContext';
 import { api } from '../lib/api';
 import { DEMARCACION_OPCIONES } from '../lib/campos';
+import { parseEquiposAsignados, usuarioLimitadoAUnEquipo } from '../lib/equiposAsignados';
 
 const MAX_JUGADORES_POR_PUESTO = 3;
 
 function nombreCompleto(j) {
-  return `${j.nombre} ${j.primer_apellido} ${j.segundo_apellido || ''}`.trim();
+  return [j.nombre, j.primer_apellido, j.segundo_apellido].filter(Boolean).join(' ');
 }
 
 export default function Campogramas() {
   const { user } = useAuth();
   const { club } = useClub();
   const navigate = useNavigate();
-  const esTecnico = user.rol === 'tecnico' && user.equipo_asignado !== 'Todos';
+  const equiposAsignadosUsuario = useMemo(() => parseEquiposAsignados(user.equipo_asignado), [user.equipo_asignado]);
+  const limitadoAUnEquipo = usuarioLimitadoAUnEquipo(user);
   const puedeEditar = ['administrador', 'director'].includes(user.rol);
   const [searchParams] = useSearchParams();
   const equipoInicial = searchParams.get('equipo') || '';
@@ -46,8 +48,8 @@ export default function Campogramas() {
         setSistemas(listaSistemas);
         setSistemaId(listaSistemas[0]?.id || '');
         setEquipos(listaEquipos);
-        if (esTecnico) {
-          setEquipo(user.equipo_asignado || '');
+        if (limitadoAUnEquipo) {
+          setEquipo(equiposAsignadosUsuario[0] || listaEquipos[0] || '');
         } else if (equipoInicial && listaEquipos.includes(equipoInicial)) {
           setEquipo(equipoInicial);
         } else {
@@ -59,7 +61,7 @@ export default function Campogramas() {
         setLoading(false);
       }
     })();
-  }, [esTecnico, user.equipo_asignado, equipoInicial, club]);
+  }, [limitadoAUnEquipo, equiposAsignadosUsuario, equipoInicial, club]);
 
   useEffect(() => {
     if (!equipo || sistemas.length === 0) return;
@@ -230,7 +232,7 @@ export default function Campogramas() {
       )}
 
       <div className="flex flex-col md:flex-row gap-6">
-        {!esTecnico && (
+        {!limitadoAUnEquipo && (
           <aside className="md:w-64 shrink-0">
             <select
               value={equipo}
@@ -314,7 +316,7 @@ export default function Campogramas() {
                             </div>
                           )}
                           <span className="text-[8px] sm:text-[11px] font-semibold text-white pl-1 sm:pl-2 pr-1 whitespace-nowrap max-w-[70px] sm:max-w-none truncate">
-                            {jugador.nombre} {jugador.primer_apellido}
+                            {nombreCompleto(jugador)}
                           </span>
                           {jugador.dorsal !== null && jugador.dorsal !== undefined && jugador.dorsal !== '' && (
                             <span className="w-3.5 h-3.5 sm:w-5 sm:h-5 rounded-full bg-club-red text-white text-[8px] sm:text-[10px] font-bold flex items-center justify-center shrink-0">

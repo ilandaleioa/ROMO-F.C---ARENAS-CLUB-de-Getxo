@@ -63,6 +63,10 @@ function obtenerValorCampoFicha(jugador, campo) {
   return jugador[campo];
 }
 
+function nombreCompleto(jugador) {
+  return [jugador.nombre, jugador.primer_apellido, jugador.segundo_apellido].filter(Boolean).join(' ');
+}
+
 export default function FichaJugador() {
   const { id } = useParams();
   const { user } = useAuth();
@@ -119,9 +123,7 @@ export default function FichaJugador() {
       doc.setFontSize(18);
       doc.text('Informe del jugador', 14, 20);
 
-      const nombreCompleto = [jugador.nombre, jugador.primer_apellido, jugador.segundo_apellido]
-        .filter(Boolean)
-        .join(' ');
+      const nombreJugador = nombreCompleto(jugador);
 
       const fotoTamano = 28;
       const fotoX = 14;
@@ -145,7 +147,7 @@ export default function FichaJugador() {
       let y = fotoDataUrl ? fotoY + 10 : 50;
       doc.setTextColor(...negro);
       doc.setFontSize(22);
-      doc.text(nombreCompleto, textoX, y);
+      doc.text(nombreJugador, textoX, y);
 
       if (jugador.equipo) {
         y += 8;
@@ -192,7 +194,7 @@ export default function FichaJugador() {
       doc.setTextColor(...gris);
       doc.text('Athletic Club', 14, doc.internal.pageSize.getHeight() - 10);
 
-      const nombreArchivo = `informe_${nombreCompleto.replace(/\s+/g, '_').toLowerCase()}.pdf`;
+      const nombreArchivo = `informe_${nombreJugador.replace(/\s+/g, '_').toLowerCase()}.pdf`;
       doc.setProperties({ title: nombreArchivo });
 
       const blobUrl = doc.output('bloburl');
@@ -304,7 +306,7 @@ export default function FichaJugador() {
             )}
             <div className="min-w-0">
               <h2 className="text-lg sm:text-xl font-bold truncate">
-                {jugador.nombre} {jugador.primer_apellido} {jugador.segundo_apellido || ''}
+                {nombreCompleto(jugador)}
               </h2>
               <p className="text-white/60 text-sm truncate">Equipo: {jugador.equipo}</p>
             </div>

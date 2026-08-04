@@ -4,6 +4,7 @@ const requireAuth = require('../middleware/requireAuth');
 const requireRole = require('../middleware/requireRole');
 const { ROLES } = require('../config/roles');
 const { SISTEMAS, getSistema, MAX_JUGADORES_POR_PUESTO } = require('../config/sistemasTacticos');
+const { parseEquiposAsignados, puedeVerEquipo } = require('../lib/equiposAsignados');
 
 const router = express.Router();
 
@@ -16,14 +17,31 @@ router.get('/sistemas', (req, res) => {
 
 function resolverEquipo(req) {
   const { rol, equipo_asignado } = req.user;
-  if (rol === ROLES.TECNICO && equipo_asignado !== 'Todos') return equipo_asignado || null;
+  if (rol === ROLES.TECNICO && !equipo_asignado) {
+    return { error: 'Tu usuario no tiene un equipo asignado. Contacta con el administrador.', status: 409 };
+  }
+
   const equipo = typeof req.query.equipo === 'string' ? req.query.equipo.trim() : '';
-  return equipo || null;
+  const equiposAsignados = parseEquiposAsignados(equipo_asignado);
+
+  if (equiposAsignados.length > 0) {
+    if (!equipo && equiposAsignados.length === 1) return { equipo: equiposAsignados[0] };
+    if (!equipo) return { equipo: null };
+    if (!equiposAsignados.includes(equipo)) {
+      return { error: 'No tienes permiso para ver el campograma de ese equipo.', status: 403 };
+    }
+  }
+
+  return { equipo: equipo || null };
 }
 
 // GET /api/campogramas/ultimo-sistema?equipo=xxx -> ultimo sistema tactico guardado para ese equipo.
 router.get('/ultimo-sistema', async (req, res) => {
-  const equipo = resolverEquipo(req);
+  const { equipo, error: errorEquipo, status } = resolverEquipo(req);
+
+  if (errorEquipo) {
+    return res.status(status || 400).json({ error: errorEquipo });
+  }
 
   if (!equipo) {
     return res.status(400).json({ error: 'Falta indicar el equipo.' });
@@ -46,8 +64,12 @@ router.get('/ultimo-sistema', async (req, res) => {
 
 // GET /api/campogramas?equipo=xxx&sistema=1-4-4-2 -> campograma guardado (o vacio si no existe).
 router.get('/', async (req, res) => {
-  const equipo = resolverEquipo(req);
+  const { equipo, error: errorEquipo, status } = resolverEquipo(req);
   const sistema = typeof req.query.sistema === 'string' ? req.query.sistema.trim() : '';
+
+  if (errorEquipo) {
+    return res.status(status || 400).json({ error: errorEquipo });
+  }
 
   if (!equipo) {
     return res.status(400).json({ error: 'Falta indicar el equipo.' });
@@ -92,7 +114,10 @@ router.put(
     if (typeof equipo !== 'string' || !equipo.trim()) {
       return res.status(400).json({ error: 'Falta indicar el equipo.' });
     }
-    if (rol === ROLES.TECNICO && equipo_asignado !== 'Todos' && equipo !== equipo_asignado) {
+    if (rol === ROLES.TECNICO && !equipo_asignado) {
+      return res.status(409).json({ error: 'Tu usuario no tiene un equipo asignado. Contacta con el administrador.' });
+    }
+    if (!puedeVerEquipo(req.user, equipo)) {
       return res.status(403).json({ error: 'No tienes permiso para editar el campograma de otro equipo.' });
     }
 

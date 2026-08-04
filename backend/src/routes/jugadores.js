@@ -5,9 +5,10 @@ const requireAuth = require('../middleware/requireAuth');
 const requireRole = require('../middleware/requireRole');
 const resolveClub = require('../middleware/resolveClub');
 const { ROLES } = require('../config/roles');
-const { columnsForRole, sanitizeRow, FULL_COLUMNS } = require('../config/jugadoresColumns');
+const { columnsForRole, listColumnsForRole, sanitizeRow, FULL_COLUMNS } = require('../config/jugadoresColumns');
 const { LATERALIDAD_VALUES, DEMARCACION_VALUES } = require('../config/datosDeportivos');
 const sheetsSync = require('../config/googleSheetsSync');
+const { parseEquiposAsignados, filtrarEquiposPermitidos, puedeVerEquipo } = require('../lib/equiposAsignados');
 
 const router = express.Router();
 
@@ -35,48 +36,103 @@ const uploadFoto = multer({
   },
 });
 
+function equiposDesdeQuery(equipoQuery) {
+  if (equipoQuery === undefined) return null;
+  const valores = Array.isArray(equipoQuery) ? equipoQuery : [equipoQuery];
+  return Array.from(
+    new Set(
+      valores
+        .map((e) => String(e || '').trim())
+        .filter((e) => e && e !== 'Todos')
+    )
+  );
+}
+
+function aplicarFiltroEquipos(query, equipos) {
+  if (equipos.length === 1) return query.eq('equipo', equipos[0]);
+  if (equipos.length > 1) return query.in('equipo', equipos);
+  return query;
+}
+
 // Sustituye "foto_path" (interno) por una URL firmada de corta duracion en la respuesta.
-async function conFotoUrl(row) {
+function timeoutResult(ms) {
+  return new Promise((resolve) => {
+    setTimeout(() => resolve({ data: null, error: new Error('timeout firmando foto') }), ms);
+  });
+}
+
+async function conFotoUrl(row, { timeoutMs = null } = {}) {
   const { foto_path, ...resto } = row;
   if (!foto_path) {
     return { ...resto, foto_url: null };
   }
   try {
-    const { data, error } = await supabaseAdmin.storage
+    const firmaPromise = supabaseAdmin.storage
       .from(FOTO_BUCKET)
       .createSignedUrl(foto_path, FOTO_URL_TTL_SEGUNDOS);
-    return { ...resto, foto_url: error ? null : data.signedUrl };
+    const { data, error } = timeoutMs ? await Promise.race([firmaPromise, timeoutResult(timeoutMs)]) : await firmaPromise;
+    return { ...resto, foto_url: error || !data?.signedUrl ? null : data.signedUrl };
   } catch (err) {
     console.warn(`No se pudo firmar la foto "${foto_path}":`, err.message);
     return { ...resto, foto_url: null };
   }
 }
 
+async function conFotosUrl(rows, { timeoutMs = null } = {}) {
+  const paths = Array.from(new Set(rows.map((row) => row.foto_path).filter(Boolean)));
+  if (paths.length === 0) {
+    return rows.map(({ foto_path, ...resto }) => ({ ...resto, foto_url: null }));
+  }
+
+  try {
+    const firmaPromise = supabaseAdmin.storage
+      .from(FOTO_BUCKET)
+      .createSignedUrls(paths, FOTO_URL_TTL_SEGUNDOS);
+    const { data, error } = timeoutMs ? await Promise.race([firmaPromise, timeoutResult(timeoutMs)]) : await firmaPromise;
+
+    if (error) {
+      console.warn('No se pudieron firmar las fotos de jugadores:', error.message);
+      return rows.map(({ foto_path, ...resto }) => ({ ...resto, foto_url: null }));
+    }
+
+    const urlsPorPath = new Map();
+    (data || []).forEach((item, index) => {
+      urlsPorPath.set(item.path || paths[index], item.signedUrl || null);
+    });
+
+    return rows.map(({ foto_path, ...resto }) => ({
+      ...resto,
+      foto_url: foto_path ? urlsPorPath.get(foto_path) || null : null,
+    }));
+  } catch (err) {
+    console.warn('No se pudieron firmar las fotos de jugadores:', err.message);
+    return rows.map(({ foto_path, ...resto }) => ({ ...resto, foto_url: null }));
+  }
+}
+
 // GET /api/jugadores?equipo=xxx&q=busqueda
-// Tecnico: se fuerza siempre su equipo_asignado, ignorando "equipo" del query.
-// Administrador/Responsable: pueden filtrar por cualquier equipo o pedir todos.
+// Si el usuario tiene equipos asignados, se limita siempre a esa lista.
 router.get('/', async (req, res) => {
   try {
     const { rol, equipo_asignado } = req.user;
-    const columns = columnsForRole(rol);
+    const columns = listColumnsForRole(rol);
     const search = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    const equiposAsignados = parseEquiposAsignados(equipo_asignado);
 
     let query = supabaseAdmin.from('jugadores').select(columns.join(',')).eq('club', req.club);
 
-    if (rol === ROLES.TECNICO && equipo_asignado !== 'Todos') {
-      if (!equipo_asignado) {
-        return res.status(409).json({ error: 'Tu usuario no tiene un equipo asignado. Contacta con el administrador.' });
-      }
-      query = query.eq('equipo', equipo_asignado);
-    } else if (req.query.equipo !== undefined) {
-      const equiposFiltro = (Array.isArray(req.query.equipo) ? req.query.equipo : [req.query.equipo])
-        .map((e) => String(e).trim())
-        .filter(Boolean);
-      if (equiposFiltro.length === 1) {
-        query = query.eq('equipo', equiposFiltro[0]);
-      } else if (equiposFiltro.length > 1) {
-        query = query.in('equipo', equiposFiltro);
-      }
+    if (rol === ROLES.TECNICO && !equipo_asignado) {
+      return res.status(409).json({ error: 'Tu usuario no tiene un equipo asignado. Contacta con el administrador.' });
+    }
+
+    const equiposFiltro = equiposDesdeQuery(req.query.equipo);
+    if (equiposAsignados.length > 0) {
+      const permitidos = new Set(equiposAsignados);
+      const equiposFinales = equiposFiltro === null ? equiposAsignados : equiposFiltro.filter((eq) => permitidos.has(eq));
+      if (equiposFinales.length === 0) return res.json({ jugadores: [] });
+      query = aplicarFiltroEquipos(query, equiposFinales);
+    } else if (equiposFiltro !== null) {
+      query = aplicarFiltroEquipos(query, equiposFiltro);
     }
 
     if (search) {
@@ -93,7 +149,7 @@ router.get('/', async (req, res) => {
       return res.status(503).json({ error: 'No se pudo consultar la base de datos de jugadores.' });
     }
 
-    const sanitized = await Promise.all((data || []).map((row) => conFotoUrl(sanitizeRow(row, rol))));
+    const sanitized = await conFotosUrl((data || []).map((row) => sanitizeRow(row, rol)), { timeoutMs: 1500 });
     res.json({ jugadores: sanitized });
   } catch (err) {
     console.error('Error inesperado al listar jugadores:', err);
@@ -151,18 +207,15 @@ function ordenarEquipos(equipos, club) {
 // GET /api/jugadores/equipos -> lista de equipos distintos (para el selector).
 // Solo tiene sentido para Administrador/Responsable; Tecnico ya conoce su equipo.
 router.get('/equipos', async (req, res) => {
-  const { rol, equipo_asignado } = req.user;
-
-  if (rol === ROLES.TECNICO && equipo_asignado !== 'Todos') {
-    return res.json({ equipos: equipo_asignado ? [equipo_asignado] : [] });
-  }
-
   const { data, error } = await supabaseAdmin.from('jugadores').select('equipo').eq('club', req.club);
   if (error) {
     return res.status(503).json({ error: 'No se pudo consultar la base de datos de jugadores.' });
   }
 
-  const equipos = ordenarEquipos(Array.from(new Set((data || []).map((r) => r.equipo).filter(Boolean))), req.club);
+  const equipos = ordenarEquipos(
+    filtrarEquiposPermitidos((data || []).map((r) => r.equipo).filter(Boolean), req.user),
+    req.club
+  );
   res.json({ equipos });
 });
 
@@ -185,7 +238,10 @@ router.get('/:id', async (req, res) => {
     return res.status(404).json({ error: 'Jugador no encontrado.' });
   }
 
-  if (rol === ROLES.TECNICO && equipo_asignado !== 'Todos' && data.equipo !== equipo_asignado) {
+  if (rol === ROLES.TECNICO && !equipo_asignado) {
+    return res.status(409).json({ error: 'Tu usuario no tiene un equipo asignado. Contacta con el administrador.' });
+  }
+  if (!puedeVerEquipo(req.user, data.equipo)) {
     return res.status(403).json({ error: 'No tienes permiso para ver este jugador.' });
   }
 
@@ -212,6 +268,7 @@ router.post(
         .from('jugadores')
         .select('id, equipo, foto_path')
         .eq('id', req.params.id)
+        .eq('club', req.club)
         .maybeSingle();
 
       if (fetchError) {
@@ -220,7 +277,10 @@ router.post(
       if (!jugador) {
         return res.status(404).json({ error: 'Jugador no encontrado.' });
       }
-      if (rol === ROLES.TECNICO && equipo_asignado !== 'Todos' && jugador.equipo !== equipo_asignado) {
+      if (rol === ROLES.TECNICO && !equipo_asignado) {
+        return res.status(409).json({ error: 'Tu usuario no tiene un equipo asignado. Contacta con el administrador.' });
+      }
+      if (!puedeVerEquipo(req.user, jugador.equipo)) {
         return res.status(403).json({ error: 'No tienes permiso para editar este jugador.' });
       }
 
@@ -297,10 +357,28 @@ router.patch(
     const { rol } = req.user;
 
     try {
+      const { data: jugadorActual, error: errorJugadorActual } = await supabaseAdmin
+        .from('jugadores')
+        .select('equipo')
+        .eq('id', req.params.id)
+        .eq('club', req.club)
+        .maybeSingle();
+
+      if (errorJugadorActual) {
+        return res.status(503).json({ error: 'No se pudo consultar la base de datos de jugadores.' });
+      }
+      if (!jugadorActual) {
+        return res.status(404).json({ error: 'Jugador no encontrado.' });
+      }
+      if (!puedeVerEquipo(req.user, jugadorActual.equipo)) {
+        return res.status(403).json({ error: 'No tienes permiso para editar este jugador.' });
+      }
+
       const { data, error } = await supabaseAdmin
         .from('jugadores')
         .update(updates)
         .eq('id', req.params.id)
+        .eq('club', req.club)
         .select(columnsForRole(rol).join(','))
         .maybeSingle();
 

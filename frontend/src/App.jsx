@@ -14,6 +14,8 @@ import FichaJugador from './pages/FichaJugador';
 import Usuarios from './pages/Usuarios';
 import Campogramas from './pages/Campogramas';
 import HojasCalculo from './pages/HojasCalculo';
+import Captacion from './pages/Captacion';
+import Clubes from './pages/Clubes';
 
 function ClubThemeSync() {
   const { club } = useClub();
@@ -87,6 +89,26 @@ function AppRoutes() {
           <ProtectedRoute>
             <Layout>
               <Campogramas />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/captacion"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <Captacion />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/clubes"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <Clubes />
             </Layout>
           </ProtectedRoute>
         }

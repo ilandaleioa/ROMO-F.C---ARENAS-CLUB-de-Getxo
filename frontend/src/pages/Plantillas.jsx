@@ -6,6 +6,7 @@ import { useFiltroEquipos } from '../context/FiltroEquiposContext';
 import { useVistaPlantillas } from '../context/VistaPlantillasContext';
 import { api } from '../lib/api';
 import { LATERALIDAD_OPCIONES, DEMARCACION_OPCIONES } from '../lib/campos';
+import { equiposAsignadosLabel, parseEquiposAsignados, usuarioLimitadoAUnEquipo } from '../lib/equiposAsignados';
 
 const COLORES_MUNICIPIOS = [
   '#2a78d6',
@@ -48,24 +49,29 @@ function detectarMovil() {
 
 function ordenarJugadoresAlfabeticamente(jugadores) {
   return [...jugadores].sort((a, b) => {
-    const nombreA = `${a.nombre || ''} ${a.primer_apellido || ''} ${a.segundo_apellido || ''}`.trim();
-    const nombreB = `${b.nombre || ''} ${b.primer_apellido || ''} ${b.segundo_apellido || ''}`.trim();
+    const nombreA = nombreCompleto(a);
+    const nombreB = nombreCompleto(b);
     return nombreA.localeCompare(nombreB, 'es', { sensitivity: 'base' });
   });
+}
+
+function nombreCompleto(jugador) {
+  return [jugador.nombre, jugador.primer_apellido, jugador.segundo_apellido].filter(Boolean).join(' ');
 }
 
 export default function Plantillas() {
   const { user } = useAuth();
   const { club } = useClub();
-  const esTecnico = user.rol === 'tecnico' && user.equipo_asignado !== 'Todos';
+  const equiposAsignadosUsuario = useMemo(() => parseEquiposAsignados(user.equipo_asignado), [user.equipo_asignado]);
+  const limitadoAUnEquipo = usuarioLimitadoAUnEquipo(user);
   const esAdministrador = user.rol === 'administrador';
   const { equiposDisponibles, equiposSeleccionados, seleccionarEquipoUnico, limpiarSeleccion, recargarEquipos } =
     useFiltroEquipos();
 
   const [busqueda, setBusqueda] = useState('');
-  const [filtroLateralidad, setFiltroLateralidad] = useState('');
-  const [filtroDemarcacion, setFiltroDemarcacion] = useState('');
-  const [filtroAnio, setFiltroAnio] = useState('');
+  const [filtroLateralidad, setFiltroLateralidad] = useState([]);
+  const [filtroDemarcacion, setFiltroDemarcacion] = useState([]);
+  const [filtroAnio, setFiltroAnio] = useState([]);
   const [jugadores, setJugadores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -73,6 +79,7 @@ export default function Plantillas() {
   const [sincronizando, setSincronizando] = useState(false);
   const [mensajeSync, setMensajeSync] = useState('');
   const [filtroEquiposAbierto, setFiltroEquiposAbierto] = useState(false);
+  const [filtroDeportivoAbierto, setFiltroDeportivoAbierto] = useState(null);
   const { vista } = useVistaPlantillas();
   const [esMovil, setEsMovil] = useState(detectarMovil);
 
@@ -85,20 +92,39 @@ export default function Plantillas() {
     return () => mediaQuery.removeEventListener('change', actualizar);
   }, []);
 
+  useEffect(() => {
+    const cerrarFiltros = (event) => {
+      if (!event.target.closest('[data-filtro-deportivo]')) {
+        setFiltroDeportivoAbierto(null);
+      }
+    };
+    const cerrarConEscape = (event) => {
+      if (event.key === 'Escape') setFiltroDeportivoAbierto(null);
+    };
+
+    document.addEventListener('click', cerrarFiltros);
+    document.addEventListener('keydown', cerrarConEscape);
+    return () => {
+      document.removeEventListener('click', cerrarFiltros);
+      document.removeEventListener('keydown', cerrarConEscape);
+    };
+  }, []);
+
   const vistaVisible = esMovil ? 'tabla' : vista;
 
   const cargarJugadores = useCallback(async () => {
     setError('');
     try {
       const params = new URLSearchParams();
-      if (!esTecnico) equiposSeleccionados.forEach((eq) => params.append('equipo', eq));
+      if (!limitadoAUnEquipo) equiposSeleccionados.forEach((eq) => params.append('equipo', eq));
       if (busqueda.trim()) params.set('q', busqueda.trim());
-      const { jugadores } = await api.get(`/jugadores?${params.toString()}`);
+      const query = params.toString();
+      const { jugadores } = await api.get(query ? `/jugadores?${query}` : '/jugadores');
       setJugadores(jugadores);
     } catch (err) {
       setError(err.message);
     }
-  }, [club, esTecnico, equiposSeleccionados, busqueda]);
+  }, [club, limitadoAUnEquipo, equiposSeleccionados, busqueda]);
 
   useEffect(() => {
     setLoading(true);
@@ -170,12 +196,22 @@ export default function Plantillas() {
 
   const jugadoresFiltrados = ordenarJugadoresAlfabeticamente(
     jugadores.filter((j) => {
-      if (filtroLateralidad && j.lateralidad !== filtroLateralidad) return false;
-      if (filtroDemarcacion && j.demarcacion !== filtroDemarcacion) return false;
-      if (filtroAnio && String(anioNacimiento(j.fecha_nacimiento) || '') !== filtroAnio) return false;
+      if (filtroLateralidad.length > 0 && !filtroLateralidad.includes(j.lateralidad)) return false;
+      if (filtroDemarcacion.length > 0 && !filtroDemarcacion.includes(j.demarcacion)) return false;
+      if (filtroAnio.length > 0 && !filtroAnio.includes(String(anioNacimiento(j.fecha_nacimiento) || ''))) {
+        return false;
+      }
       return true;
     })
   );
+
+  const alternarFiltro = (setFiltro, valor) => {
+    setFiltro((seleccionados) =>
+      seleccionados.includes(valor)
+        ? seleccionados.filter((seleccionado) => seleccionado !== valor)
+        : [...seleccionados, valor]
+    );
+  };
 
   const aniosDisponibles = useMemo(() => {
     const anios = new Set();
@@ -427,8 +463,8 @@ export default function Plantillas() {
                   <Link
                     to={`/plantillas/${j.id}`}
                     className="inline-flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 shrink-0 rounded-full text-club-red hover:bg-red-50 hover:text-club-redDark transition-colors"
-                    aria-label={`Ver ficha de ${j.nombre} ${j.primer_apellido} ${j.segundo_apellido || ''}`.trim()}
-                    title={`Ver ficha de ${j.nombre} ${j.primer_apellido} ${j.segundo_apellido || ''}`.trim()}
+                    aria-label={`Ver ficha de ${nombreCompleto(j)}`}
+                    title={`Ver ficha de ${nombreCompleto(j)}`}
                   >
                     {renderIconoOjo()}
                   </Link>
@@ -436,7 +472,7 @@ export default function Plantillas() {
                     {j.dorsal ?? '-'}
                   </span>
                   <span className="truncate">
-                    {j.nombre} {j.primer_apellido} {j.segundo_apellido || ''}
+                    {nombreCompleto(j)}
                   </span>
                 </div>
               </td>
@@ -472,7 +508,7 @@ export default function Plantillas() {
               </div>
             )}
             <p className="font-semibold text-club-black">
-              {j.nombre} {j.primer_apellido} {j.segundo_apellido || ''}
+              {nombreCompleto(j)}
             </p>
           </div>
           <p className="text-sm text-club-black/80">{j.equipo}</p>
@@ -488,8 +524,8 @@ export default function Plantillas() {
           <Link
             to={`/plantillas/${j.id}`}
             className="mt-2 inline-flex items-center justify-center w-8 h-8 rounded-full text-club-red hover:bg-red-50 hover:text-club-redDark transition-colors"
-            aria-label={`Ver ficha de ${j.nombre} ${j.primer_apellido} ${j.segundo_apellido || ''}`.trim()}
-            title={`Ver ficha de ${j.nombre} ${j.primer_apellido} ${j.segundo_apellido || ''}`.trim()}
+            aria-label={`Ver ficha de ${nombreCompleto(j)}`}
+            title={`Ver ficha de ${nombreCompleto(j)}`}
           >
             {renderIconoOjo()}
           </Link>
@@ -562,6 +598,74 @@ export default function Plantillas() {
     );
   };
 
+  const renderFiltroMultiseleccion = ({ id, etiquetaTodos, opciones, seleccionados, setSeleccionados }) => {
+    const abierto = filtroDeportivoAbierto === id;
+    const etiqueta =
+      seleccionados.length === 0
+        ? etiquetaTodos
+        : seleccionados.length === 1
+          ? seleccionados[0]
+          : `${seleccionados.length} seleccionados`;
+
+    return (
+      <div className="relative w-full sm:w-60" data-filtro-deportivo>
+        <button
+          type="button"
+          onClick={() => setFiltroDeportivoAbierto((actual) => (actual === id ? null : id))}
+          className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-left text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
+          aria-haspopup="listbox"
+          aria-expanded={abierto}
+        >
+          <span className="flex items-center justify-between gap-3">
+            <span className="truncate">{etiqueta}</span>
+            <span
+              className={`h-2 w-2 shrink-0 border-b-2 border-r-2 border-club-black/70 transition-transform ${
+                abierto ? 'rotate-[225deg]' : 'rotate-45'
+              }`}
+              aria-hidden="true"
+            />
+          </span>
+        </button>
+        {abierto && (
+          <div className="absolute z-30 mt-1 w-full overflow-hidden rounded-md border border-gray-200 bg-white shadow-lg">
+            <button
+              type="button"
+              onClick={() => setSeleccionados([])}
+              className={`w-full px-3 py-2 text-left text-sm font-semibold transition-colors ${
+                seleccionados.length === 0 ? 'bg-club-red text-white' : 'text-club-black hover:bg-red-50/60'
+              }`}
+            >
+              {etiquetaTodos}
+            </button>
+            <div className="max-h-64 overflow-y-auto py-1" role="listbox" aria-multiselectable="true">
+              {opciones.map((opcion) => {
+                const valor = String(opcion);
+                const seleccionado = seleccionados.includes(valor);
+
+                return (
+                  <label
+                    key={valor}
+                    className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm text-club-black/80 hover:bg-red-50/60"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={seleccionado}
+                      onChange={() => alternarFiltro(setSeleccionados, valor)}
+                      className="h-4 w-4 accent-club-red"
+                    />
+                    <span className="truncate" title={valor}>
+                      {valor}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderFiltrosDeportivos = () => (
     <div className="flex flex-col sm:flex-row sm:items-center gap-3">
       <div className="w-full sm:w-48 flex flex-col gap-1">
@@ -577,42 +681,27 @@ export default function Plantillas() {
           className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
         />
       </div>
-      <select
-        value={filtroLateralidad}
-        onChange={(e) => setFiltroLateralidad(e.target.value)}
-        className="w-full sm:w-auto rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
-      >
-        <option value="">Todas las lateralidades</option>
-        {LATERALIDAD_OPCIONES.map((opcion) => (
-          <option key={opcion} value={opcion}>
-            {opcion}
-          </option>
-        ))}
-      </select>
-      <select
-        value={filtroDemarcacion}
-        onChange={(e) => setFiltroDemarcacion(e.target.value)}
-        className="w-full sm:w-auto rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
-      >
-        <option value="">Todas las demarcaciones</option>
-        {DEMARCACION_OPCIONES.map((opcion) => (
-          <option key={opcion} value={opcion}>
-            {opcion}
-          </option>
-        ))}
-      </select>
-      <select
-        value={filtroAnio}
-        onChange={(e) => setFiltroAnio(e.target.value)}
-        className="w-full sm:w-auto rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
-      >
-        <option value="">Todos los años</option>
-        {aniosDisponibles.map((anio) => (
-          <option key={anio} value={anio}>
-            {anio}
-          </option>
-        ))}
-      </select>
+      {renderFiltroMultiseleccion({
+        id: 'lateralidad',
+        etiquetaTodos: 'Todas las lateralidades',
+        opciones: LATERALIDAD_OPCIONES,
+        seleccionados: filtroLateralidad,
+        setSeleccionados: setFiltroLateralidad,
+      })}
+      {renderFiltroMultiseleccion({
+        id: 'demarcacion',
+        etiquetaTodos: 'Todas las demarcaciones',
+        opciones: DEMARCACION_OPCIONES,
+        seleccionados: filtroDemarcacion,
+        setSeleccionados: setFiltroDemarcacion,
+      })}
+      {renderFiltroMultiseleccion({
+        id: 'anio',
+        etiquetaTodos: 'Todos los a\u00f1os',
+        opciones: aniosDisponibles,
+        seleccionados: filtroAnio,
+        setSeleccionados: setFiltroAnio,
+      })}
     </div>
   );
 
@@ -651,15 +740,15 @@ export default function Plantillas() {
         </p>
       )}
 
-      {esTecnico ? (
+      {limitadoAUnEquipo ? (
         <div className="mb-6">
           <div className="flex flex-wrap items-center gap-3 mb-4">
             <div className="text-sm font-semibold bg-club-black text-white px-4 py-2 rounded-md inline-block">
-              Equipo: {user.equipo_asignado || 'sin asignar'}
+              Equipo: {equiposAsignadosLabel(user.equipo_asignado)}
             </div>
-            {user.equipo_asignado && (
+            {equiposAsignadosUsuario[0] && (
               <Link
-                to={`/campogramas?equipo=${encodeURIComponent(user.equipo_asignado)}`}
+                to={`/campogramas?equipo=${encodeURIComponent(equiposAsignadosUsuario[0])}`}
                 className="inline-flex items-center gap-1.5 bg-club-red hover:bg-club-redDark text-white font-semibold px-3 py-2 rounded-md text-sm transition-colors"
               >
                 <span className="text-base leading-none">+</span> Campograma

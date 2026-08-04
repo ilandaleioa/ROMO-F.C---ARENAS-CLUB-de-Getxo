@@ -8,8 +8,9 @@
 require('dotenv').config();
 const bcrypt = require('bcryptjs');
 const supabaseAdmin = require('../src/config/supabaseClient');
-const { ALL_ROLES, ROLES } = require('../src/config/roles');
+const { ALL_ROLES } = require('../src/config/roles');
 const { CLUBES_USUARIO, CLUB_TODOS } = require('../src/config/clubs');
+const { serializeEquiposAsignados } = require('../src/lib/equiposAsignados');
 
 async function main() {
   const [username, password, rol, equipo_asignado, clubArg] = process.argv.slice(2);
@@ -23,10 +24,6 @@ async function main() {
   }
   if (!ALL_ROLES.includes(rol)) {
     console.error(`Rol invalido. Roles validos: ${ALL_ROLES.join(', ')}`);
-    process.exit(1);
-  }
-  if (rol === ROLES.TECNICO && !equipo_asignado) {
-    console.error('Los usuarios con rol "tecnico" necesitan un equipo_asignado.');
     process.exit(1);
   }
   if (!CLUBES_USUARIO.includes(club)) {
@@ -47,7 +44,7 @@ async function main() {
         username,
         password_hash,
         rol,
-        equipo_asignado: rol === ROLES.TECNICO ? equipo_asignado : null,
+        equipo_asignado: serializeEquiposAsignados(equipo_asignado),
         club,
         activo: true,
       },

@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '../lib/api';
 import { useFiltroEquipos } from '../context/FiltroEquiposContext';
+import { TODOS_EQUIPOS, equiposAsignadosLabel, parseEquiposAsignados } from '../lib/equiposAsignados';
 
 const ROLES = [
   { value: 'administrador', label: 'Administrador' },
@@ -15,7 +16,7 @@ const CLUBES = [
   { value: 'ARENAS', label: 'ARENAS' },
 ];
 
-const FORM_VACIO = { username: '', password: '', rol: 'tecnico', equipo_asignado: 'Todos', club: 'TODOS', activo: true };
+const FORM_VACIO = { username: '', password: '', rol: 'tecnico', equipos_asignados: [TODOS_EQUIPOS], club: 'TODOS', activo: true };
 
 export default function Usuarios() {
   const { equiposDisponibles } = useFiltroEquipos();
@@ -27,6 +28,7 @@ export default function Usuarios() {
   const [guardando, setGuardando] = useState(false);
   const [formError, setFormError] = useState('');
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
+  const [selectorEquiposAbierto, setSelectorEquiposAbierto] = useState(false);
 
   const cargarUsuarios = useCallback(async () => {
     setError('');
@@ -49,7 +51,7 @@ export default function Usuarios() {
       username: usuario.username,
       password: '',
       rol: usuario.rol,
-      equipo_asignado: usuario.equipo_asignado || 'Todos',
+      equipos_asignados: parseEquiposAsignados(usuario.equipo_asignado),
       club: usuario.club || 'TODOS',
       activo: usuario.activo !== false,
     });
@@ -62,6 +64,22 @@ export default function Usuarios() {
     setForm(FORM_VACIO);
     setFormError('');
     setMostrarFormulario(false);
+    setSelectorEquiposAbierto(false);
+  };
+
+  const toggleEquipoAsignado = (equipo) => {
+    setForm((prev) => {
+      if (equipo === TODOS_EQUIPOS) {
+        return { ...prev, equipos_asignados: [TODOS_EQUIPOS] };
+      }
+
+      const actuales = prev.equipos_asignados.includes(TODOS_EQUIPOS) ? [] : prev.equipos_asignados;
+      const siguientes = actuales.includes(equipo)
+        ? actuales.filter((eq) => eq !== equipo)
+        : [...actuales, equipo];
+
+      return { ...prev, equipos_asignados: siguientes.length > 0 ? siguientes : [TODOS_EQUIPOS] };
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -72,7 +90,7 @@ export default function Usuarios() {
       const payload = {
         username: form.username,
         rol: form.rol,
-        equipo_asignado: form.rol === 'tecnico' ? form.equipo_asignado : null,
+        equipo_asignado: form.equipos_asignados,
         club: form.club,
         activo: form.activo,
       };
@@ -181,24 +199,44 @@ export default function Usuarios() {
             </select>
           </div>
 
-          {form.rol === 'tecnico' && (
-            <div>
-              <label className="block text-sm font-semibold text-club-black mb-1">Equipo asignado</label>
-              <select
-                required
-                value={form.equipo_asignado}
-                onChange={(e) => setForm({ ...form, equipo_asignado: e.target.value })}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
-              >
-                <option value="Todos">Todos</option>
+          <div className="relative">
+            <label className="block text-sm font-semibold text-club-black mb-1">Equipo</label>
+            <button
+              type="button"
+              onClick={() => setSelectorEquiposAbierto((abierto) => !abierto)}
+              className="w-full flex items-center justify-between gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-left focus:outline-none focus:ring-2 focus:ring-club-red"
+            >
+              <span className="truncate">{equiposAsignadosLabel(form.equipos_asignados, { compacto: true })}</span>
+              <span className="text-club-black/50">v</span>
+            </button>
+            {selectorEquiposAbierto && (
+              <div className="absolute z-30 mt-2 w-full max-h-64 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg">
+                <label className="flex items-center gap-2 px-3 py-2 text-sm font-semibold border-b border-gray-100 hover:bg-red-50/60 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.equipos_asignados.includes(TODOS_EQUIPOS)}
+                    onChange={() => toggleEquipoAsignado(TODOS_EQUIPOS)}
+                    className="h-4 w-4 accent-club-red"
+                  />
+                  Todos los equipos
+                </label>
                 {equiposDisponibles.map((eq) => (
-                  <option key={eq} value={eq}>
-                    {eq}
-                  </option>
+                  <label
+                    key={eq}
+                    className="flex items-center gap-2 px-3 py-2 text-sm border-b border-gray-100 last:border-b-0 text-club-black/80 hover:bg-red-50/60 cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={form.equipos_asignados.includes(eq)}
+                      onChange={() => toggleEquipoAsignado(eq)}
+                      className="h-4 w-4 accent-club-red"
+                    />
+                    <span className="truncate">{eq}</span>
+                  </label>
                 ))}
-              </select>
-            </div>
-          )}
+              </div>
+            )}
+          </div>
 
           <div className="flex items-center gap-2 pt-6">
             <input
@@ -268,7 +306,9 @@ export default function Usuarios() {
                   <td className="hidden sm:table-cell px-4 py-3 text-club-black/80">
                     {u.club === 'ROMO' ? 'ROMO' : u.club === 'ARENAS' ? 'ARENAS' : 'ROMO y ARENAS'}
                   </td>
-                  <td className="hidden sm:table-cell px-4 py-3 text-club-black/80">{u.equipo_asignado || '-'}</td>
+                  <td className="hidden sm:table-cell px-4 py-3 text-club-black/80" title={equiposAsignadosLabel(u.equipo_asignado)}>
+                    {equiposAsignadosLabel(u.equipo_asignado, { compacto: true })}
+                  </td>
                   <td className="hidden sm:table-cell px-4 py-3">
                     <span
                       className={`text-xs font-semibold px-2 py-1 rounded-full ${

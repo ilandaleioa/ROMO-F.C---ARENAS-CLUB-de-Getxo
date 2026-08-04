@@ -95,6 +95,23 @@ const TECNICO_COLUMNS = [
   'foto_path',
 ];
 
+// Columnas necesarias para listados, graficas y campogramas. La ficha
+// individual sigue usando columnsForRole para cargar el detalle completo.
+const LIST_COLUMNS = [
+  'id',
+  'club',
+  'nombre',
+  'primer_apellido',
+  'segundo_apellido',
+  'equipo',
+  'fecha_nacimiento',
+  'dorsal',
+  'lateralidad',
+  'demarcacion',
+  'localidad',
+  'foto_path',
+];
+
 // Columnas consideradas sensibles (documentacion / referencia).
 const SENSITIVE_COLUMNS = [
   'dni_jugador',
@@ -118,6 +135,11 @@ function columnsForRole(rol) {
   return FULL_COLUMNS; // administrador, director
 }
 
+function listColumnsForRole(rol) {
+  const allowed = new Set(columnsForRole(rol));
+  return LIST_COLUMNS.filter((column) => allowed.has(column));
+}
+
 // Elimina de cada fila cualquier campo que no este en la whitelist del rol,
 // como segunda barrera ademas del "select" explicito hecho a Supabase.
 function sanitizeRow(row, rol) {
@@ -133,7 +155,9 @@ module.exports = {
   FULL_COLUMNS,
   RESPONSABLE_COLUMNS,
   TECNICO_COLUMNS,
+  LIST_COLUMNS,
   SENSITIVE_COLUMNS,
   columnsForRole,
+  listColumnsForRole,
   sanitizeRow,
 };

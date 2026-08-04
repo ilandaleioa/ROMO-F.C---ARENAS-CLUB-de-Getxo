@@ -12,6 +12,8 @@ const NAV_ITEMS = [{ to: '/', label: 'Inicio', end: true }];
 
 const SECONDARY_NAV_ITEMS = [
   { to: '/campogramas', label: 'Campogramas' },
+  { to: '/captacion', label: 'CAPTACION' },
+  { to: '/clubes', label: 'Club / Equipo / Categoria' },
 ];
 
 const FINAL_NAV_ITEMS = [

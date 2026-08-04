@@ -5,6 +5,7 @@ const requireAuth = require('../middleware/requireAuth');
 const requireRole = require('../middleware/requireRole');
 const { ROLES, ALL_ROLES } = require('../config/roles');
 const { CLUBES_USUARIO } = require('../config/clubs');
+const { parseEquiposAsignados, serializeEquiposAsignados } = require('../lib/equiposAsignados');
 
 const router = express.Router();
 
@@ -34,8 +35,8 @@ function validarPayload(body, { requierePassword }) {
   if (!ALL_ROLES.includes(rol)) {
     return 'El rol no es valido.';
   }
-  if (rol === ROLES.TECNICO && (!equipo_asignado || typeof equipo_asignado !== 'string')) {
-    return 'Los usuarios con rol Tecnico deben tener un equipo asignado.';
+  if (equipo_asignado !== undefined && equipo_asignado !== null && typeof equipo_asignado !== 'string' && !Array.isArray(equipo_asignado)) {
+    return 'El campo Equipo no es valido.';
   }
   if (!CLUBES_USUARIO.includes(club)) {
     return 'El club no es valido.';
@@ -49,9 +50,29 @@ function validarPayload(body, { requierePassword }) {
   return null;
 }
 
+function validarAlcanceEquipos(actor, equipoAsignado) {
+  const equiposActor = parseEquiposAsignados(actor?.equipo_asignado);
+  if (equiposActor.length === 0) return null;
+
+  const equiposUsuario = parseEquiposAsignados(equipoAsignado);
+  if (equiposUsuario.length === 0) {
+    return 'No puedes dar acceso a todos los equipos porque tu usuario esta limitado.';
+  }
+
+  const permitidos = new Set(equiposActor);
+  const equipoNoPermitido = equiposUsuario.find((eq) => !permitidos.has(eq));
+  if (equipoNoPermitido) {
+    return `No puedes dar acceso al equipo "${equipoNoPermitido}".`;
+  }
+
+  return null;
+}
+
 router.post('/', async (req, res) => {
   const error = validarPayload(req.body, { requierePassword: true });
   if (error) return res.status(400).json({ error });
+  const errorAlcance = validarAlcanceEquipos(req.user, req.body.equipo_asignado);
+  if (errorAlcance) return res.status(403).json({ error: errorAlcance });
 
   const { username, password, rol, equipo_asignado, club, activo } = req.body;
   const password_hash = await bcrypt.hash(password, 12);
@@ -62,7 +83,7 @@ router.post('/', async (req, res) => {
       username: username.trim(),
       password_hash,
       rol,
-      equipo_asignado: rol === ROLES.TECNICO ? equipo_asignado.trim() : null,
+      equipo_asignado: serializeEquiposAsignados(equipo_asignado),
       club,
       activo: activo !== false,
     })
@@ -82,13 +103,15 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   const error = validarPayload(req.body, { requierePassword: false });
   if (error) return res.status(400).json({ error });
+  const errorAlcance = validarAlcanceEquipos(req.user, req.body.equipo_asignado);
+  if (errorAlcance) return res.status(403).json({ error: errorAlcance });
 
   const { username, password, rol, equipo_asignado, club, activo } = req.body;
 
   const update = {
     username: username.trim(),
     rol,
-    equipo_asignado: rol === ROLES.TECNICO ? equipo_asignado.trim() : null,
+    equipo_asignado: serializeEquiposAsignados(equipo_asignado),
     club,
     activo: activo !== false,
   };

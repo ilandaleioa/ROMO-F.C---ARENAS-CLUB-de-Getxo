@@ -93,6 +93,20 @@ const SISTEMAS = [
       { id: 'del_cen', label: 'Delantero centro', x: 85, y: 50 },
     ],
   },
+  {
+    id: '1-3-3-1',
+    label: '1-3-3-1 (F8)',
+    positions: [
+      { id: 'por', label: 'Portero', x: 8, y: 50 },
+      { id: 'def_izq', label: 'Defensa izquierdo', x: 28, y: 20 },
+      { id: 'def_cen', label: 'Defensa central', x: 25, y: 50 },
+      { id: 'def_der', label: 'Defensa derecho', x: 28, y: 80 },
+      { id: 'med_izq', label: 'Medio izquierdo', x: 55, y: 20 },
+      { id: 'med_cen', label: 'Medio centro', x: 52, y: 50 },
+      { id: 'med_der', label: 'Medio derecho', x: 55, y: 80 },
+      { id: 'del_cen', label: 'Delantero centro', x: 85, y: 50 },
+    ],
+  },
 ];
 
 const SISTEMAS_POR_ID = new Map(SISTEMAS.map((s) => [s.id, s]));

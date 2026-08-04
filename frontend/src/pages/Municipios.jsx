@@ -39,6 +39,10 @@ function arcoSvg(cx, cy, radio, anguloInicio, anguloFin) {
   return `M ${cx} ${cy} L ${inicio.x} ${inicio.y} A ${radio} ${radio} 0 ${arcoGrande} 0 ${fin.x} ${fin.y} Z`;
 }
 
+function nombreCompleto(jugador) {
+  return [jugador.nombre, jugador.primer_apellido, jugador.segundo_apellido].filter(Boolean).join(' ');
+}
+
 export default function Municipios() {
   const { club } = useClub();
   const [jugadores, setJugadores] = useState([]);
@@ -123,7 +127,7 @@ export default function Municipios() {
           {f.jugadores.map((j) => (
             <tr key={j.id}>
               <td className="px-4 py-2 text-club-black">
-                {`${j.nombre} ${j.primer_apellido} ${j.segundo_apellido || ''}`.trim()}
+                {nombreCompleto(j)}
               </td>
               <td className="px-4 py-2 text-club-black/80">{j.equipo || '-'}</td>
               <td className="px-4 py-2 text-club-black/80">{f.municipio}</td>
