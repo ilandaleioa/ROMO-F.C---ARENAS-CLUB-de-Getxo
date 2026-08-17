@@ -262,8 +262,8 @@ function TablaLista({ lista, clubesDisponibles }) {
             {gruposEquipos.length === 0 ? (
               <p className="text-sm text-club-black/50">Aun no hay equipos creados.</p>
             ) : (
-              gruposEquipos.map((grupo) => (
-                <div key={grupo.club} className="rounded-lg border border-gray-200 bg-white px-3 py-2">
+              gruposEquipos.map((grupo, indiceGrupo) => (
+                <div key={`${grupo.club}-${indiceGrupo}`} className="rounded-lg border border-gray-200 bg-white px-3 py-2">
                   <p className="text-sm font-semibold text-club-black">
                     {grupo.etiqueta}
                     <span className="font-normal text-club-black/55">
@@ -383,7 +383,7 @@ function TablaLista({ lista, clubesDisponibles }) {
           </thead>
           <tbody className="divide-y divide-gray-100">
             {filasOrdenadas.map((fila, indice) => (
-              <tr key={`${lista.id}-${fila.id || fila.nombre || fila.club || indice}`} className="transition-colors hover:bg-red-50/40">
+              <tr key={`${lista.id}-${fila.id || fila.nombre || fila.club || 'fila'}-${indice}`} className="transition-colors hover:bg-red-50/40">
                 <td className="px-4 py-3 text-club-black/45">{indice + 1}</td>
                 {columnasVisibles.map((columna) => (
                   <td key={columna.key} className="px-4 py-3 font-medium text-club-black/80">
@@ -456,8 +456,8 @@ export default function Listas() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        {listasVisibles.map((lista) => (
-          <TablaLista key={lista.id} lista={lista} clubesDisponibles={clubesDisponibles} />
+        {listasVisibles.map((lista, indice) => (
+          <TablaLista key={`${lista.id}-${indice}`} lista={lista} clubesDisponibles={clubesDisponibles} />
         ))}
       </div>
     </div>

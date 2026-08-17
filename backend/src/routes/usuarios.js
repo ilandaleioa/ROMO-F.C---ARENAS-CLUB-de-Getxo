@@ -18,17 +18,81 @@ const router = express.Router();
 router.use(requireAuth, requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR));
 
 const PUBLIC_USER_FIELDS = 'id, username, rol, equipo_asignado, club, apartados_visibles, activo, creado_en';
+const PUBLIC_USER_FIELDS_BASE = 'id, username, rol, equipo_asignado, club, activo, creado_en';
 
-router.get('/', async (req, res) => {
-  const { data, error } = await supabaseAdmin
+function esColumnaInexistente(error, columna) {
+  const mensaje = String(error?.message || error?.details || '').toLowerCase();
+  return mensaje.includes(`column usuarios.${columna.toLowerCase()} does not exist`)
+    || mensaje.includes(`column "${columna.toLowerCase()}" does not exist`)
+    || mensaje.includes(`column '${columna.toLowerCase()}' does not exist`);
+}
+
+function normalizarUsuario(usuario) {
+  if (!usuario) return usuario;
+  return {
+    ...usuario,
+    equipo_asignado: usuario.equipo_asignado || null,
+    club: usuario.club || null,
+    apartados_visibles: usuario.apartados_visibles || null,
+  };
+}
+
+async function consultarUsuariosPublicos() {
+  const respuesta = await supabaseAdmin
     .from('usuarios')
     .select(PUBLIC_USER_FIELDS)
     .order('username', { ascending: true });
 
+  if (!respuesta.error || !esColumnaInexistente(respuesta.error, 'apartados_visibles')) {
+    return respuesta;
+  }
+
+  return supabaseAdmin
+    .from('usuarios')
+    .select(PUBLIC_USER_FIELDS_BASE)
+    .order('username', { ascending: true });
+}
+
+async function insertarUsuarioConFallback(payload) {
+  let respuesta = await supabaseAdmin.from('usuarios').insert(payload).select(PUBLIC_USER_FIELDS).single();
+  if (!respuesta.error || !esColumnaInexistente(respuesta.error, 'apartados_visibles')) {
+    return respuesta;
+  }
+
+  const payloadBase = { ...payload };
+  delete payloadBase.apartados_visibles;
+  return supabaseAdmin.from('usuarios').insert(payloadBase).select(PUBLIC_USER_FIELDS_BASE).single();
+}
+
+async function actualizarUsuarioConFallback(id, payload) {
+  let respuesta = await supabaseAdmin
+    .from('usuarios')
+    .update(payload)
+    .eq('id', id)
+    .select(PUBLIC_USER_FIELDS)
+    .maybeSingle();
+
+  if (!respuesta.error || !esColumnaInexistente(respuesta.error, 'apartados_visibles')) {
+    return respuesta;
+  }
+
+  const payloadBase = { ...payload };
+  delete payloadBase.apartados_visibles;
+  return supabaseAdmin
+    .from('usuarios')
+    .update(payloadBase)
+    .eq('id', id)
+    .select(PUBLIC_USER_FIELDS_BASE)
+    .maybeSingle();
+}
+
+router.get('/', async (req, res) => {
+  const { data, error } = await consultarUsuariosPublicos();
+
   if (error) {
     return res.status(503).json({ error: 'No se pudo consultar la base de datos de usuarios.' });
   }
-  res.json({ usuarios: data || [] });
+  res.json({ usuarios: (data || []).map(normalizarUsuario) });
 });
 
 function validarPayload(body, { requierePassword }) {
@@ -99,19 +163,15 @@ router.post('/', async (req, res) => {
   const { username, password, rol, equipo_asignado, apartados_visibles, club, activo } = req.body;
   const password_hash = await bcrypt.hash(password, 12);
 
-  const { data, error: dbError } = await supabaseAdmin
-    .from('usuarios')
-    .insert({
-      username: username.trim(),
-      password_hash,
-      rol,
-      equipo_asignado: serializeEquiposAsignados(equipo_asignado),
-      apartados_visibles: normalizarApartadosVisibles(apartados_visibles),
-      club,
-      activo: activo !== false,
-    })
-    .select(PUBLIC_USER_FIELDS)
-    .single();
+  const { data, error: dbError } = await insertarUsuarioConFallback({
+    username: username.trim(),
+    password_hash,
+    rol,
+    equipo_asignado: serializeEquiposAsignados(equipo_asignado),
+    apartados_visibles: normalizarApartadosVisibles(apartados_visibles),
+    club,
+    activo: activo !== false,
+  });
 
   if (dbError) {
     if (dbError.code === '23505') {
@@ -120,7 +180,7 @@ router.post('/', async (req, res) => {
     return res.status(503).json({ error: 'No se pudo crear el usuario.' });
   }
 
-  res.status(201).json({ usuario: data });
+  res.status(201).json({ usuario: normalizarUsuario(data) });
 });
 
 router.put('/:id', async (req, res) => {
@@ -144,12 +204,7 @@ router.put('/:id', async (req, res) => {
     update.password_hash = await bcrypt.hash(password, 12);
   }
 
-  const { data, error: dbError } = await supabaseAdmin
-    .from('usuarios')
-    .update(update)
-    .eq('id', req.params.id)
-    .select(PUBLIC_USER_FIELDS)
-    .maybeSingle();
+  const { data, error: dbError } = await actualizarUsuarioConFallback(req.params.id, update);
 
   if (dbError) {
     if (dbError.code === '23505') {
@@ -161,7 +216,7 @@ router.put('/:id', async (req, res) => {
     return res.status(404).json({ error: 'Usuario no encontrado.' });
   }
 
-  res.json({ usuario: data });
+  res.json({ usuario: normalizarUsuario(data) });
 });
 
 router.delete('/:id', async (req, res) => {

@@ -25,7 +25,8 @@ Columnas sensibles (nunca llegan al frontend si el rol es Tecnico): `dni_jugador
 - Un proyecto de Supabase con las tablas `jugadores`, `personal` y `usuarios` ya creadas (RLS activo, sin politicas publicas)
 - La tabla `usuarios` necesita al menos: `id`, `username`, `password_hash`, `rol`, `equipo_asignado`, `apartados_visibles`, `activo` (booleano, opcional pero recomendado para poder desactivar usuarios sin borrarlos)
 - Si no existe aun, crea `apartados_visibles` como `text` con valor por defecto `Todos`.
-- La tabla `personal` necesita al menos: `id`, `club`, `nombre`, `primer_apellido`, `segundo_apellido`, `cargo`, `equipo`, `foto_path`, `creado_en`, `actualizado_en`
+- La tabla `personal` necesita al menos: `id`, `club`, `nombre`, `primer_apellido`, `segundo_apellido`, `cargo`, `equipo`, `foto_path`
+- `creado_en` y `actualizado_en` son opcionales; si existen en tu tabla, se seguirán guardando, pero el backend ya no depende de ellos para crear o listar personal.
 
 ## Backend
 

@@ -15,6 +15,7 @@ router.use(resolveClub);
 
 const FOTO_BUCKET = 'personal-fotos';
 const FOTO_URL_TTL_SEGUNDOS = 600;
+const PERSONAL_SELECT_FIELDS = 'id, nombre, primer_apellido, segundo_apellido, cargo, equipo, foto_path';
 const EXT_POR_MIME = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
@@ -106,6 +107,11 @@ function normalizarTexto(valor) {
   return String(valor || '').trim();
 }
 
+function esColumnaOTablaInexistente(error) {
+  const texto = [error?.message, error?.details, error?.hint].filter(Boolean).join(' ');
+  return error?.code === '42P01' || error?.code === '42703' || /does not exist|no existe/i.test(texto);
+}
+
 function validarPayload(body) {
   const nombre = normalizarTexto(body?.nombre);
   const primerApellido = normalizarTexto(body?.primer_apellido);
@@ -130,7 +136,6 @@ function prepararRegistro(body, club) {
     segundo_apellido: normalizarTexto(body?.segundo_apellido) || null,
     cargo: normalizarTexto(body?.cargo),
     equipo: normalizarTexto(body?.equipo),
-    actualizado_en: new Date().toISOString(),
   };
 }
 
@@ -150,7 +155,7 @@ router.get('/', async (req, res) => {
 
     let query = supabaseAdmin
       .from('personal')
-      .select('id, nombre, primer_apellido, segundo_apellido, cargo, equipo, foto_path, creado_en, actualizado_en')
+      .select(PERSONAL_SELECT_FIELDS)
       .eq('club', req.club);
 
     const equiposFiltro = equiposDesdeQuery(req.query.equipo);
@@ -174,6 +179,11 @@ router.get('/', async (req, res) => {
     const { data, error } = await query;
     if (error) {
       console.error('Error consultando personal:', error);
+      if (esColumnaOTablaInexistente(error)) {
+        return res.status(503).json({
+          error: 'La tabla personal no tiene el esquema esperado. Ejecuta backend/scripts/crear-tabla-personal.sql en Supabase.',
+        });
+      }
       return res.status(503).json({ error: 'No se pudo consultar la base de datos de personal.' });
     }
 
@@ -194,6 +204,11 @@ router.get('/equipos', async (req, res) => {
 
     const { data, error } = await supabaseAdmin.from('personal').select('equipo').eq('club', req.club);
     if (error) {
+      if (esColumnaOTablaInexistente(error)) {
+        return res.status(503).json({
+          error: 'La tabla personal no tiene el esquema esperado. Ejecuta backend/scripts/crear-tabla-personal.sql en Supabase.',
+        });
+      }
       return res.status(503).json({ error: 'No se pudo consultar la base de datos de personal.' });
     }
 
@@ -216,11 +231,16 @@ router.post('/', requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR), async (req, r
     const { data, error: dbError } = await supabaseAdmin
       .from('personal')
       .insert(prepararRegistro(req.body, req.club))
-      .select('id, nombre, primer_apellido, segundo_apellido, cargo, equipo, foto_path, creado_en, actualizado_en')
+      .select(PERSONAL_SELECT_FIELDS)
       .single();
 
     if (dbError) {
       console.error('Error creando personal:', dbError);
+      if (esColumnaOTablaInexistente(dbError)) {
+        return res.status(503).json({
+          error: 'La tabla personal no tiene el esquema esperado. Ejecuta backend/scripts/crear-tabla-personal.sql en Supabase.',
+        });
+      }
       return res.status(503).json({ error: 'No se pudo crear el personal.' });
     }
 
@@ -241,11 +261,16 @@ router.put('/:id', requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR), async (req,
       .update(prepararRegistro(req.body, req.club))
       .eq('id', req.params.id)
       .eq('club', req.club)
-      .select('id, nombre, primer_apellido, segundo_apellido, cargo, equipo, foto_path, creado_en, actualizado_en')
+      .select(PERSONAL_SELECT_FIELDS)
       .maybeSingle();
 
     if (dbError) {
       console.error('Error actualizando personal:', dbError);
+      if (esColumnaOTablaInexistente(dbError)) {
+        return res.status(503).json({
+          error: 'La tabla personal no tiene el esquema esperado. Ejecuta backend/scripts/crear-tabla-personal.sql en Supabase.',
+        });
+      }
       return res.status(503).json({ error: 'No se pudo actualizar el personal.' });
     }
     if (!data) {
@@ -279,6 +304,11 @@ router.post(
         .maybeSingle();
 
       if (fetchError) {
+        if (esColumnaOTablaInexistente(fetchError)) {
+          return res.status(503).json({
+            error: 'La tabla personal no tiene el esquema esperado. Ejecuta backend/scripts/crear-tabla-personal.sql en Supabase.',
+          });
+        }
         return res.status(503).json({ error: 'No se pudo consultar la base de datos de personal.' });
       }
       if (!registro) {
@@ -298,11 +328,16 @@ router.post(
 
       const { error: updateError } = await supabaseAdmin
         .from('personal')
-        .update({ foto_path: nuevoPath, actualizado_en: new Date().toISOString() })
+        .update({ foto_path: nuevoPath })
         .eq('id', registro.id)
         .eq('club', req.club);
 
       if (updateError) {
+        if (esColumnaOTablaInexistente(updateError)) {
+          return res.status(503).json({
+            error: 'La tabla personal no tiene el esquema esperado. Ejecuta backend/scripts/crear-tabla-personal.sql en Supabase.',
+          });
+        }
         await supabaseAdmin.storage.from(FOTO_BUCKET).remove([nuevoPath]);
         return res.status(503).json({ error: 'No se pudo actualizar el personal.' });
       }
@@ -330,6 +365,11 @@ router.delete('/:id', requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR), async (r
       .maybeSingle();
 
     if (fetchError) {
+      if (esColumnaOTablaInexistente(fetchError)) {
+        return res.status(503).json({
+          error: 'La tabla personal no tiene el esquema esperado. Ejecuta backend/scripts/crear-tabla-personal.sql en Supabase.',
+        });
+      }
       return res.status(503).json({ error: 'No se pudo consultar la base de datos de personal.' });
     }
     if (!registro) {
@@ -347,6 +387,11 @@ router.delete('/:id', requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR), async (r
       .eq('id', req.params.id);
 
     if (deleteError) {
+      if (esColumnaOTablaInexistente(deleteError)) {
+        return res.status(503).json({
+          error: 'La tabla personal no tiene el esquema esperado. Ejecuta backend/scripts/crear-tabla-personal.sql en Supabase.',
+        });
+      }
       return res.status(503).json({ error: 'No se pudo eliminar el personal.' });
     }
     if (!count) {

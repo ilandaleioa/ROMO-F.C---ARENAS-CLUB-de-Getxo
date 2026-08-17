@@ -7,6 +7,27 @@ const { ALL_ROLES } = require('../config/roles');
 
 const router = express.Router();
 
+function esColumnaInexistente(error, columna) {
+  const mensaje = String(error?.message || error?.details || '').toLowerCase();
+  return mensaje.includes(`column usuarios.${columna.toLowerCase()} does not exist`)
+    || mensaje.includes(`column "${columna.toLowerCase()}" does not exist`)
+    || mensaje.includes(`column '${columna.toLowerCase()}' does not exist`);
+}
+
+async function consultarUsuarioLogin(username) {
+  const selectConApartados = 'id, username, password_hash, rol, equipo_asignado, club, apartados_visibles, activo';
+  const selectBase = 'id, username, password_hash, rol, equipo_asignado, club, activo';
+
+  const consulta = () => supabaseAdmin.from('usuarios').select(selectConApartados).eq('username', username).maybeSingle();
+  const resultado = await consulta();
+
+  if (!resultado.error || !esColumnaInexistente(resultado.error, 'apartados_visibles')) {
+    return resultado;
+  }
+
+  return supabaseAdmin.from('usuarios').select(selectBase).eq('username', username).maybeSingle();
+}
+
 router.post('/login', async (req, res) => {
   const { username, password } = req.body || {};
 
@@ -16,11 +37,7 @@ router.post('/login', async (req, res) => {
 
   let data;
   try {
-    const result = await supabaseAdmin
-      .from('usuarios')
-      .select('id, username, password_hash, rol, equipo_asignado, club, apartados_visibles, activo')
-      .eq('username', username)
-      .maybeSingle();
+    const result = await consultarUsuarioLogin(username);
 
     if (result.error) throw result.error;
     data = result.data;
