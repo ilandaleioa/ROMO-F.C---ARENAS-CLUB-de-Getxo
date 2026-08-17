@@ -6,13 +6,18 @@ const requireRole = require('../middleware/requireRole');
 const { ROLES, ALL_ROLES } = require('../config/roles');
 const { CLUBES_USUARIO } = require('../config/clubs');
 const { parseEquiposAsignados, serializeEquiposAsignados } = require('../lib/equiposAsignados');
+const {
+  parseApartadosVisibles,
+  serializeApartadosVisibles,
+  validarApartadosVisibles,
+} = require('../config/apartados');
 
 const router = express.Router();
 
 // Pantalla y endpoints exclusivos de Administrador y Director.
 router.use(requireAuth, requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR));
 
-const PUBLIC_USER_FIELDS = 'id, username, rol, equipo_asignado, club, activo, creado_en';
+const PUBLIC_USER_FIELDS = 'id, username, rol, equipo_asignado, club, apartados_visibles, activo, creado_en';
 
 router.get('/', async (req, res) => {
   const { data, error } = await supabaseAdmin
@@ -27,7 +32,7 @@ router.get('/', async (req, res) => {
 });
 
 function validarPayload(body, { requierePassword }) {
-  const { username, password, rol, equipo_asignado, club } = body || {};
+  const { username, password, rol, equipo_asignado, apartados_visibles, club } = body || {};
 
   if (!username || typeof username !== 'string' || username.trim().length < 3) {
     return 'El nombre de usuario es obligatorio (minimo 3 caracteres).';
@@ -38,8 +43,20 @@ function validarPayload(body, { requierePassword }) {
   if (equipo_asignado !== undefined && equipo_asignado !== null && typeof equipo_asignado !== 'string' && !Array.isArray(equipo_asignado)) {
     return 'El campo Equipo no es valido.';
   }
+  if (
+    apartados_visibles !== undefined &&
+    apartados_visibles !== null &&
+    typeof apartados_visibles !== 'string' &&
+    !Array.isArray(apartados_visibles)
+  ) {
+    return 'El campo Apartados visibles no es valido.';
+  }
   if (!CLUBES_USUARIO.includes(club)) {
     return 'El club no es valido.';
+  }
+  const errorApartados = validarApartadosVisibles(apartados_visibles);
+  if (errorApartados) {
+    return errorApartados;
   }
   if (requierePassword && (!password || typeof password !== 'string' || password.length < 8)) {
     return 'La contrasena es obligatoria (minimo 8 caracteres).';
@@ -48,6 +65,11 @@ function validarPayload(body, { requierePassword }) {
     return 'La contrasena debe tener al menos 8 caracteres.';
   }
   return null;
+}
+
+function normalizarApartadosVisibles(valor) {
+  const apartados = parseApartadosVisibles(valor);
+  return apartados.length > 0 ? serializeApartadosVisibles(apartados) : 'Todos';
 }
 
 function validarAlcanceEquipos(actor, equipoAsignado) {
@@ -74,7 +96,7 @@ router.post('/', async (req, res) => {
   const errorAlcance = validarAlcanceEquipos(req.user, req.body.equipo_asignado);
   if (errorAlcance) return res.status(403).json({ error: errorAlcance });
 
-  const { username, password, rol, equipo_asignado, club, activo } = req.body;
+  const { username, password, rol, equipo_asignado, apartados_visibles, club, activo } = req.body;
   const password_hash = await bcrypt.hash(password, 12);
 
   const { data, error: dbError } = await supabaseAdmin
@@ -84,6 +106,7 @@ router.post('/', async (req, res) => {
       password_hash,
       rol,
       equipo_asignado: serializeEquiposAsignados(equipo_asignado),
+      apartados_visibles: normalizarApartadosVisibles(apartados_visibles),
       club,
       activo: activo !== false,
     })
@@ -106,12 +129,13 @@ router.put('/:id', async (req, res) => {
   const errorAlcance = validarAlcanceEquipos(req.user, req.body.equipo_asignado);
   if (errorAlcance) return res.status(403).json({ error: errorAlcance });
 
-  const { username, password, rol, equipo_asignado, club, activo } = req.body;
+  const { username, password, rol, equipo_asignado, apartados_visibles, club, activo } = req.body;
 
   const update = {
     username: username.trim(),
     rol,
     equipo_asignado: serializeEquiposAsignados(equipo_asignado),
+    apartados_visibles: normalizarApartadosVisibles(apartados_visibles),
     club,
     activo: activo !== false,
   };

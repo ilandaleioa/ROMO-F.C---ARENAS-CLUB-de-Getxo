@@ -3,30 +3,18 @@ import { useAuth } from '../context/AuthContext';
 import { useVistaPlantillas } from '../context/VistaPlantillasContext';
 import { useClub } from '../context/ClubContext';
 import { useLista } from '../lib/listas';
+import { APARTADOS_APP, usuarioPuedeVerItem, usuarioPuedeVerApartado } from '../lib/apartados';
 
 const linkClass = ({ isActive }) =>
   `block px-4 py-2.5 rounded-md text-sm font-semibold transition-colors ${
     isActive ? 'bg-club-red text-white' : 'text-club-black/80 hover:bg-club-red/10 hover:text-club-black'
   }`;
 
-const NAV_ITEMS = [{ to: '/', label: 'Inicio', end: true }];
-
-const SECONDARY_NAV_ITEMS = [
-  { to: '/campogramas', label: 'Campogramas' },
-  { to: '/captacion', label: 'CAPTACION' },
-  { to: '/personal', label: 'Personal' },
-];
-
-const FINAL_NAV_ITEMS = [
-  { to: '/usuarios', label: 'Usuarios' },
-  { to: '/listas', label: 'Listas' },
-  { to: '/hojas-calculo', label: 'Hojas de calculo' },
-];
-
-const VISTA_OPCIONES = [
+const PLANTILLAS_OPCIONES = [
   { valor: 'tabla', label: 'Vista tabla' },
   { valor: 'tarjetas', label: 'Vista tarjetas' },
   { valor: 'graficas', label: 'Vista graficas' },
+  { key: 'campogramas', label: 'Campogramas', path: '/campogramas' },
 ];
 
 export default function Sidebar({ isOpen, onClose }) {
@@ -36,8 +24,6 @@ export default function Sidebar({ isOpen, onClose }) {
   const { vista, setVista } = useVistaPlantillas();
   const { club, setClub } = useClub();
   const listaClubes = useLista('clubes');
-  const secondaryNavItems =
-    club === 'ARENAS' ? SECONDARY_NAV_ITEMS.filter((item) => item.to !== '/captacion') : SECONDARY_NAV_ITEMS;
   const clubesSeleccionables = (listaClubes?.filas || [])
     .map((fila) => ({
       valor: String(fila.valor || fila.id?.replace(/^club-/, '').toUpperCase() || '').trim(),
@@ -48,6 +34,10 @@ export default function Sidebar({ isOpen, onClose }) {
   if (!user) return null;
 
   const puedeCambiarClub = !user.club || user.club === 'TODOS';
+  const navItems = APARTADOS_APP.filter((item) => item.key !== 'campogramas' && usuarioPuedeVerItem(user, item));
+  const inicioItem = navItems.find((item) => item.key === 'inicio');
+  const restoNavItems = navItems.filter((item) => item.key !== 'inicio');
+  const mostrarPlantillas = usuarioPuedeVerApartado(user, 'inicio') || usuarioPuedeVerApartado(user, 'campogramas');
 
   const nav = (
     <nav className="flex flex-col gap-1 p-3">
@@ -70,45 +60,60 @@ export default function Sidebar({ isOpen, onClose }) {
         </div>
       )}
 
-      {NAV_ITEMS.map((item) => (
-        <NavLink key={item.to} to={item.to} end={item.end} className={linkClass} onClick={onClose}>
+      {inicioItem && (
+        <NavLink key={inicioItem.path} to={inicioItem.path} end={inicioItem.path === '/'} className={linkClass} onClick={onClose}>
+          {inicioItem.label}
+        </NavLink>
+      )}
+
+      {mostrarPlantillas && (
+        <div className="mt-2 rounded-lg border border-gray-200 bg-gray-50/80 p-2">
+          <div className="mb-2 rounded-md bg-club-black px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.18em] text-white">
+            PLANTILLAS
+          </div>
+          <div className="space-y-1 pl-2">
+            {PLANTILLAS_OPCIONES.map((opcion) =>
+              opcion.path ? (
+                <NavLink
+                  key={opcion.key}
+                  to={opcion.path}
+                  className={`block w-full rounded-md px-4 py-2.5 text-left text-sm font-semibold transition-colors ${
+                    pathname === opcion.path
+                      ? 'bg-club-red text-white'
+                      : 'text-club-black/80 hover:bg-club-red/10 hover:text-club-black'
+                  }`}
+                  onClick={onClose}
+                >
+                  {opcion.label}
+                </NavLink>
+              ) : (
+                <button
+                  key={opcion.valor}
+                  type="button"
+                  onClick={() => {
+                    setVista(opcion.valor);
+                    navigate('/');
+                    onClose?.();
+                  }}
+                  className={`block w-full text-left px-4 py-2.5 rounded-md text-sm font-semibold transition-colors ${
+                    pathname === '/' && vista === opcion.valor
+                      ? 'bg-club-red text-white'
+                      : 'text-club-black/80 hover:bg-club-red/10 hover:text-club-black'
+                  }`}
+                >
+                  {opcion.label}
+                </button>
+              )
+            )}
+          </div>
+        </div>
+      )}
+
+      {restoNavItems.map((item) => (
+        <NavLink key={item.path} to={item.path} end={item.path === '/'} className={linkClass} onClick={onClose}>
           {item.label}
         </NavLink>
       ))}
-
-      <div className="mt-2">
-        {VISTA_OPCIONES.map((opcion) => (
-          <button
-            key={opcion.valor}
-            type="button"
-            onClick={() => {
-              setVista(opcion.valor);
-              navigate('/');
-              onClose?.();
-            }}
-            className={`block w-full text-left px-4 py-2.5 rounded-md text-sm font-semibold transition-colors ${
-              pathname === '/' && vista === opcion.valor
-                ? 'bg-club-red text-white'
-                : 'text-club-black/80 hover:bg-club-red/10 hover:text-club-black'
-            }`}
-          >
-            {opcion.label}
-          </button>
-        ))}
-      </div>
-
-      {secondaryNavItems.map((item) => (
-        <NavLink key={item.to} to={item.to} className={linkClass} onClick={onClose}>
-          {item.label}
-        </NavLink>
-      ))}
-
-      {(user.rol === 'administrador' || user.rol === 'director') &&
-        FINAL_NAV_ITEMS.map((item) => (
-          <NavLink key={item.to} to={item.to} className={linkClass} onClick={onClose}>
-            {item.label}
-          </NavLink>
-        ))}
     </nav>
   );
 

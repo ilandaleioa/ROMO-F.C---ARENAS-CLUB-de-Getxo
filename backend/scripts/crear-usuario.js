@@ -1,6 +1,6 @@
 // Script CLI para dar de alta (o resetear la contrasena de) un usuario de la app.
 // Uso:
-//   node scripts/crear-usuario.js <username> <password> <rol> [equipo_asignado] [club]
+//   node scripts/crear-usuario.js <username> <password> <rol> [equipo_asignado] [apartados_visibles] [club]
 // rol: administrador | responsable | tecnico
 // club: ROMO | ARENAS | TODOS (por defecto TODOS)
 // Requiere las variables de entorno de backend/.env (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY).
@@ -11,13 +11,14 @@ const supabaseAdmin = require('../src/config/supabaseClient');
 const { ALL_ROLES } = require('../src/config/roles');
 const { CLUBES_USUARIO, CLUB_TODOS } = require('../src/config/clubs');
 const { serializeEquiposAsignados } = require('../src/lib/equiposAsignados');
+const { serializeApartadosVisibles } = require('../src/config/apartados');
 
 async function main() {
-  const [username, password, rol, equipo_asignado, clubArg] = process.argv.slice(2);
+  const [username, password, rol, equipo_asignado, apartados_visibles, clubArg] = process.argv.slice(2);
   const club = clubArg ? clubArg.toUpperCase() : CLUB_TODOS;
 
   if (!username || !password || !rol) {
-    console.error('Uso: node scripts/crear-usuario.js <username> <password> <rol> [equipo_asignado] [club]');
+    console.error('Uso: node scripts/crear-usuario.js <username> <password> <rol> [equipo_asignado] [apartados_visibles] [club]');
     console.error(`Roles validos: ${ALL_ROLES.join(', ')}`);
     console.error(`Clubes validos: ${CLUBES_USUARIO.join(', ')}`);
     process.exit(1);
@@ -45,6 +46,7 @@ async function main() {
         password_hash,
         rol,
         equipo_asignado: serializeEquiposAsignados(equipo_asignado),
+        apartados_visibles: serializeApartadosVisibles(apartados_visibles),
         club,
         activo: true,
       },

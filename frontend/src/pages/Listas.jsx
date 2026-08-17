@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { actualizarFilaLista, crearFilaLista, useListas } from '../lib/listas';
 
@@ -10,7 +10,15 @@ function generarId() {
   return `id-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function formularioInicial(lista, fila = null) {
+function textoLimpio(valor) {
+  return String(valor ?? '').trim();
+}
+
+function normalizarComparacion(valor) {
+  return textoLimpio(valor).toLocaleLowerCase('es');
+}
+
+function formularioInicial(lista, fila = null, opciones = {}) {
   return lista.columnas.reduce(
     (formulario, columna) => ({
       ...formulario,
@@ -19,7 +27,9 @@ function formularioInicial(lista, fila = null) {
           ? fila[columna.key] || ''
           : columna.key === 'id'
             ? generarId()
-            : '',
+            : lista.id === 'equipos' && columna.key === 'club'
+              ? opciones.clubPorDefecto || ''
+              : '',
     }),
     lista.id === 'clubes' && fila?.valor !== undefined ? { valor: fila.valor || '' } : {}
   );
@@ -44,33 +54,118 @@ function camposObligatorios(lista) {
   return lista.columnas.filter((columna) => columna.key !== 'id' && columna.tipo !== 'imagen');
 }
 
-function TablaLista({ lista }) {
+function obtenerClubesDisponibles(listaClubes) {
+  const opciones = [];
+  const vistos = new Set();
+
+  (listaClubes?.filas || []).forEach((fila) => {
+    const valor = textoLimpio(fila?.nombre || fila?.valor);
+    if (!valor) return;
+
+    const clave = normalizarComparacion(valor);
+    if (vistos.has(clave)) return;
+
+    vistos.add(clave);
+    opciones.push({ value: valor, label: valor });
+  });
+
+  return opciones;
+}
+
+function obtenerEtiquetaClub(valor, clubesDisponibles) {
+  const texto = textoLimpio(valor);
+  if (!texto) return 'Sin club';
+
+  const coincidencia = clubesDisponibles.find(
+    (opcion) => normalizarComparacion(opcion.value) === normalizarComparacion(texto)
+  );
+  return coincidencia?.label || texto;
+}
+
+function agruparEquiposPorClub(filas, clubesDisponibles) {
+  const grupos = new Map();
+
+  (filas || []).forEach((fila) => {
+    const club = textoLimpio(fila?.club) || 'Sin club';
+    const equipo = textoLimpio(fila?.nombre) || 'Sin nombre';
+
+    if (!grupos.has(club)) {
+      grupos.set(club, []);
+    }
+
+    grupos.get(club).push(equipo);
+  });
+
+  return Array.from(grupos.entries())
+    .map(([club, equipos]) => ({
+      club,
+      etiqueta: obtenerEtiquetaClub(club, clubesDisponibles),
+      equipos: [...new Set(equipos)].sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' })),
+    }))
+    .sort((a, b) => a.etiqueta.localeCompare(b.etiqueta, 'es', { sensitivity: 'base' }));
+}
+
+function TablaLista({ lista, clubesDisponibles }) {
   const { user } = useAuth();
   const esAdministrador = user?.rol === 'administrador';
   const columnasVisibles = (esAdministrador ? lista.columnas : lista.columnas.filter((columna) => columna.key !== 'id')).filter(
     (columna) => !(lista.id === 'clubes' && columna.key === 'escudo')
   );
-  const [formulario, setFormulario] = useState(() => formularioInicial(lista));
+  const clubPorDefecto = clubesDisponibles[0]?.value || '';
+  const [formulario, setFormulario] = useState(() => formularioInicial(lista, null, { clubPorDefecto }));
   const [formAbierto, setFormAbierto] = useState(false);
   const [editandoId, setEditandoId] = useState(null);
   const [error, setError] = useState('');
 
+  const filasOrdenadas = useMemo(() => {
+    if (lista.id !== 'equipos') return lista.filas;
+
+    return [...lista.filas].sort((a, b) => {
+      const clubA = obtenerEtiquetaClub(a?.club, clubesDisponibles);
+      const clubB = obtenerEtiquetaClub(b?.club, clubesDisponibles);
+      const comparacionClub = clubA.localeCompare(clubB, 'es', { sensitivity: 'base' });
+      if (comparacionClub !== 0) return comparacionClub;
+
+      const equipoA = textoLimpio(a?.nombre);
+      const equipoB = textoLimpio(b?.nombre);
+      return equipoA.localeCompare(equipoB, 'es', { sensitivity: 'base' });
+    });
+  }, [clubesDisponibles, lista.filas, lista.id]);
+
+  const gruposEquipos = useMemo(
+    () => (lista.id === 'equipos' ? agruparEquiposPorClub(filasOrdenadas, clubesDisponibles) : []),
+    [clubesDisponibles, filasOrdenadas, lista.id]
+  );
+
+  const camposUnicos = lista.id === 'equipos' ? ['club', 'nombre'] : camposObligatorios(lista).map((columna) => columna.key);
+
+  const opcionesClubFormulario = useMemo(() => {
+    if (lista.id !== 'equipos') return [];
+
+    const opciones = [...clubesDisponibles];
+    const valorActual = textoLimpio(formulario.club);
+    if (valorActual && !opciones.some((opcion) => normalizarComparacion(opcion.value) === normalizarComparacion(valorActual))) {
+      opciones.unshift({ value: valorActual, label: valorActual });
+    }
+    return opciones;
+  }, [clubesDisponibles, formulario.club, lista.id]);
+
   const limpiarFormulario = () => {
-    setFormulario(formularioInicial(lista));
+    setFormulario(formularioInicial(lista, null, { clubPorDefecto }));
     setEditandoId(null);
     setFormAbierto(false);
     setError('');
   };
 
   const abrirCrear = () => {
-    setFormulario(formularioInicial(lista));
+    setFormulario(formularioInicial(lista, null, { clubPorDefecto }));
     setEditandoId(null);
     setFormAbierto(true);
     setError('');
   };
 
   const abrirEdicion = (fila) => {
-    setFormulario(formularioInicial(lista, fila));
+    setFormulario(formularioInicial(lista, fila, { clubPorDefecto }));
     setEditandoId(fila.id);
     setFormAbierto(true);
     setError('');
@@ -111,9 +206,7 @@ function TablaLista({ lista }) {
 
     const filaDuplicada = lista.filas.some((actual) => {
       if (editandoId && actual.id === editandoId) return false;
-      return camposRequeridos.every(
-        (columna) => String(actual[columna.key] || '').toLowerCase() === String(fila[columna.key] || '').toLowerCase()
-      );
+      return camposUnicos.every((campo) => normalizarComparacion(actual?.[campo]) === normalizarComparacion(fila?.[campo]));
     });
 
     if (filaDuplicada) {
@@ -159,6 +252,31 @@ function TablaLista({ lista }) {
         </div>
       </div>
 
+      {lista.id === 'equipos' && (
+        <div className="border-b border-gray-200 bg-slate-50/70 px-4 py-4 sm:px-5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-semibold text-club-black">Equipos por club</span>
+            <span className="text-xs text-club-black/55">Cada club puede tener varios equipos asociados.</span>
+          </div>
+          <div className="mt-3 space-y-2">
+            {gruposEquipos.length === 0 ? (
+              <p className="text-sm text-club-black/50">Aun no hay equipos creados.</p>
+            ) : (
+              gruposEquipos.map((grupo) => (
+                <div key={grupo.club} className="rounded-lg border border-gray-200 bg-white px-3 py-2">
+                  <p className="text-sm font-semibold text-club-black">
+                    {grupo.etiqueta}
+                    <span className="font-normal text-club-black/55">
+                      {grupo.equipos.length > 0 ? `: ${grupo.equipos.join(', ')}` : ''}
+                    </span>
+                  </p>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
       {formAbierto && (
         <form onSubmit={guardar} className="border-b border-gray-200 bg-red-50/40 px-4 py-4 sm:px-5">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -169,6 +287,35 @@ function TablaLista({ lista }) {
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {(esAdministrador ? lista.columnas : lista.columnas.filter((columna) => columna.key !== 'id')).map((columna) => {
+              if (lista.id === 'equipos' && columna.key === 'club') {
+                return (
+                  <label key={columna.key} className="text-xs font-semibold uppercase tracking-wide text-club-black/70">
+                    {columna.label}
+                    {opcionesClubFormulario.length > 0 ? (
+                      <select
+                        value={formulario[columna.key]}
+                        onChange={(evento) => cambiarCampo(columna.key, evento.target.value)}
+                        className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-normal normal-case tracking-normal text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
+                      >
+                        {opcionesClubFormulario.map((club) => (
+                          <option key={club.value} value={club.value}>
+                            {club.label}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={formulario[columna.key]}
+                        onChange={(evento) => cambiarCampo(columna.key, evento.target.value)}
+                        className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-normal normal-case tracking-normal text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
+                        placeholder="Crea primero los clubes"
+                      />
+                    )}
+                  </label>
+                );
+              }
+
               if (columna.tipo === 'imagen') {
                 return (
                   <label key={columna.key} className="text-xs font-semibold uppercase tracking-wide text-club-black/70">
@@ -235,8 +382,8 @@ function TablaLista({ lista }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {lista.filas.map((fila, indice) => (
-              <tr key={`${lista.id}-${fila.id || fila.nombre}`} className="transition-colors hover:bg-red-50/40">
+            {filasOrdenadas.map((fila, indice) => (
+              <tr key={`${lista.id}-${fila.id || fila.nombre || fila.club || indice}`} className="transition-colors hover:bg-red-50/40">
                 <td className="px-4 py-3 text-club-black/45">{indice + 1}</td>
                 {columnasVisibles.map((columna) => (
                   <td key={columna.key} className="px-4 py-3 font-medium text-club-black/80">
@@ -257,6 +404,10 @@ function TablaLista({ lista }) {
                         )}
                         <span>{fila[columna.key]}</span>
                       </div>
+                    ) : lista.id === 'equipos' && columna.key === 'club' ? (
+                      <span className="inline-flex rounded-full bg-club-red/10 px-2.5 py-1 text-xs font-semibold text-club-red">
+                        {obtenerEtiquetaClub(fila[columna.key], clubesDisponibles)}
+                      </span>
                     ) : columna.tipo === 'imagen' ? (
                       fila[columna.key] ? (
                         <img
@@ -292,6 +443,9 @@ function TablaLista({ lista }) {
 
 export default function Listas() {
   const listas = useListas();
+  const listaClubes = listas.find((lista) => lista.id === 'clubes') || null;
+  const clubesDisponibles = useMemo(() => obtenerClubesDisponibles(listaClubes), [listaClubes]);
+  const listasVisibles = listas.filter((lista) => lista.id !== 'lateralidad');
 
   return (
     <div className="w-full px-4 py-6 sm:px-6">
@@ -302,8 +456,8 @@ export default function Listas() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        {listas.map((lista) => (
-          <TablaLista key={lista.id} lista={lista} />
+        {listasVisibles.map((lista) => (
+          <TablaLista key={lista.id} lista={lista} clubesDisponibles={clubesDisponibles} />
         ))}
       </div>
     </div>

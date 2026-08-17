@@ -1,6 +1,7 @@
 import { useMemo, useSyncExternalStore } from 'react';
 
-const STORAGE_KEY = 'listas_maestras_v1';
+const STORAGE_KEY = 'listas_maestras_v2';
+const STORAGE_KEY_LEGACY = 'listas_maestras_v1';
 
 export const LISTAS_INICIALES = [
   {
@@ -18,6 +19,30 @@ export const LISTAS_INICIALES = [
     ],
   },
   {
+    id: 'equipos',
+    titulo: 'EQUIPOS',
+    descripcion: 'Equipos asociados a cada club.',
+    columnas: [
+      { key: 'id', label: 'ID', editable: false },
+      { key: 'club', label: 'Club' },
+      { key: 'nombre', label: 'Equipo' },
+    ],
+    filas: [],
+  },
+  {
+    id: 'etapas',
+    titulo: 'ETAPAS',
+    descripcion: 'Etapas deportivas utilizadas para clasificar los equipos.',
+    columnas: [
+      { key: 'id', label: 'ID', editable: false },
+      { key: 'nombre', label: 'Etapa' },
+    ],
+    filas: ['Prebenjamin', 'Benjamin', 'Alevin', 'Infantil', 'Cadete', 'Juvenil'].map((nombre) => ({
+      id: `etapa-${nombre.toLowerCase()}`,
+      nombre,
+    })),
+  },
+  {
     id: 'categorias',
     titulo: 'CATEGORIAS',
     descripcion: 'Categorias deportivas utilizadas para clasificar los equipos.',
@@ -25,8 +50,8 @@ export const LISTAS_INICIALES = [
       { key: 'id', label: 'ID', editable: false },
       { key: 'nombre', label: 'Categoria' },
     ],
-    filas: ['Prebenjamin', 'Benjamin', 'Alevin', 'Infantil', 'Cadete', 'Juvenil'].map((nombre) => ({
-      id: `categoria-${nombre.toLowerCase()}`,
+    filas: ['Juvenil Nacion', 'Cadete Vsca', 'Cadete Honor'].map((nombre) => ({
+      id: `categoria-${nombre.toLowerCase().replace(/[^a-z0-9]+/gi, '-')}`,
       nombre,
     })),
   },
@@ -80,7 +105,8 @@ function leerListasGuardadas() {
   }
 
   try {
-    const guardadas = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    const persistidas = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(STORAGE_KEY_LEGACY);
+    const guardadas = JSON.parse(persistidas);
     if (!Array.isArray(guardadas)) return crearListasBase();
     return normalizarListas(guardadas);
   } catch (_) {
@@ -144,6 +170,9 @@ function normalizarListas(listas) {
     return {
       ...clonarLista(baseLista),
       ...guardada,
+      id: baseLista.id,
+      titulo: baseLista.titulo,
+      descripcion: baseLista.descripcion,
       columnas: clonarLista(baseLista).columnas,
       filas: filasGuardadas.length > 0
         ? filasGuardadas.map((fila, indice) => normalizarFila(baseLista, fila, indice))

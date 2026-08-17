@@ -15,9 +15,11 @@ import Usuarios from './pages/Usuarios';
 import Campogramas from './pages/Campogramas';
 import HojasCalculo from './pages/HojasCalculo';
 import Captacion from './pages/Captacion';
+import CaptacionDetalle from './pages/CaptacionDetalle';
 import Clubes from './pages/Clubes';
 import Listas from './pages/Listas';
 import Personal from './pages/Personal';
+import { ROLES_GESTION_USUARIOS } from './lib/roles';
 
 function ClubThemeSync() {
   const { club } = useClub();
@@ -68,7 +70,7 @@ function AppRoutes() {
       <Route
         path="/"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredApartado="inicio">
             <Layout>
               <Plantillas />
             </Layout>
@@ -78,7 +80,7 @@ function AppRoutes() {
       <Route
         path="/plantillas/:id"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredApartado="inicio">
             <Layout>
               <FichaJugador />
             </Layout>
@@ -88,7 +90,7 @@ function AppRoutes() {
       <Route
         path="/campogramas"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredApartado="campogramas">
             <Layout>
               <Campogramas />
             </Layout>
@@ -98,7 +100,7 @@ function AppRoutes() {
       <Route
         path="/captacion"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredApartado="captacion">
             <Layout>
               <Captacion />
             </Layout>
@@ -106,9 +108,19 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/personal"
+        path="/captacion/:id"
         element={
           <ProtectedRoute>
+            <Layout>
+              <CaptacionDetalle />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/personal"
+        element={
+          <ProtectedRoute requiredApartado="personal">
             <Layout>
               <Personal />
             </Layout>
@@ -128,7 +140,7 @@ function AppRoutes() {
       <Route
         path="/usuarios"
         element={
-          <ProtectedRoute allowedRoles={['administrador', 'director']}>
+          <ProtectedRoute allowedRoles={ROLES_GESTION_USUARIOS} requiredApartado="usuarios">
             <Layout>
               <Usuarios />
             </Layout>
@@ -138,7 +150,7 @@ function AppRoutes() {
       <Route
         path="/listas"
         element={
-          <ProtectedRoute allowedRoles={['administrador', 'director']}>
+          <ProtectedRoute allowedRoles={['administrador', 'director']} requiredApartado="listas">
             <Layout>
               <Listas />
             </Layout>
@@ -148,7 +160,7 @@ function AppRoutes() {
       <Route
         path="/hojas-calculo"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredApartado="hojas_calculo">
             <Layout>
               <HojasCalculo />
             </Layout>

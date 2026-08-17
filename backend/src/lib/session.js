@@ -11,6 +11,7 @@ function createSessionToken(user) {
       rol: user.rol,
       equipo_asignado: user.equipo_asignado || null,
       club: user.club || null,
+      apartados_visibles: user.apartados_visibles || null,
     },
     env.sessionSecret,
     { expiresIn: SESSION_TTL }

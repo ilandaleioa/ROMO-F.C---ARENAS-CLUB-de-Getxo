@@ -17,6 +17,7 @@ function requireAuth(req, res, next) {
       rol: payload.rol,
       equipo_asignado: payload.equipo_asignado,
       club: payload.club,
+      apartados_visibles: payload.apartados_visibles,
     };
     next();
   } catch (err) {

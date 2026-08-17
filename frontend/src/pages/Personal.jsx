@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useClub } from '../context/ClubContext';
 import { api } from '../lib/api';
+import { CARGOS_PERSONAL } from '../lib/personal';
 
 function nombreCompleto(personal) {
   return [personal.nombre, personal.primer_apellido, personal.segundo_apellido].filter(Boolean).join(' ');
@@ -12,7 +13,7 @@ function crearPersonalVacio() {
     nombre: '',
     primer_apellido: '',
     segundo_apellido: '',
-    cargo: '',
+    cargo: CARGOS_PERSONAL[0],
     equipo: '',
   };
 }
@@ -40,8 +41,13 @@ export default function Personal() {
   const [fotoFile, setFotoFile] = useState(null);
 
   const cargarEquipos = useCallback(async () => {
-    const { equipos: lista } = await api.get('/personal/equipos');
-    setEquipos(lista || []);
+    try {
+      const { equipos: lista } = await api.get('/personal/equipos');
+      setEquipos(lista || []);
+    } catch (err) {
+      setEquipos([]);
+      throw err;
+    }
   }, []);
 
   const cargarPersonal = useCallback(async () => {
@@ -63,7 +69,7 @@ export default function Personal() {
     const ejecutar = async () => {
       setLoading(true);
       try {
-        await Promise.all([cargarEquipos(), cargarPersonal()]);
+        await Promise.allSettled([cargarEquipos(), cargarPersonal()]);
       } finally {
         if (vivo) setLoading(false);
       }
@@ -92,7 +98,7 @@ export default function Personal() {
       nombre: item.nombre || '',
       primer_apellido: item.primer_apellido || '',
       segundo_apellido: item.segundo_apellido || '',
-      cargo: item.cargo || '',
+      cargo: CARGOS_PERSONAL.includes(item.cargo) ? item.cargo : CARGOS_PERSONAL[0],
       equipo: item.equipo || '',
     });
     setFotoFile(null);
@@ -135,7 +141,7 @@ export default function Personal() {
 
       setMensaje(editandoId ? 'Personal actualizado correctamente.' : 'Personal creado correctamente.');
       resetForm();
-      await Promise.all([cargarEquipos(), cargarPersonal()]);
+      await Promise.allSettled([cargarEquipos(), cargarPersonal()]);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -157,7 +163,7 @@ export default function Personal() {
       await api.delete(`/personal/${item.id}`);
       if (editandoId === item.id) resetForm();
       setMensaje(`${nombreCompleto(item)} borrado correctamente.`);
-      await Promise.all([cargarEquipos(), cargarPersonal()]);
+      await Promise.allSettled([cargarEquipos(), cargarPersonal()]);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -169,7 +175,7 @@ export default function Personal() {
     <div className="w-full px-4 sm:px-6 py-6">
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-club-black">Personal</h2>
+          <h2 className="text-2xl font-bold text-club-black">PERSONAL</h2>
           <p className="text-sm text-club-black/60 mt-1">
             Gestiona nombre, apellidos, foto, cargo y equipo del personal del club.
           </p>
@@ -273,13 +279,18 @@ export default function Personal() {
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-club-black/60">
                   Cargo
                 </label>
-                <input
-                  type="text"
+                <select
                   value={form.cargo}
                   onChange={(e) => setForm((prev) => ({ ...prev, cargo: e.target.value }))}
                   className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
                   required
-                />
+                >
+                  {CARGOS_PERSONAL.map((cargo) => (
+                    <option key={cargo} value={cargo}>
+                      {cargo}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-club-black/60">

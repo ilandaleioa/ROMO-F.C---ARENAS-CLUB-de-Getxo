@@ -22,8 +22,10 @@ Columnas sensibles (nunca llegan al frontend si el rol es Tecnico): `dni_jugador
 ## Requisitos previos
 
 - Node.js 18 o superior
-- Un proyecto de Supabase con las tablas `jugadores` y `usuarios` ya creadas (RLS activo, sin politicas publicas)
-- La tabla `usuarios` necesita al menos: `id`, `username`, `password_hash`, `rol`, `equipo_asignado`, `activo` (booleano, opcional pero recomendado para poder desactivar usuarios sin borrarlos)
+- Un proyecto de Supabase con las tablas `jugadores`, `personal` y `usuarios` ya creadas (RLS activo, sin politicas publicas)
+- La tabla `usuarios` necesita al menos: `id`, `username`, `password_hash`, `rol`, `equipo_asignado`, `apartados_visibles`, `activo` (booleano, opcional pero recomendado para poder desactivar usuarios sin borrarlos)
+- Si no existe aun, crea `apartados_visibles` como `text` con valor por defecto `Todos`.
+- La tabla `personal` necesita al menos: `id`, `club`, `nombre`, `primer_apellido`, `segundo_apellido`, `cargo`, `equipo`, `foto_path`, `creado_en`, `actualizado_en`
 
 ## Backend
 
@@ -81,6 +83,21 @@ node scripts/crear-usuario.js <username> <password> tecnico "NOMBRE EXACTO DEL E
 ```
 
 La contrasena se guarda siempre hasheada con bcrypt, nunca en texto plano.
+
+El campo `apartados_visibles` usa el mismo formato que `equipo_asignado`: guarda `Todos` para dar acceso completo o una lista separada por `||` con apartados como `inicio`, `campogramas`, `captacion`, `personal`, `usuarios`, `listas` y `hojas_calculo`.
+
+### Crear el bucket de fotos del personal
+
+```bash
+cd backend
+node scripts/crear-bucket-personal-fotos.js
+```
+
+Las fotos del personal se guardan en el bucket privado `personal-fotos` y se sirven mediante URLs firmadas temporales, igual que las de jugadores.
+
+### Crear la tabla de personal
+
+Ejecuta el SQL incluido en `backend/scripts/crear-tabla-personal.sql` en el editor SQL de Supabase para crear la tabla `personal` con sus indices básicos.
 
 ## Frontend
 

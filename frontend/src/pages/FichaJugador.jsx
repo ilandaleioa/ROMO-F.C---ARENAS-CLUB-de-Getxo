@@ -315,15 +315,15 @@ export default function FichaJugador() {
 
       {jugador && (
         <div className="mt-4 bg-white border border-gray-200 rounded-xl shadow-sm">
-          <div className="sticky top-[72px] z-40 bg-club-black text-white px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center gap-4 rounded-t-xl">
+          <div className="sticky top-[72px] z-40 bg-club-black text-white px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center gap-5 sm:gap-6 rounded-t-xl">
             {jugador.foto_url ? (
               <img
                 src={jugador.foto_url}
                 alt={`Foto de ${jugador.nombre}`}
-                className="w-14 h-14 sm:w-16 sm:h-16 rounded-full object-cover border-2 border-white/30 shrink-0"
+                className="w-24 h-24 sm:w-36 sm:h-36 rounded-2xl object-cover border-2 border-white/30 shrink-0"
               />
             ) : (
-              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white/10 flex items-center justify-center text-[10px] text-white/40 shrink-0 text-center">
+              <div className="w-24 h-24 sm:w-36 sm:h-36 rounded-2xl bg-white/10 flex items-center justify-center text-xs text-white/40 shrink-0 text-center">
                 Sin foto
               </div>
             )}

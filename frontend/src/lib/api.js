@@ -1,13 +1,12 @@
 import { getClub } from './clubStore';
 
-// Si se configura una URL explícita, la respetamos. Si no, en desarrollo
-// apuntamos al backend local y en produccion usamos la misma origin con /api.
+// Si se configura una URL explícita, la respetamos. Si no, usamos /api tanto
+// en desarrollo como en producción para que el proxy de Vite o el rewrite de
+// despliegue resuelvan la ruta sin depender de un puerto concreto.
 const configuredApiUrl = import.meta.env.VITE_API_URL?.trim();
 const API_URL = configuredApiUrl
   ? configuredApiUrl.replace(/\/$/, '')
-  : import.meta.env.PROD
-    ? '/api'
-    : 'http://localhost:4000/api';
+  : '/api';
 
 async function request(path, options = {}) {
   // FormData (subida de ficheros) no debe llevar Content-Type manual: el

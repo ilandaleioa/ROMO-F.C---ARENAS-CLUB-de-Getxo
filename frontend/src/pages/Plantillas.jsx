@@ -568,7 +568,6 @@ export default function Plantillas() {
   const renderGraficas = (lista) => {
     const porEquipo = contarPor(lista, (j) => j.equipo);
     const porDemarcacion = contarPor(lista, (j) => j.demarcacion);
-    const porLateralidad = contarPor(lista, (j) => j.lateralidad);
     const porAnio = contarPor(lista, (j) => anioNacimiento(j.fecha_nacimiento));
     const conLocalidad = lista.filter((j) => j.localidad && j.localidad.trim() !== '');
     const conteoPorMunicipio = conLocalidad.reduce((acc, j) => {
@@ -700,7 +699,6 @@ export default function Plantillas() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {renderBarras('Jugadores por equipo', porEquipo)}
         {renderBarras('Jugadores por demarcación', porDemarcacion)}
-        {renderBarras('Jugadores por lateralidad', porLateralidad)}
         {renderBarras('Jugadores por año de nacimiento', porAnio, { ordenNumerico: true })}
         {renderGraficaCircularMunicipios()}
         {renderGraficaBarrasMunicipios()}
@@ -719,7 +717,6 @@ export default function Plantillas() {
             <th className="hidden sm:table-cell px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Fecha nacimiento</th>
             <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Año</th>
             <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Edad</th>
-            <th className="hidden lg:table-cell px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Lateralidad</th>
             <th className="hidden min-[380px]:table-cell px-2 py-2 sm:px-4 sm:py-3 text-left text-xs font-semibold uppercase tracking-wide">Demarcación</th>
             <th className="px-2 py-2 sm:px-4 sm:py-3 text-right text-xs font-semibold uppercase tracking-wide">
               <span className="inline-flex items-center justify-end gap-2">
@@ -773,7 +770,6 @@ export default function Plantillas() {
               <td className="hidden sm:table-cell px-4 py-3 text-club-black/80">{formatearFecha(j.fecha_nacimiento) || '-'}</td>
               <td className="hidden md:table-cell px-4 py-3 text-club-black/80">{anioNacimiento(j.fecha_nacimiento) ?? '-'}</td>
               <td className="hidden md:table-cell px-4 py-3 text-club-black/80">{calcularEdad(j.fecha_nacimiento) ?? '-'}</td>
-              <td className="hidden lg:table-cell px-4 py-3 text-club-black/80">{j.lateralidad || '-'}</td>
               <td className="hidden min-[380px]:table-cell px-2 py-2 sm:px-4 sm:py-3 text-club-black/80 max-w-[110px] truncate">{j.demarcacion || '-'}</td>
               <td className="px-2 py-2 sm:px-4 sm:py-3 text-right">
                 {renderAccionesJugador(j)}

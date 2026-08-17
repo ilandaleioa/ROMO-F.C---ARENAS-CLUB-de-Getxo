@@ -5,6 +5,7 @@ const requireAuth = require('../middleware/requireAuth');
 const requireRole = require('../middleware/requireRole');
 const resolveClub = require('../middleware/resolveClub');
 const { ROLES } = require('../config/roles');
+const { CARGOS_PERSONAL } = require('../config/personal');
 const { parseEquiposAsignados, filtrarEquiposPermitidos, puedeVerEquipo } = require('../lib/equiposAsignados');
 
 const router = express.Router();
@@ -114,6 +115,9 @@ function validarPayload(body) {
   if (!nombre || !primerApellido || !cargo || !equipo) {
     return 'Nombre, primer apellido, cargo y equipo son obligatorios.';
   }
+  if (!CARGOS_PERSONAL.includes(cargo)) {
+    return 'El cargo no es valido.';
+  }
 
   return null;
 }
@@ -183,6 +187,11 @@ router.get('/', async (req, res) => {
 
 router.get('/equipos', async (req, res) => {
   try {
+    const { rol, equipo_asignado } = req.user;
+    if (rol === ROLES.TECNICO && !equipo_asignado) {
+      return res.status(409).json({ error: 'Tu usuario no tiene un equipo asignado. Contacta con el administrador.' });
+    }
+
     const { data, error } = await supabaseAdmin.from('personal').select('equipo').eq('club', req.club);
     if (error) {
       return res.status(503).json({ error: 'No se pudo consultar la base de datos de personal.' });

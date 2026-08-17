@@ -1,7 +1,13 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { api } from '../lib/api';
 import { useFiltroEquipos } from '../context/FiltroEquiposContext';
 import { TODOS_EQUIPOS, equiposAsignadosLabel, parseEquiposAsignados } from '../lib/equiposAsignados';
+import {
+  APARTADOS_USUARIO,
+  TODOS_APARTADOS,
+  apartadosVisiblesLabel,
+  parseApartadosVisibles,
+} from '../lib/apartados';
 
 const ROLES = [
   { value: 'administrador', label: 'Administrador' },
@@ -16,7 +22,15 @@ const CLUBES = [
   { value: 'ARENAS', label: 'ARENAS' },
 ];
 
-const FORM_VACIO = { username: '', password: '', rol: 'tecnico', equipos_asignados: [TODOS_EQUIPOS], club: 'TODOS', activo: true };
+const FORM_VACIO = {
+  username: '',
+  password: '',
+  rol: 'tecnico',
+  equipos_asignados: [TODOS_EQUIPOS],
+  apartados_visibles: [TODOS_APARTADOS],
+  club: 'TODOS',
+  activo: true,
+};
 
 export default function Usuarios() {
   const { equiposDisponibles } = useFiltroEquipos();
@@ -29,6 +43,9 @@ export default function Usuarios() {
   const [formError, setFormError] = useState('');
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [selectorEquiposAbierto, setSelectorEquiposAbierto] = useState(false);
+  const [selectorApartadosAbierto, setSelectorApartadosAbierto] = useState(false);
+  const selectorEquiposRef = useRef(null);
+  const selectorApartadosRef = useRef(null);
 
   const cargarUsuarios = useCallback(async () => {
     setError('');
@@ -45,6 +62,35 @@ export default function Usuarios() {
     cargarUsuarios().finally(() => setLoading(false));
   }, [cargarUsuarios]);
 
+  useEffect(() => {
+    const cerrarSelectorSiHaceFalta = (e) => {
+      const fueraEquipos = selectorEquiposRef.current && !selectorEquiposRef.current.contains(e.target);
+      const fueraApartados = selectorApartadosRef.current && !selectorApartadosRef.current.contains(e.target);
+
+      if (fueraEquipos) {
+        setSelectorEquiposAbierto(false);
+      }
+      if (fueraApartados) {
+        setSelectorApartadosAbierto(false);
+      }
+    };
+
+    const cerrarConEscape = (e) => {
+      if (e.key === 'Escape') {
+        setSelectorEquiposAbierto(false);
+        setSelectorApartadosAbierto(false);
+      }
+    };
+
+    document.addEventListener('mousedown', cerrarSelectorSiHaceFalta);
+    document.addEventListener('keydown', cerrarConEscape);
+
+    return () => {
+      document.removeEventListener('mousedown', cerrarSelectorSiHaceFalta);
+      document.removeEventListener('keydown', cerrarConEscape);
+    };
+  }, []);
+
   const empezarEdicion = (usuario) => {
     setEditandoId(usuario.id);
     setForm({
@@ -52,6 +98,7 @@ export default function Usuarios() {
       password: '',
       rol: usuario.rol,
       equipos_asignados: parseEquiposAsignados(usuario.equipo_asignado),
+      apartados_visibles: parseApartadosVisibles(usuario.apartados_visibles),
       club: usuario.club || 'TODOS',
       activo: usuario.activo !== false,
     });
@@ -65,6 +112,7 @@ export default function Usuarios() {
     setFormError('');
     setMostrarFormulario(false);
     setSelectorEquiposAbierto(false);
+    setSelectorApartadosAbierto(false);
   };
 
   const toggleEquipoAsignado = (equipo) => {
@@ -82,6 +130,21 @@ export default function Usuarios() {
     });
   };
 
+  const toggleApartadoVisible = (apartado) => {
+    setForm((prev) => {
+      if (apartado === TODOS_APARTADOS) {
+        return { ...prev, apartados_visibles: [TODOS_APARTADOS] };
+      }
+
+      const actuales = prev.apartados_visibles.includes(TODOS_APARTADOS) ? [] : prev.apartados_visibles;
+      const siguientes = actuales.includes(apartado)
+        ? actuales.filter((item) => item !== apartado)
+        : [...actuales, apartado];
+
+      return { ...prev, apartados_visibles: siguientes.length > 0 ? siguientes : [TODOS_APARTADOS] };
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setFormError('');
@@ -91,6 +154,7 @@ export default function Usuarios() {
         username: form.username,
         rol: form.rol,
         equipo_asignado: form.equipos_asignados,
+        apartados_visibles: form.apartados_visibles,
         club: form.club,
         activo: form.activo,
       };
@@ -199,18 +263,25 @@ export default function Usuarios() {
             </select>
           </div>
 
-          <div className="relative">
+          <div className="relative" ref={selectorEquiposRef}>
             <label className="block text-sm font-semibold text-club-black mb-1">Equipo</label>
             <button
               type="button"
+              aria-expanded={selectorEquiposAbierto}
+              aria-haspopup="listbox"
               onClick={() => setSelectorEquiposAbierto((abierto) => !abierto)}
               className="w-full flex items-center justify-between gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-left focus:outline-none focus:ring-2 focus:ring-club-red"
             >
               <span className="truncate">{equiposAsignadosLabel(form.equipos_asignados, { compacto: true })}</span>
-              <span className="text-club-black/50">v</span>
+              <span
+                className={`h-2.5 w-2.5 shrink-0 border-b-2 border-r-2 border-club-black/50 transition-transform ${
+                  selectorEquiposAbierto ? 'rotate-[225deg]' : 'rotate-45'
+                }`}
+                aria-hidden="true"
+              />
             </button>
             {selectorEquiposAbierto && (
-              <div className="absolute z-30 mt-2 w-full max-h-64 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg">
+              <div className="absolute z-30 mt-2 w-full max-h-64 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg" role="listbox" aria-multiselectable="true">
                 <label className="flex items-center gap-2 px-3 py-2 text-sm font-semibold border-b border-gray-100 hover:bg-red-50/60 cursor-pointer">
                   <input
                     type="checkbox"
@@ -232,6 +303,52 @@ export default function Usuarios() {
                       className="h-4 w-4 accent-club-red"
                     />
                     <span className="truncate">{eq}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="relative" ref={selectorApartadosRef}>
+            <label className="block text-sm font-semibold text-club-black mb-1">Apartados visibles</label>
+            <button
+              type="button"
+              aria-expanded={selectorApartadosAbierto}
+              aria-haspopup="listbox"
+              onClick={() => setSelectorApartadosAbierto((abierto) => !abierto)}
+              className="w-full flex items-center justify-between gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-left focus:outline-none focus:ring-2 focus:ring-club-red"
+            >
+              <span className="truncate">{apartadosVisiblesLabel(form.apartados_visibles, { compacto: true })}</span>
+              <span
+                className={`h-2.5 w-2.5 shrink-0 border-b-2 border-r-2 border-club-black/50 transition-transform ${
+                  selectorApartadosAbierto ? 'rotate-[225deg]' : 'rotate-45'
+                }`}
+                aria-hidden="true"
+              />
+            </button>
+            {selectorApartadosAbierto && (
+              <div className="absolute z-30 mt-2 w-full max-h-64 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg" role="listbox" aria-multiselectable="true">
+                <label className="flex items-center gap-2 px-3 py-2 text-sm font-semibold border-b border-gray-100 hover:bg-red-50/60 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.apartados_visibles.includes(TODOS_APARTADOS)}
+                    onChange={() => toggleApartadoVisible(TODOS_APARTADOS)}
+                    className="h-4 w-4 accent-club-red"
+                  />
+                  Todos los apartados
+                </label>
+                {APARTADOS_USUARIO.map((apartado) => (
+                  <label
+                    key={apartado.value}
+                    className="flex items-center gap-2 px-3 py-2 text-sm border-b border-gray-100 last:border-b-0 text-club-black/80 hover:bg-red-50/60 cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={form.apartados_visibles.includes(apartado.value)}
+                      onChange={() => toggleApartadoVisible(apartado.value)}
+                      className="h-4 w-4 accent-club-red"
+                    />
+                    <span className="truncate">{apartado.label}</span>
                   </label>
                 ))}
               </div>
@@ -294,6 +411,7 @@ export default function Usuarios() {
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Rol</th>
                 <th className="hidden sm:table-cell px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Club</th>
                 <th className="hidden sm:table-cell px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Equipo</th>
+                <th className="hidden lg:table-cell px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Apartados</th>
                 <th className="hidden sm:table-cell px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Estado</th>
                 <th className="px-4 py-3" />
               </tr>
@@ -308,6 +426,9 @@ export default function Usuarios() {
                   </td>
                   <td className="hidden sm:table-cell px-4 py-3 text-club-black/80" title={equiposAsignadosLabel(u.equipo_asignado)}>
                     {equiposAsignadosLabel(u.equipo_asignado, { compacto: true })}
+                  </td>
+                  <td className="hidden lg:table-cell px-4 py-3 text-club-black/80" title={apartadosVisiblesLabel(u.apartados_visibles)}>
+                    {apartadosVisiblesLabel(u.apartados_visibles, { compacto: true })}
                   </td>
                   <td className="hidden sm:table-cell px-4 py-3">
                     <span
