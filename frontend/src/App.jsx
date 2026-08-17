@@ -17,6 +17,7 @@ import HojasCalculo from './pages/HojasCalculo';
 import Captacion from './pages/Captacion';
 import Clubes from './pages/Clubes';
 import Listas from './pages/Listas';
+import Personal from './pages/Personal';
 
 function ClubThemeSync() {
   const { club } = useClub();
@@ -100,6 +101,16 @@ function AppRoutes() {
           <ProtectedRoute>
             <Layout>
               <Captacion />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/personal"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <Personal />
             </Layout>
           </ProtectedRoute>
         }

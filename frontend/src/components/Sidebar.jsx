@@ -14,6 +14,7 @@ const NAV_ITEMS = [{ to: '/', label: 'Inicio', end: true }];
 const SECONDARY_NAV_ITEMS = [
   { to: '/campogramas', label: 'Campogramas' },
   { to: '/captacion', label: 'CAPTACION' },
+  { to: '/personal', label: 'Personal' },
 ];
 
 const FINAL_NAV_ITEMS = [

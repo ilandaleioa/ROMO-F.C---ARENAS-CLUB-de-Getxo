@@ -47,7 +47,9 @@ function camposObligatorios(lista) {
 function TablaLista({ lista }) {
   const { user } = useAuth();
   const esAdministrador = user?.rol === 'administrador';
-  const columnasVisibles = esAdministrador ? lista.columnas : lista.columnas.filter((columna) => columna.key !== 'id');
+  const columnasVisibles = (esAdministrador ? lista.columnas : lista.columnas.filter((columna) => columna.key !== 'id')).filter(
+    (columna) => !(lista.id === 'clubes' && columna.key === 'escudo')
+  );
   const [formulario, setFormulario] = useState(() => formularioInicial(lista));
   const [formAbierto, setFormAbierto] = useState(false);
   const [editandoId, setEditandoId] = useState(null);
@@ -238,7 +240,24 @@ function TablaLista({ lista }) {
                 <td className="px-4 py-3 text-club-black/45">{indice + 1}</td>
                 {columnasVisibles.map((columna) => (
                   <td key={columna.key} className="px-4 py-3 font-medium text-club-black/80">
-                    {columna.tipo === 'imagen' ? (
+                    {lista.id === 'clubes' && columna.key === 'nombre' ? (
+                      <div className="inline-flex items-center gap-3">
+                        {fila.escudo ? (
+                          <img
+                            src={fila.escudo}
+                            alt={`Escudo de ${fila.nombre}`}
+                            className="h-9 w-9 shrink-0 rounded-full border border-gray-200 bg-white object-contain p-1"
+                          />
+                        ) : (
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-gray-100 text-[10px] font-bold uppercase text-club-black/40">
+                            {String(fila.nombre || '?')
+                              .trim()
+                              .slice(0, 2)}
+                          </span>
+                        )}
+                        <span>{fila[columna.key]}</span>
+                      </div>
+                    ) : columna.tipo === 'imagen' ? (
                       fila[columna.key] ? (
                         <img
                           src={fila[columna.key]}
