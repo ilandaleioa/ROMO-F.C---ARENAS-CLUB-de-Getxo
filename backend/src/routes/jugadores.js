@@ -5,12 +5,24 @@ const requireAuth = require('../middleware/requireAuth');
 const requireRole = require('../middleware/requireRole');
 const resolveClub = require('../middleware/resolveClub');
 const { ROLES } = require('../config/roles');
-const { columnsForRole, listColumnsForRole, sanitizeRow, FULL_COLUMNS } = require('../config/jugadoresColumns');
-const { LATERALIDAD_VALUES, DEMARCACION_VALUES } = require('../config/datosDeportivos');
+const { columnsForRole, sanitizeRow, FULL_COLUMNS } = require('../config/jugadoresColumns');
 const sheetsSync = require('../config/googleSheetsSync');
 const { parseEquiposAsignados, filtrarEquiposPermitidos, puedeVerEquipo } = require('../lib/equiposAsignados');
 
 const router = express.Router();
+const sincronizacionesEnCurso = new Set();
+
+function bloquearSincronizacion(req, res, next) {
+  const club = req.club;
+  if (sincronizacionesEnCurso.has(club)) {
+    return res.status(409).json({ error: `Ya hay una sincronizacion en curso para ${club}. Espera a que termine.` });
+  }
+
+  sincronizacionesEnCurso.add(club);
+  res.once('finish', () => sincronizacionesEnCurso.delete(club));
+  res.once('close', () => sincronizacionesEnCurso.delete(club));
+  return next();
+}
 
 router.use(requireAuth);
 router.use(resolveClub);
@@ -110,16 +122,64 @@ async function conFotosUrl(rows, { timeoutMs = null } = {}) {
   }
 }
 
+// POST /api/jugadores -> crea un jugador desde el formulario de la app.
+router.post('/', requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR), async (req, res) => {
+  try {
+    const body = req.body || {};
+    const nombre = String(body.nombre || '').trim();
+    const primer_apellido = String(body.primer_apellido || '').trim();
+    const segundo_apellido = String(body.segundo_apellido || '').trim();
+    const equipo = String(body.equipo || '').trim();
+
+    if (!nombre || !primer_apellido || !equipo) {
+      return res.status(400).json({ error: 'Nombre, primer apellido y equipo son obligatorios.' });
+    }
+
+    const dorsal = body.dorsal === '' || body.dorsal === null || body.dorsal === undefined ? null : Number(body.dorsal);
+    if (dorsal !== null && (!Number.isInteger(dorsal) || dorsal < 1 || dorsal > 99)) {
+      return res.status(400).json({ error: 'El dorsal debe ser un numero entre 1 y 99.' });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('jugadores')
+      .insert({
+        club: req.club,
+        nombre,
+        primer_apellido,
+        segundo_apellido: segundo_apellido || null,
+        equipo,
+        fecha_nacimiento: body.fecha_nacimiento || null,
+        dorsal,
+        lateralidad: body.lateralidad || null,
+        demarcacion: body.demarcacion || null,
+      })
+      .select('*')
+      .single();
+
+    if (error) {
+      console.error('Error creando jugador:', error);
+      return res.status(503).json({ error: 'No se pudo crear el jugador.' });
+    }
+
+    return res.status(201).json({ jugador: await conFotoUrl(sanitizeRow(data, req.user.rol)) });
+  } catch (err) {
+    console.error('Error inesperado creando jugador:', err);
+    return res.status(503).json({ error: 'No se pudo crear el jugador.' });
+  }
+});
+
 // GET /api/jugadores?equipo=xxx&q=busqueda
 // Si el usuario tiene equipos asignados, se limita siempre a esa lista.
 router.get('/', async (req, res) => {
   try {
     const { rol, equipo_asignado } = req.user;
-    const columns = listColumnsForRole(rol);
     const search = typeof req.query.q === 'string' ? req.query.q.trim() : '';
     const equiposAsignados = parseEquiposAsignados(equipo_asignado);
 
-    let query = supabaseAdmin.from('jugadores').select(columns.join(',')).eq('club', req.club);
+    // Pedimos toda la fila para que una columna nueva o antigua del esquema no
+    // tumbe el listado; el saneado de campos sigue haciendose en backend con la
+    // whitelist por rol antes de responder.
+    let query = supabaseAdmin.from('jugadores').select('*').eq('club', req.club);
 
     if (rol === ROLES.TECNICO && !equipo_asignado) {
       return res.status(409).json({ error: 'Tu usuario no tiene un equipo asignado. Contacta con el administrador.' });
@@ -222,11 +282,10 @@ router.get('/equipos', async (req, res) => {
 // GET /api/jugadores/:id -> ficha de un jugador.
 router.get('/:id', async (req, res) => {
   const { rol, equipo_asignado } = req.user;
-  const columns = columnsForRole(rol);
 
   const { data, error } = await supabaseAdmin
     .from('jugadores')
-    .select(columns.join(','))
+    .select('*')
     .eq('id', req.params.id)
     .eq('club', req.club)
     .maybeSingle();
@@ -318,6 +377,56 @@ router.post(
   }
 );
 
+async function sincronizarJugadorEditadoConHoja(jugador, club) {
+  if (!sheetsSync.estaConfigurado(club)) {
+    return {
+      ok: false,
+      omitida: true,
+      motivo: `La sincronizacion con Google Sheets no esta configurada para el club ${club}.`,
+    };
+  }
+
+  let sheets;
+  let tabTitle;
+  try {
+    sheets = sheetsSync.getSheetsClient();
+    tabTitle = await sheetsSync.resolverPestana(sheets, club);
+  } catch (err) {
+    return {
+      ok: false,
+      omitida: true,
+      motivo: 'No se pudo conectar con Google Sheets.',
+    };
+  }
+
+  const resultado = await sheetsSync.sincronizarSupabaseHaciaSheet(sheets, tabTitle, club, [jugador]);
+  if (resultado.omitida) {
+    return {
+      ok: false,
+      omitida: true,
+      motivo: resultado.motivo,
+    };
+  }
+
+  const hashAplicado = resultado.hashesAplicados[0];
+  if (hashAplicado) {
+    const { error } = await supabaseAdmin
+      .from('jugadores')
+      .update({ sheet_row_hash: hashAplicado.sheet_row_hash })
+      .eq('id', hashAplicado.id)
+      .eq('club', club);
+
+    if (error) throw error;
+  }
+
+  return {
+    ok: true,
+    omitida: false,
+    actualizados: resultado.actualizados,
+    insertados: resultado.insertados,
+  };
+}
+
 // PATCH /api/jugadores/:id/datos-deportivos -> actualiza dorsal/lateralidad/demarcacion.
 // Solo Administrador, Responsable y Director pueden editar estos datos.
 router.patch(
@@ -339,16 +448,10 @@ router.patch(
       }
     }
     if (lateralidad !== undefined) {
-      if (lateralidad !== null && !LATERALIDAD_VALUES.includes(lateralidad)) {
-        return res.status(400).json({ error: 'Lateralidad no valida.' });
-      }
-      updates.lateralidad = lateralidad;
+      updates.lateralidad = lateralidad === null ? null : String(lateralidad).trim() || null;
     }
     if (demarcacion !== undefined) {
-      if (demarcacion !== null && !DEMARCACION_VALUES.includes(demarcacion)) {
-        return res.status(400).json({ error: 'Demarcacion no valida.' });
-      }
-      updates.demarcacion = demarcacion;
+      updates.demarcacion = demarcacion === null ? null : String(demarcacion).trim() || null;
     }
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ error: 'No hay datos para actualizar.' });
@@ -379,7 +482,7 @@ router.patch(
         .update(updates)
         .eq('id', req.params.id)
         .eq('club', req.club)
-        .select(columnsForRole(rol).join(','))
+        .select('*')
         .maybeSingle();
 
       if (error) {
@@ -390,7 +493,19 @@ router.patch(
         return res.status(404).json({ error: 'Jugador no encontrado.' });
       }
 
-      res.json({ jugador: await conFotoUrl(sanitizeRow(data, rol)) });
+      let sheetSync = null;
+      try {
+        sheetSync = await sincronizarJugadorEditadoConHoja(data, req.club);
+      } catch (err) {
+        console.warn('Jugador actualizado, pero no se pudo sincronizar con Google Sheets:', err.message);
+        sheetSync = {
+          ok: false,
+          omitida: true,
+          motivo: 'El jugador se guardo en la app, pero no se pudo actualizar la hoja de calculo.',
+        };
+      }
+
+      res.json({ jugador: await conFotoUrl(sanitizeRow(data, rol)), sheet_sync: sheetSync });
     } catch (err) {
       console.error('Excepcion actualizando datos deportivos:', err.message);
       res.status(503).json({ error: 'No se pudo actualizar el jugador.' });
@@ -398,11 +513,271 @@ router.patch(
   }
 );
 
+// DELETE /api/jugadores/:id -> elimina un jugador de Supabase y su foto asociada.
+router.delete('/:id', requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR), async (req, res) => {
+  try {
+    const { data: jugador, error: fetchError } = await supabaseAdmin
+      .from('jugadores')
+      .select('id, equipo, foto_path')
+      .eq('id', req.params.id)
+      .eq('club', req.club)
+      .maybeSingle();
+
+    if (fetchError) {
+      return res.status(503).json({ error: 'No se pudo consultar la base de datos de jugadores.' });
+    }
+    if (!jugador) {
+      return res.status(404).json({ error: 'Jugador no encontrado.' });
+    }
+    if (!puedeVerEquipo(req.user, jugador.equipo)) {
+      return res.status(403).json({ error: 'No tienes permiso para borrar este jugador.' });
+    }
+
+    const resultadoBorrado = await borrarJugadoresYFotos([jugador], req.club);
+    if (!resultadoBorrado.borrados) {
+      return res.status(404).json({ error: 'Jugador no encontrado.' });
+    }
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Error inesperado eliminando jugador:', err.message);
+    res.status(503).json({ error: 'No se pudo borrar el jugador.' });
+  }
+});
+
+async function borrarJugadoresYFotos(jugadores, club) {
+  const jugadoresUnicos = Array.from(
+    new Map((jugadores || []).filter((jugador) => jugador?.id).map((jugador) => [jugador.id, jugador])).values()
+  );
+
+  if (jugadoresUnicos.length === 0) {
+    return { borrados: 0, fotos_borradas: 0 };
+  }
+
+  const ids = jugadoresUnicos.map((jugador) => jugador.id);
+  const fotos = Array.from(new Set(jugadoresUnicos.map((jugador) => jugador.foto_path).filter(Boolean)));
+
+  const { error: deleteError, count } = await supabaseAdmin
+    .from('jugadores')
+    .delete({ count: 'exact' })
+    .eq('club', club)
+    .in('id', ids);
+
+  if (deleteError) {
+    throw deleteError;
+  }
+
+  if (fotos.length > 0) {
+    const { error: storageError } = await supabaseAdmin.storage.from(FOTO_BUCKET).remove(fotos);
+    if (storageError) {
+      console.warn('Jugadores borrados, pero no se pudieron eliminar algunas fotos:', storageError.message);
+    }
+  }
+
+  return { borrados: count || ids.length, fotos_borradas: fotos.length };
+}
+
+async function actualizarJugadoresDesdeSheet(actualizables, club) {
+  let actualizados = 0;
+  let noEncontrados = 0;
+  let sinCambios = 0;
+  let supabaseGanadores = 0;
+  let conflictos = 0;
+
+  if (actualizables.length === 0) {
+    return { actualizados, noEncontrados, sinCambios, supabaseGanadores, conflictos };
+  }
+
+  const ids = actualizables.map((fila) => fila.id);
+  const { data: existentes, error: fetchError } = await supabaseAdmin
+    .from('jugadores')
+    .select('*')
+    .eq('club', club)
+    .in('id', ids);
+
+  if (fetchError) throw fetchError;
+  const jugadoresPorId = new Map((existentes || []).map((jugador) => [jugador.id, jugador]));
+
+  for (const fila of actualizables) {
+    const jugadorActual = jugadoresPorId.get(fila.id);
+    if (!jugadorActual) {
+      noEncontrados += 1;
+      continue;
+    }
+
+    const hashSheet = fila.datos.sheet_row_hash;
+    const hashBase = jugadorActual.sheet_row_hash;
+    const hashSupabase = sheetsSync.calcularSheetRowHash(jugadorActual);
+    const sheetCambio = hashBase ? hashSheet !== hashBase : true;
+    const supabaseCambio = hashBase ? hashSupabase !== hashBase : false;
+
+    if (!sheetCambio && !supabaseCambio) {
+      sinCambios += 1;
+      continue;
+    }
+
+    if (!sheetCambio && supabaseCambio) {
+      supabaseGanadores += 1;
+      continue;
+    }
+
+    if (sheetCambio && supabaseCambio) {
+      conflictos += 1;
+    }
+
+    const { sheet_row_hash, ...datosSinHash } = fila.datos;
+    const { data, error } = await supabaseAdmin
+      .from('jugadores')
+      .update(datosSinHash)
+      .eq('id', fila.id)
+      .eq('club', club)
+      .select('id')
+      .maybeSingle();
+
+    if (error) throw error;
+    if (data) {
+      if (sheet_row_hash) {
+        const { error: hashError } = await supabaseAdmin
+          .from('jugadores')
+          .update({ sheet_row_hash })
+          .eq('id', fila.id)
+          .eq('club', club);
+
+        if (hashError) {
+          if (hashError.code === '23505') {
+            conflictos += 1;
+            continue;
+          }
+          throw hashError;
+        }
+      }
+      actualizados += 1;
+    }
+  }
+
+  return { actualizados, noEncontrados, sinCambios, supabaseGanadores, conflictos };
+}
+
+async function sincronizarSupabaseConHoja(sheets, tabTitle, club) {
+  const { data: jugadores, error } = await supabaseAdmin
+    .from('jugadores')
+    .select('*')
+    .eq('club', club);
+
+  if (error) throw error;
+
+  const resultado = await sheetsSync.sincronizarSupabaseHaciaSheet(sheets, tabTitle, club, jugadores || [], {
+    eliminarFilasNoVinculadas: true,
+  });
+  if (resultado.omitida || resultado.hashesAplicados.length === 0) return resultado;
+
+  for (const item of resultado.hashesAplicados) {
+    const { error: updateError } = await supabaseAdmin
+      .from('jugadores')
+      .update({ sheet_row_hash: item.sheet_row_hash })
+      .eq('id', item.id)
+      .eq('club', club);
+
+    if (updateError) {
+      if (updateError.code === '23505') {
+        continue;
+      }
+      throw updateError;
+    }
+  }
+
+  return resultado;
+}
+
+function respuestaSync(base, hojaResultado) {
+  const avisoHoja = hojaResultado?.omitida ? hojaResultado.motivo : null;
+  const aviso = [base.aviso, avisoHoja].filter(Boolean).join(' ');
+  return {
+    ...base,
+    hoja_actualizados: hojaResultado?.actualizados || 0,
+    hoja_insertados: hojaResultado?.insertados || 0,
+    hoja_eliminados: hojaResultado?.eliminados || 0,
+    sync_bidireccional: !hojaResultado?.omitida,
+    ...(aviso ? { aviso } : {}),
+  };
+}
+
+function normalizarClave(valor) {
+  return String(valor || '')
+    .trim()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/\s+/g, ' ')
+    .toUpperCase();
+}
+
+function claveJugador(datos) {
+  const dni = normalizarClave(datos.dni_jugador);
+  if (dni) return `dni:${dni}`;
+
+  return [
+    datos.nombre,
+    datos.primer_apellido,
+    datos.segundo_apellido,
+    datos.equipo,
+    datos.fecha_nacimiento,
+  ]
+    .map(normalizarClave)
+    .join('|');
+}
+
+async function separarPendientesNuevos(pendientes, club) {
+  const { data, error } = await supabaseAdmin
+    .from('jugadores')
+    .select('id, nombre, primer_apellido, segundo_apellido, equipo, fecha_nacimiento, dni_jugador, sheet_row_hash')
+    .eq('club', club);
+
+  if (error) throw error;
+
+  const idPorHash = new Map();
+  const idPorClave = new Map();
+
+  for (const jugador of data || []) {
+    if (jugador.sheet_row_hash) idPorHash.set(jugador.sheet_row_hash, jugador.id);
+    const clave = claveJugador(jugador);
+    if (clave && !idPorClave.has(clave)) idPorClave.set(clave, jugador.id);
+  }
+
+  const insertables = [];
+  const duplicados = [];
+  const hashesPendientes = new Set();
+  const clavesPendientes = new Set();
+
+  for (const pendiente of pendientes) {
+    const hash = pendiente.datos.sheet_row_hash;
+    const clave = claveJugador(pendiente.datos);
+    const idExistente = (hash && idPorHash.get(hash)) || idPorClave.get(clave);
+
+    if (idExistente) {
+      duplicados.push({ ...pendiente, id: idExistente });
+      continue;
+    }
+
+    if ((hash && hashesPendientes.has(hash)) || clavesPendientes.has(clave)) {
+      duplicados.push(pendiente);
+      continue;
+    }
+
+    insertables.push(pendiente);
+    if (hash) hashesPendientes.add(hash);
+    clavesPendientes.add(clave);
+  }
+
+  return { insertables, duplicados };
+}
+
 // POST /api/jugadores/sync -> importa desde Google Sheets las filas nuevas
 // del formulario (las que aun no tienen ID_SYNC) e inserta cada una en
-// "jugadores". Solo Administrador: escribe en bloque datos sensibles de
-// menores (DNI, telefono, domicilio, datos de padres/madres).
-router.post('/sync', requireRole(ROLES.ADMINISTRADOR), async (req, res) => {
+// "jugadores". Las filas que ya tienen ID_SYNC actualizan el jugador enlazado
+// en todos los campos presentes en la hoja. Administrador y Director pueden
+// escribir en bloque datos sensibles de menores (DNI, telefono, domicilio,
+// datos de padres/madres).
+router.post('/sync', requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR), bloquearSincronizacion, async (req, res) => {
   const club = req.club;
 
   if (!sheetsSync.estaConfigurado(club)) {
@@ -424,12 +799,23 @@ router.post('/sync', requireRole(ROLES.ADMINISTRADOR), async (req, res) => {
   let headers;
   let idxIdSync;
   let pendientes;
+  let actualizables;
   let omitidas;
   try {
-    ({ headers, idxIdSync, pendientes, omitidas } = await sheetsSync.leerFilasPendientes(sheets, tabTitle, club));
+    ({ headers, idxIdSync, pendientes, actualizables = [], omitidas } = await sheetsSync.leerFilasPendientes(
+      sheets,
+      tabTitle,
+      club
+    ));
   } catch (err) {
     console.error('Error leyendo filas de Google Sheets:', err.message);
     return res.status(503).json({ error: 'No se pudo leer la hoja de calculo.' });
+  }
+
+  // Una lectura vacia o incompleta no debe interpretarse como una hoja sin
+  // jugadores, porque el flujo de sincronizacion tambien puede borrar filas.
+  if (!headers || headers.length === 0) {
+    return res.status(503).json({ error: 'La hoja de calculo no tiene cabeceras o no se pudo leer.' });
   }
 
   const omisionesPorMotivo = omitidas.reduce((acc, fila) => {
@@ -437,18 +823,125 @@ router.post('/sync', requireRole(ROLES.ADMINISTRADOR), async (req, res) => {
     return acc;
   }, {});
 
-  if (pendientes.length === 0) {
-    return res.json({
-      insertados: 0,
-      omitidos: omitidas.length,
-      total_pendientes: 0,
-      omisiones_por_motivo: omisionesPorMotivo,
-    });
+  let actualizados = 0;
+  let noEncontrados = 0;
+  let sinCambios = 0;
+  let supabaseGanadores = 0;
+  let conflictos = 0;
+  let borrados = 0;
+  let fotosBorradas = 0;
+  if (actualizables.length > 0) {
+    try {
+      ({ actualizados, noEncontrados, sinCambios, supabaseGanadores, conflictos } = await actualizarJugadoresDesdeSheet(
+        actualizables,
+        club
+      ));
+    } catch (err) {
+      console.error('Error actualizando jugadores desde Sheets:', err.message);
+      return res.status(503).json({ error: 'No se pudieron actualizar los jugadores en la base de datos.' });
+    }
+  }
+
+  const empujarSupabaseAHoja = async () => {
+    try {
+      return await sincronizarSupabaseConHoja(sheets, tabTitle, club);
+    } catch (err) {
+      console.error('Error sincronizando Supabase hacia Google Sheets:', err.message);
+      return {
+        omitida: true,
+        motivo: 'No se pudo escribir en Google Sheets desde Supabase.',
+        actualizados: 0,
+        insertados: 0,
+      };
+    }
+  };
+
+  let insertables;
+  let duplicados;
+  try {
+    ({ insertables, duplicados } = await separarPendientesNuevos(pendientes, club));
+  } catch (err) {
+    console.error('Error comprobando duplicados desde Sheets:', err.message);
+    return res.status(503).json({ error: 'No se pudo comprobar si ya existen jugadores en la base de datos.' });
+  }
+
+  const duplicadosConId = duplicados.filter((p) => p.id);
+  const idsPresentesBase = new Set([
+    ...actualizables.map((fila) => fila.id),
+    ...duplicadosConId.map((fila) => fila.id),
+  ]);
+
+  const borrarJugadoresDesaparecidos = async (idsNuevos = []) => {
+    // Si hay filas invalidas, no sabemos si faltan datos por un error de
+    // formato o porque se han borrado realmente. Conservamos la base de datos
+    // y lo dejamos reflejado en el resultado para evitar perdidas de datos.
+    if (omitidas.length > 0) return;
+
+    const idsPresentes = new Set([...idsPresentesBase, ...idsNuevos]);
+
+    try {
+      const { data: jugadoresActivos, error: fetchError } = await supabaseAdmin
+        .from('jugadores')
+        .select('id, foto_path, sheet_row_hash')
+        .eq('club', club);
+
+      if (fetchError) throw fetchError;
+
+      const jugadoresParaBorrar = (jugadoresActivos || []).filter((jugador) => !idsPresentes.has(jugador.id));
+
+      if (jugadoresParaBorrar.length === 0) {
+        return;
+      }
+
+      const resultadoBorrado = await borrarJugadoresYFotos(jugadoresParaBorrar, club);
+      borrados += resultadoBorrado.borrados;
+      fotosBorradas += resultadoBorrado.fotos_borradas;
+    } catch (err) {
+      console.error('Error borrando jugadores desaparecidos del Sheet:', err.message);
+      throw new Error('No se pudieron borrar los jugadores que ya no estan en la hoja.');
+    }
+  };
+
+  if (insertables.length === 0) {
+    if (duplicadosConId.length > 0) {
+      try {
+        await sheetsSync.marcarComoSincronizadas(sheets, tabTitle, idxIdSync, duplicadosConId, club);
+      } catch (err) {
+        console.warn('No se pudo marcar ID_SYNC en filas ya existentes:', err.message);
+      }
+    }
+
+    try {
+      await borrarJugadoresDesaparecidos();
+    } catch (err) {
+      return res.status(503).json({ error: err.message });
+    }
+
+    const hojaResultado = await empujarSupabaseAHoja();
+    return res.json(
+      respuestaSync(
+        {
+          insertados: 0,
+          actualizados,
+          sin_cambios: sinCambios,
+          supabase_ganadores: supabaseGanadores,
+          conflictos,
+          no_encontrados: noEncontrados,
+          duplicados: duplicados.length,
+          omitidos: omitidas.length,
+          total_pendientes: pendientes.length,
+          borrados,
+          fotos_borradas: fotosBorradas,
+          omisiones_por_motivo: omisionesPorMotivo,
+        },
+        hojaResultado
+      )
+    );
   }
 
   const { data: insertados, error: insertError } = await supabaseAdmin
     .from('jugadores')
-    .insert(pendientes.map((p) => ({ ...p.datos, club })))
+    .insert(insertables.map((p) => ({ ...p.datos, club })))
     .select('id');
 
   if (insertError) {
@@ -457,22 +950,61 @@ router.post('/sync', requireRole(ROLES.ADMINISTRADOR), async (req, res) => {
   }
 
   try {
-    const filasConId = pendientes.map((p, i) => ({ numeroFila: p.numeroFila, id: insertados[i].id }));
+    const filasConId = insertables.map((p, i) => ({ numeroFila: p.numeroFila, id: insertados[i].id }));
+    duplicadosConId.forEach((p) => filasConId.push({ numeroFila: p.numeroFila, id: p.id }));
     await sheetsSync.marcarComoSincronizadas(sheets, tabTitle, idxIdSync, filasConId, club);
   } catch (err) {
     // Los jugadores ya se han insertado; si falla solo el marcado en el Sheet,
     // avisamos pero no lo tratamos como fallo total (evita duplicados se
     // reintentaria manualmente revisando el Sheet).
     console.error('Jugadores insertados pero no se pudo marcar ID_SYNC en el Sheet:', err.message);
-    return res.json({
-      insertados: insertados.length,
-      omitidos: omitidas.length,
-      omisiones_por_motivo: omisionesPorMotivo,
-      aviso: 'Se importaron los jugadores pero no se pudo marcar la hoja como sincronizada. Revisa el Sheet manualmente.',
-    });
+    const hojaResultado = await empujarSupabaseAHoja();
+    return res.json(
+      respuestaSync(
+        {
+          insertados: insertados.length,
+          actualizados,
+          sin_cambios: sinCambios,
+          supabase_ganadores: supabaseGanadores,
+          conflictos,
+          no_encontrados: noEncontrados,
+          duplicados: duplicados.length,
+          omitidos: omitidas.length,
+          borrados,
+          fotos_borradas: fotosBorradas,
+          omisiones_por_motivo: omisionesPorMotivo,
+          aviso: 'Se importaron los jugadores pero no se pudo marcar la hoja como sincronizada. Revisa el Sheet manualmente.',
+        },
+        hojaResultado
+      )
+    );
   }
 
-  res.json({ insertados: insertados.length, omitidos: omitidas.length, omisiones_por_motivo: omisionesPorMotivo });
+  try {
+    await borrarJugadoresDesaparecidos(insertados.map((item) => item.id));
+  } catch (err) {
+    return res.status(503).json({ error: err.message });
+  }
+
+  const hojaResultado = await empujarSupabaseAHoja();
+  res.json(
+    respuestaSync(
+      {
+        insertados: insertados.length,
+        actualizados,
+        sin_cambios: sinCambios,
+        supabase_ganadores: supabaseGanadores,
+        conflictos,
+        no_encontrados: noEncontrados,
+        duplicados: duplicados.length,
+        omitidos: omitidas.length,
+        borrados,
+        fotos_borradas: fotosBorradas,
+        omisiones_por_motivo: omisionesPorMotivo,
+      },
+      hojaResultado
+    )
+  );
 });
 
 module.exports = router;

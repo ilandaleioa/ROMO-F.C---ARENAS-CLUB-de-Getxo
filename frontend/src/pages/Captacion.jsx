@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { addDoc, collection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
 import { useClub } from '../context/ClubContext';
-import { db, firebaseConfigMissing, firebaseReady } from '../lib/firebase';
+import { api } from '../lib/api';
+import { useListaValores } from '../lib/listas';
 
 const CAMPOS = [
   { key: 'id_jugador', label: 'ID JUGADOR', type: 'text' },
   { key: 'fecha_alta', label: 'FECHA ALTA', type: 'date' },
   { key: 'quien_da_alta', label: 'QUIEN DA ALTA', type: 'selectWithAdd' },
-  { key: 'club', label: 'CLUB', type: 'text' },
+  { key: 'club', label: 'CLUB', type: 'clubSelect' },
   { key: 'equipo', label: 'EQUIPO', type: 'text' },
   { key: 'categoria', label: 'CATEGORIA', type: 'text' },
   { key: 'grupo', label: 'GRUPO', type: 'text' },
@@ -30,7 +30,52 @@ const CAMPOS = [
   { key: 'observaciones', label: 'OBSERVACIONES', type: 'textarea' },
 ];
 
-const RESPONSABLES_ALTA_INICIALES = ['ADRIAN', 'ALEX', 'MIKEL'];
+const RESPONSABLES_ALTA_INICIALES = ['Adrian', 'Alex', 'Mikel'];
+const RESPONSABLES_ALTA_STORAGE_KEY = 'captacion.responsablesAlta';
+const RESPONSABLES_ALTA_NUEVO_VALUE = '__nueva_opcion_responsable_alta__';
+
+function normalizarListadoResponsablesAlta(valores = []) {
+  return [...new Map(valores.map((valor) => [String(valor || '').trim().toLowerCase(), String(valor || '').trim()]))]
+    .map(([, valor]) => valor)
+    .filter(Boolean);
+}
+
+function leerResponsablesAltaGuardados() {
+  if (typeof window === 'undefined') {
+    return RESPONSABLES_ALTA_INICIALES;
+  }
+
+  try {
+    const guardados = JSON.parse(window.localStorage.getItem(RESPONSABLES_ALTA_STORAGE_KEY) || '[]');
+    return normalizarListadoResponsablesAlta([...RESPONSABLES_ALTA_INICIALES, ...(Array.isArray(guardados) ? guardados : [])]);
+  } catch {
+    return RESPONSABLES_ALTA_INICIALES;
+  }
+}
+
+function guardarResponsablesAlta(valores) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(RESPONSABLES_ALTA_STORAGE_KEY, JSON.stringify(normalizarListadoResponsablesAlta(valores)));
+  } catch {
+    // Si localStorage no está disponible, seguimos sin persistencia.
+  }
+}
+
+function generarIdJugador() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (caracter) => {
+    const aleatorio = Math.random() * 16 | 0;
+    const valor = caracter === 'x' ? aleatorio : (aleatorio & 0x3) | 0x8;
+    return valor.toString(16);
+  });
+}
 
 function obtenerFechaHoyISO() {
   const hoy = new Date();
@@ -61,48 +106,19 @@ function normalizarFechaInput(valor) {
 
 function crearFormVacio() {
   return CAMPOS.reduce(
-    (acc, campo) => ({ ...acc, [campo.key]: campo.key === 'fecha_alta' ? obtenerFechaHoyISO() : '' }),
+    (acc, campo) => ({
+      ...acc,
+      [campo.key]: campo.key === 'fecha_alta' ? obtenerFechaHoyISO() : campo.key === 'id_jugador' ? generarIdJugador() : '',
+    }),
     {}
   );
 }
 
-const REGISTRO_INICIAL = {
-  id: 'captacion-1',
-  id_jugador: '',
-  fecha_alta: '17/10/2022',
-  quien_da_alta: 'ADRIAN ALVITE',
-  club: 'SD DEUSTO',
-  equipo: 'INFANTIL A',
-  categoria: 'INFANTIL LIGA R',
-  grupo: '2',
-  enlace: '',
-  nombre: 'PEIO',
-  primer_apellido: 'CUESTA',
-  segundo_apellido: 'ALONSO',
-  dorsal: '4',
-  tipologia: 'NORMAL',
-  altura: '1.89',
-  lateralidad: 'ZURDO',
-  foto_jugador: '',
-  fecha_nacimiento: '02/02/2002',
-  anio_nacimiento: '2002',
-  edad: '24',
-  demarcacion: 'LATERAL',
-  otra_demarcacion: 'CENTRAL',
-  valoracion_general: '4',
-  descripcion_jugador: 'Jugador muy completo',
-  observaciones: 'Termina contrato en junio',
-};
-
-function captacionRef(club) {
-  return collection(db, 'captacion', club, 'registros');
-}
-
 function ordenarRegistros(registros) {
   return [...registros].sort((a, b) => {
-    const fechaA = a.created_at?.seconds || 0;
-    const fechaB = b.created_at?.seconds || 0;
-    return fechaB - fechaA || nombreCompleto(a).localeCompare(nombreCompleto(b), 'es', { sensitivity: 'base' });
+    const fechaA = normalizarFechaInput(a.fecha_alta);
+    const fechaB = normalizarFechaInput(b.fecha_alta);
+    return fechaB.localeCompare(fechaA) || nombreCompleto(a).localeCompare(nombreCompleto(b), 'es', { sensitivity: 'base' });
   });
 }
 
@@ -152,37 +168,39 @@ export default function Captacion() {
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
   const [form, setForm] = useState(() => crearFormVacio());
-  const [responsablesAlta, setResponsablesAlta] = useState(RESPONSABLES_ALTA_INICIALES);
+  const [responsablesAlta, setResponsablesAlta] = useState(() => leerResponsablesAltaGuardados());
   const [editandoId, setEditandoId] = useState(null);
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [busqueda, setBusqueda] = useState('');
 
   useEffect(() => {
-    if (!firebaseReady) {
-      setRegistros([REGISTRO_INICIAL]);
-      setLoading(false);
-      setError(`Falta configurar Firebase: ${firebaseConfigMissing.join(', ')}`);
-      return undefined;
-    }
-
+    let cancelado = false;
     setLoading(true);
     setError('');
 
-    const unsubscribe = onSnapshot(
-      captacionRef(club),
-      (snapshot) => {
-        const docs = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
-        setRegistros(docs.length > 0 ? ordenarRegistros(docs) : [REGISTRO_INICIAL]);
-        setLoading(false);
-      },
-      (err) => {
-        setError(`No se pudieron cargar los registros de Firebase: ${err.message}`);
-        setLoading(false);
+    async function cargarRegistros() {
+      try {
+        const { registros: data } = await api.get('/captacion');
+        if (!cancelado) setRegistros(ordenarRegistros(data || []));
+      } catch (err) {
+        if (!cancelado) {
+          setRegistros([]);
+          setError(err.message);
+        }
+      } finally {
+        if (!cancelado) setLoading(false);
       }
-    );
+    }
 
-    return unsubscribe;
+    cargarRegistros();
+    return () => {
+      cancelado = true;
+    };
   }, [club]);
+
+  useEffect(() => {
+    guardarResponsablesAlta(responsablesAlta);
+  }, [responsablesAlta]);
 
   const registrosFiltrados = useMemo(() => {
     const texto = busqueda.trim().toLowerCase();
@@ -193,6 +211,17 @@ export default function Captacion() {
     );
   }, [busqueda, registros]);
 
+  const clubes = useListaValores('clubes');
+
+  const opcionesClubes = useMemo(() => {
+    const opciones = clubes.map((nombre) => String(nombre || '').trim()).filter(Boolean);
+    const clubFormulario = String(form.club || '').trim();
+    if (clubFormulario && !opciones.some((opcion) => opcion.toLowerCase() === clubFormulario.toLowerCase())) {
+      opciones.push(clubFormulario);
+    }
+    return [...new Map(opciones.map((opcion) => [opcion.toLowerCase(), opcion])).values()];
+  }, [clubes, form.club]);
+
   const actualizarCampo = (key, value) => {
     setForm((prev) => ({
       ...prev,
@@ -202,19 +231,32 @@ export default function Captacion() {
   };
 
   const asegurarResponsableAlta = (valor) => {
-    const responsable = String(valor || '').trim().toUpperCase();
+    const responsable = String(valor || '').trim();
     if (!responsable) return;
 
-    setResponsablesAlta((prev) => (prev.includes(responsable) ? prev : [...prev, responsable]));
+    setResponsablesAlta((prev) =>
+      prev.some((opcion) => opcion.toLowerCase() === responsable.toLowerCase()) ? prev : [...prev, responsable]
+    );
   };
 
-  const anadirResponsableAlta = () => {
+  const pedirNuevoResponsableAlta = () => {
     const responsable = window.prompt('Nombre de quien da alta');
-    const limpio = String(responsable || '').trim().toUpperCase();
+    const limpio = String(responsable || '').trim();
     if (!limpio) return;
 
-    setResponsablesAlta((prev) => (prev.includes(limpio) ? prev : [...prev, limpio]));
+    setResponsablesAlta((prev) =>
+      prev.some((opcion) => opcion.toLowerCase() === limpio.toLowerCase()) ? prev : [...prev, limpio]
+    );
     actualizarCampo('quien_da_alta', limpio);
+  };
+
+  const manejarCambioResponsableAlta = (valor) => {
+    if (valor === RESPONSABLES_ALTA_NUEVO_VALUE) {
+      pedirNuevoResponsableAlta();
+      return;
+    }
+
+    actualizarCampo('quien_da_alta', valor);
   };
 
   const cancelarFormulario = () => {
@@ -247,13 +289,9 @@ export default function Captacion() {
   const eliminarRegistro = async (registro) => {
     if (!window.confirm(`Eliminar el registro de ${nombreCompleto(registro) || 'captacion'}?`)) return;
 
-    if (!firebaseReady) {
-      setError('Firebase no esta configurado. Revisa las variables VITE_FIREBASE_*.');
-      return;
-    }
-
     try {
-      await deleteDoc(doc(db, 'captacion', club, 'registros', registro.id));
+      await api.delete(`/captacion/${registro.id}`);
+      setRegistros((prev) => prev.filter((item) => item.id !== registro.id));
       if (editandoId === registro.id) cancelarFormulario();
     } catch (err) {
       setError(`No se pudo eliminar el registro: ${err.message}`);
@@ -263,11 +301,6 @@ export default function Captacion() {
   const handleSubmit = async (event) => {
     event.preventDefault();
 
-    if (!firebaseReady) {
-      setError('Firebase no esta configurado. Revisa las variables VITE_FIREBASE_*.');
-      return;
-    }
-
     setGuardando(true);
     setError('');
     try {
@@ -276,13 +309,18 @@ export default function Captacion() {
           ...acc,
           [campo.key]: String(form[campo.key] || '').trim(),
         }),
-        { updated_at: serverTimestamp() }
+        {}
       );
 
+      let registroGuardado;
       if (editandoId) {
-        await setDoc(doc(db, 'captacion', club, 'registros', editandoId), payload, { merge: true });
+        const resultado = await api.put(`/captacion/${editandoId}`, payload);
+        registroGuardado = resultado.registro;
+        setRegistros((prev) => ordenarRegistros(prev.map((item) => (item.id === editandoId ? registroGuardado : item))));
       } else {
-        await addDoc(captacionRef(club), { ...payload, created_at: serverTimestamp() });
+        const resultado = await api.post('/captacion', payload);
+        registroGuardado = resultado.registro;
+        setRegistros((prev) => ordenarRegistros([registroGuardado, ...prev]));
       }
 
       cancelarFormulario();
@@ -337,11 +375,24 @@ export default function Captacion() {
                     rows={3}
                     className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
                   />
+                ) : campo.type === 'clubSelect' ? (
+                  <select
+                    value={form[campo.key]}
+                    onChange={(event) => actualizarCampo(campo.key, event.target.value)}
+                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
+                  >
+                    <option value="">Seleccionar</option>
+                    {opcionesClubes.map((opcion) => (
+                      <option key={opcion} value={opcion}>
+                        {opcion}
+                      </option>
+                    ))}
+                  </select>
                 ) : campo.type === 'selectWithAdd' ? (
                   <div className="flex flex-col sm:flex-row gap-2">
                     <select
                       value={form[campo.key]}
-                      onChange={(event) => actualizarCampo(campo.key, event.target.value)}
+                      onChange={(event) => manejarCambioResponsableAlta(event.target.value)}
                       className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
                     >
                       <option value="">Seleccionar</option>
@@ -350,14 +401,8 @@ export default function Captacion() {
                           {responsable}
                         </option>
                       ))}
+                      <option value={RESPONSABLES_ALTA_NUEVO_VALUE}>+ Añadir nuevo...</option>
                     </select>
-                    <button
-                      type="button"
-                      onClick={anadirResponsableAlta}
-                      className="w-full sm:w-auto whitespace-nowrap rounded-md border border-gray-300 px-3 py-2 text-sm font-semibold text-club-black hover:bg-gray-50"
-                    >
-                      Anadir otro
-                    </button>
                   </div>
                 ) : campo.type === 'select' ? (
                   <select
@@ -377,8 +422,11 @@ export default function Captacion() {
                     type={campo.type}
                     required={campo.required}
                     value={form[campo.key]}
-                    onChange={(event) => actualizarCampo(campo.key, event.target.value)}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
+                    readOnly={campo.key === 'id_jugador'}
+                    onChange={campo.key === 'id_jugador' ? undefined : (event) => actualizarCampo(campo.key, event.target.value)}
+                    className={`w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red ${
+                      campo.key === 'id_jugador' ? 'bg-gray-100 text-club-black/60 cursor-not-allowed' : ''
+                    }`}
                   />
                 )}
               </div>

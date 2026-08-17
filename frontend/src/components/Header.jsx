@@ -2,17 +2,20 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useFiltroEquipos } from '../context/FiltroEquiposContext';
-import { useClub, CLUBES } from '../context/ClubContext';
+import { useClub } from '../context/ClubContext';
+import { useLista } from '../lib/listas';
 import { usuarioLimitadoAUnEquipo } from '../lib/equiposAsignados';
 import ClubLogo from './ClubLogo';
 
-const NOMBRE_CLUB = {
-  ROMO: 'ROMO F.C.',
-  ARENAS: 'ARENAS CLUB',
-};
-
 function SelectorClub({ grande = false }) {
   const { club, setClub } = useClub();
+  const listaClubes = useLista('clubes');
+  const clubesSeleccionables = (listaClubes?.filas || [])
+    .map((fila) => ({
+      valor: String(fila.valor || fila.id?.replace(/^club-/, '').toUpperCase() || '').trim(),
+      label: String(fila.nombre || '').trim(),
+    }))
+    .filter((clubItem) => ['ROMO', 'ARENAS'].includes(clubItem.valor));
 
   return (
     <div
@@ -20,7 +23,7 @@ function SelectorClub({ grande = false }) {
         grande ? 'flex w-full' : 'inline-flex shrink-0'
       }`}
     >
-      {CLUBES.map((c) => (
+      {clubesSeleccionables.map((c) => (
         <button
           key={c.valor}
           type="button"
@@ -190,9 +193,14 @@ function BotonesHistorial() {
 export default function Header({ onToggleSidebar, menuAbierto, onToggleMenu }) {
   const { user, logout } = useAuth();
   const { club, setClub } = useClub();
+  const listaClubes = useLista('clubes');
   const puedeCambiarClub = user && (!user.club || user.club === 'TODOS');
   const mostrarFiltroEquipos = user && !usuarioLimitadoAUnEquipo(user);
   const headerBgClass = club === 'ARENAS' ? 'bg-club-red' : 'bg-club-black';
+  const nombreClub =
+    (listaClubes?.filas || []).find(
+      (fila) => String(fila.valor || fila.id?.replace(/^club-/, '').toUpperCase() || '').trim() === club
+    )?.nombre || (club === 'ARENAS' ? 'ARENAS CLUB' : 'ROMO F.C.');
 
   useEffect(() => {
     if (user && user.club && user.club !== 'TODOS') {
@@ -219,7 +227,7 @@ export default function Header({ onToggleSidebar, menuAbierto, onToggleMenu }) {
           <ClubLogo />
           <div className="leading-tight min-w-0">
             <h1 className={`text-base sm:text-xl font-bold tracking-wide truncate ${club === 'ARENAS' ? 'text-black' : 'text-white'}`}>
-              {NOMBRE_CLUB[club] || 'ROMO F.C. - ARENAS CLUB'}
+              {nombreClub}
             </h1>
           </div>
         </div>

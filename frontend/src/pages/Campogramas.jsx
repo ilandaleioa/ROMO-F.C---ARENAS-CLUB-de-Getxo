@@ -3,7 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useClub } from '../context/ClubContext';
 import { api } from '../lib/api';
-import { DEMARCACION_OPCIONES } from '../lib/campos';
+import { useListaValores } from '../lib/listas';
 import { parseEquiposAsignados, usuarioLimitadoAUnEquipo } from '../lib/equiposAsignados';
 
 const MAX_JUGADORES_POR_PUESTO = 3;
@@ -15,6 +15,7 @@ function nombreCompleto(j) {
 export default function Campogramas() {
   const { user } = useAuth();
   const { club } = useClub();
+  const demarcaciones = useListaValores('demarcacion');
   const navigate = useNavigate();
   const equiposAsignadosUsuario = useMemo(() => parseEquiposAsignados(user.equipo_asignado), [user.equipo_asignado]);
   const limitadoAUnEquipo = usuarioLimitadoAUnEquipo(user);
@@ -85,13 +86,22 @@ export default function Campogramas() {
     if (!equipo || !sistemaId) return;
     setError('');
     setAviso('');
-    try {
-      const params = new URLSearchParams({ equipo, sistema: sistemaId });
-      const [{ jugadores: listaJugadores }, { campograma }] = await Promise.all([
-        api.get(`/jugadores?equipo=${encodeURIComponent(equipo)}`),
-        api.get(`/campogramas?${params.toString()}`),
-      ]);
+    setJugadores([]);
+    setAsignaciones({});
+
+    const params = new URLSearchParams({ equipo, sistema: sistemaId });
+    const [jugadoresResult, campogramaResult] = await Promise.allSettled([
+      api.get(`/jugadores?equipo=${encodeURIComponent(equipo)}`),
+      api.get(`/campogramas?${params.toString()}`),
+    ]);
+
+    if (jugadoresResult.status === 'fulfilled') {
+      const { jugadores: listaJugadores } = jugadoresResult.value;
       setJugadores(listaJugadores);
+    }
+
+    if (campogramaResult.status === 'fulfilled') {
+      const { campograma } = campogramaResult.value;
       const asignacionesRecibidas = campograma?.asignaciones || {};
       const asignacionesValidas = {};
       for (const [posicionId, jugadorIdsPuesto] of Object.entries(asignacionesRecibidas)) {
@@ -100,8 +110,13 @@ export default function Campogramas() {
         }
       }
       setAsignaciones(asignacionesValidas);
-    } catch (err) {
-      setError(err.message);
+    }
+
+    const errores = [jugadoresResult, campogramaResult]
+      .filter((result) => result.status === 'rejected')
+      .map((result) => result.reason?.message || 'No se pudo cargar la informacion.');
+    if (errores.length > 0) {
+      setError(errores.join(' '));
     }
   }, [equipo, sistemaId]);
 
@@ -128,7 +143,7 @@ export default function Campogramas() {
       if (!grupos.has(clave)) grupos.set(clave, []);
       grupos.get(clave).push(j);
     });
-    const orden = [...DEMARCACION_OPCIONES, 'Sin demarcación'];
+    const orden = [...demarcaciones, 'Sin demarcación'];
     return [...grupos.entries()].sort((a, b) => {
       const ia = orden.indexOf(a[0]);
       const ib = orden.indexOf(b[0]);
@@ -137,7 +152,7 @@ export default function Campogramas() {
       if (ib === -1) return -1;
       return ia - ib;
     });
-  }, [jugadoresDisponibles]);
+  }, [jugadoresDisponibles, demarcaciones]);
 
   const asignarJugadores = (posicionId, jugadorIdsNuevos) => {
     setAsignaciones((prev) => {

@@ -5,7 +5,7 @@ import { useClub } from '../context/ClubContext';
 import { useFiltroEquipos } from '../context/FiltroEquiposContext';
 import { useVistaPlantillas } from '../context/VistaPlantillasContext';
 import { api } from '../lib/api';
-import { LATERALIDAD_OPCIONES, DEMARCACION_OPCIONES } from '../lib/campos';
+import { useListaValores } from '../lib/listas';
 import { equiposAsignadosLabel, parseEquiposAsignados, usuarioLimitadoAUnEquipo } from '../lib/equiposAsignados';
 
 const COLORES_MUNICIPIOS = [
@@ -59,12 +59,30 @@ function nombreCompleto(jugador) {
   return [jugador.nombre, jugador.primer_apellido, jugador.segundo_apellido].filter(Boolean).join(' ');
 }
 
+function crearJugadorVacio(equipo = '') {
+  return {
+    nombre: '',
+    primer_apellido: '',
+    segundo_apellido: '',
+    equipo,
+    fecha_nacimiento: '',
+    dorsal: '',
+    lateralidad: '',
+    demarcacion: '',
+  };
+}
+
 export default function Plantillas() {
   const { user } = useAuth();
   const { club } = useClub();
+  const lateralidades = useListaValores('lateralidad');
+  const demarcaciones = useListaValores('demarcacion');
   const equiposAsignadosUsuario = useMemo(() => parseEquiposAsignados(user.equipo_asignado), [user.equipo_asignado]);
   const limitadoAUnEquipo = usuarioLimitadoAUnEquipo(user);
-  const esAdministrador = user.rol === 'administrador';
+  const puedeSincronizar = user.rol === 'administrador' || user.rol === 'director';
+  const puedeAnadirJugadores = puedeSincronizar;
+  const puedeBorrarJugadores = user.rol === 'administrador' || user.rol === 'director';
+  const puedeEditarJugadores = ['administrador', 'director', 'responsable', 'tecnico'].includes(user.rol);
   const { equiposDisponibles, equiposSeleccionados, seleccionarEquipoUnico, limpiarSeleccion, recargarEquipos } =
     useFiltroEquipos();
 
@@ -77,6 +95,10 @@ export default function Plantillas() {
   const [error, setError] = useState('');
   const [refrescando, setRefrescando] = useState(false);
   const [sincronizando, setSincronizando] = useState(false);
+  const [jugadorBorrandoId, setJugadorBorrandoId] = useState(null);
+  const [mostrarFormularioJugador, setMostrarFormularioJugador] = useState(false);
+  const [formularioJugador, setFormularioJugador] = useState(() => crearJugadorVacio());
+  const [guardandoJugador, setGuardandoJugador] = useState(false);
   const [mensajeSync, setMensajeSync] = useState('');
   const [filtroEquiposAbierto, setFiltroEquiposAbierto] = useState(false);
   const [filtroDeportivoAbierto, setFiltroDeportivoAbierto] = useState(null);
@@ -150,13 +172,29 @@ export default function Plantillas() {
       const detallesOmisiones = Object.entries(motivos)
         .map(([motivo, total]) => `${total} por ${motivo}`)
         .join(', ');
+      const detalleHoja = resultado.sync_bidireccional
+        ? `, Google Sheets: ${resultado.hoja_actualizados || 0} fila(s) actualizada(s) y ${
+            resultado.hoja_insertados || 0
+          } fila(s) a\u00f1adida(s)` +
+          (resultado.hoja_eliminados ? `, ${resultado.hoja_eliminados} fila(s) eliminada(s)` : '')
+        : ', Google Sheets no se pudo actualizar';
       setMensajeSync(
         `Sincronización completada: ${resultado.insertados} jugador(es) nuevo(s) importado(s)` +
+          `, ${resultado.actualizados || 0} registro(s) actualizado(s)` +
+          (resultado.borrados ? `, ${resultado.borrados} jugador(es) eliminado(s) de la base de datos` : '') +
+          (resultado.supabase_ganadores
+            ? `, ${resultado.supabase_ganadores} cambio(s) de Supabase enviado(s) a la hoja`
+            : '') +
+          (resultado.conflictos ? `, ${resultado.conflictos} conflicto(s) resuelto(s) usando Google Sheets` : '') +
+          (resultado.no_encontrados ? `, ${resultado.no_encontrados} ID_SYNC sin jugador en la base de datos` : '') +
+          (resultado.duplicados ? `, ${resultado.duplicados} duplicado(s) ya existente(s) omitido(s)` : '') +
+          detalleHoja +
           (resultado.omitidos
             ? `, ${resultado.omitidos} fila(s) omitida(s) por datos incompletos${
                 detallesOmisiones ? ` (${detallesOmisiones})` : ''
               }.`
-            : '.')
+            : '.') +
+          (resultado.aviso ? ` ${resultado.aviso}` : '')
       );
       await recargarEquipos();
       await cargarJugadores();
@@ -164,6 +202,73 @@ export default function Plantillas() {
       setMensajeSync(err.message);
     } finally {
       setSincronizando(false);
+    }
+  };
+
+  const handleBorrarJugador = async (jugador) => {
+    if (jugadorBorrandoId) return;
+
+    const nombre = nombreCompleto(jugador);
+    const confirmado = window.confirm(`Borrar a ${nombre}? Esta accion no se puede deshacer.`);
+    if (!confirmado) return;
+
+    setError('');
+    setMensajeSync('');
+    setJugadorBorrandoId(jugador.id);
+    try {
+      await api.delete(`/jugadores/${jugador.id}`);
+      setJugadores((actuales) => actuales.filter((j) => j.id !== jugador.id));
+      setMensajeSync(`${nombre} borrado correctamente.`);
+      await recargarEquipos();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setJugadorBorrandoId(null);
+    }
+  };
+
+  const abrirFormularioJugador = () => {
+    setError('');
+    setMensajeSync('');
+    setFormularioJugador(crearJugadorVacio(equiposSeleccionados.length === 1 ? equiposSeleccionados[0] : ''));
+    setMostrarFormularioJugador(true);
+  };
+
+  const cerrarFormularioJugador = () => {
+    if (guardandoJugador) return;
+    setMostrarFormularioJugador(false);
+    setFormularioJugador(crearJugadorVacio());
+  };
+
+  const actualizarFormularioJugador = (campo, valor) => {
+    setFormularioJugador((actual) => ({ ...actual, [campo]: valor }));
+  };
+
+  const handleCrearJugador = async (event) => {
+    event.preventDefault();
+    setGuardandoJugador(true);
+    setError('');
+    setMensajeSync('');
+
+    try {
+      const resultado = await api.post('/jugadores', {
+        ...formularioJugador,
+        dorsal: formularioJugador.dorsal === '' ? null : Number(formularioJugador.dorsal),
+        lateralidad: formularioJugador.lateralidad || null,
+        demarcacion: formularioJugador.demarcacion || null,
+      });
+      setMostrarFormularioJugador(false);
+      setFormularioJugador(crearJugadorVacio());
+      setMensajeSync('Jugador creado correctamente.');
+      await recargarEquipos();
+      await cargarJugadores();
+      if (resultado?.jugador && equiposSeleccionados.length === 0) {
+        setJugadores((actuales) => (actuales.some((j) => j.id === resultado.jugador.id) ? actuales : [resultado.jugador, ...actuales]));
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setGuardandoJugador(false);
     }
   };
 
@@ -277,6 +382,187 @@ export default function Plantillas() {
     <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4" aria-hidden="true">
       <path d="M10 3.5c-4.14 0-7.4 2.6-9 6.5 1.6 3.9 4.86 6.5 9 6.5s7.4-2.6 9-6.5c-1.6-3.9-4.86-6.5-9-6.5zm0 10.83A4.33 4.33 0 1110 5.67a4.33 4.33 0 010 8.66zm0-6.83a2.5 2.5 0 100 5 2.5 2.5 0 000-5z" />
     </svg>
+  );
+
+  const renderIconoLapiz = () => (
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="w-4 h-4"
+      aria-hidden="true"
+    >
+      <path d="M4 13.5V16h2.5L15.8 6.7a1.8 1.8 0 0 0 0-2.5l-.1-.1a1.8 1.8 0 0 0-2.5 0L4 13.5Z" />
+      <path d="m12.8 4.4 2.8 2.8" />
+    </svg>
+  );
+
+  const renderIconoPapelera = () => (
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="w-4 h-4"
+      aria-hidden="true"
+    >
+      <path d="M3.5 5h13" />
+      <path d="M8 5V3.5h4V5" />
+      <path d="M6 5.5l.7 10.5h6.6L14 5.5" />
+      <path d="M8.5 8v5.5" />
+      <path d="M11.5 8v5.5" />
+    </svg>
+  );
+
+  const renderIconoMas = () => (
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      className="w-4 h-4"
+      aria-hidden="true"
+    >
+      <path d="M10 4v12" />
+      <path d="M4 10h12" />
+    </svg>
+  );
+
+  const renderFormularioJugador = () => {
+    if (!mostrarFormularioJugador) return null;
+
+    const camposTexto = [
+      ['nombre', 'Nombre', 'text', true],
+      ['primer_apellido', 'Primer apellido', 'text', true],
+      ['segundo_apellido', 'Segundo apellido', 'text', false],
+      ['equipo', 'Equipo', 'text', true],
+      ['fecha_nacimiento', 'Fecha de nacimiento', 'date', false],
+      ['dorsal', 'Dorsal', 'number', false],
+    ];
+
+    return (
+      <form onSubmit={handleCrearJugador} className="mb-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-bold text-club-black">Nuevo jugador</h3>
+          <p className="text-xs text-club-black/60">Completa los datos básicos del jugador.</p>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {camposTexto.map(([campo, etiqueta, tipo, requerido]) => (
+            <label key={campo} className="text-xs font-semibold text-club-black/70">
+              {etiqueta}
+              <input
+                type={tipo}
+                required={requerido}
+                min={campo === 'dorsal' ? 1 : undefined}
+                max={campo === 'dorsal' ? 99 : undefined}
+                value={formularioJugador[campo]}
+                onChange={(event) => actualizarFormularioJugador(campo, event.target.value)}
+                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-normal text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
+              />
+            </label>
+          ))}
+          <label className="text-xs font-semibold text-club-black/70">
+            Lateralidad
+            <select
+              value={formularioJugador.lateralidad}
+              onChange={(event) => actualizarFormularioJugador('lateralidad', event.target.value)}
+              className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
+            >
+              <option value="">Seleccionar</option>
+              {lateralidades.map((opcion) => <option key={opcion} value={opcion}>{opcion}</option>)}
+            </select>
+          </label>
+          <label className="text-xs font-semibold text-club-black/70">
+            Demarcacion
+            <select
+              value={formularioJugador.demarcacion}
+              onChange={(event) => actualizarFormularioJugador('demarcacion', event.target.value)}
+              className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
+            >
+              <option value="">Seleccionar</option>
+              {demarcaciones.map((opcion) => <option key={opcion} value={opcion}>{opcion}</option>)}
+            </select>
+          </label>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <button
+            type="submit"
+            disabled={guardandoJugador}
+            className="rounded-md bg-club-red px-4 py-2 text-sm font-semibold text-white hover:bg-club-redDark disabled:opacity-60"
+          >
+            {guardandoJugador ? 'Guardando...' : 'Crear jugador'}
+          </button>
+          <button
+            type="button"
+            onClick={cerrarFormularioJugador}
+            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold text-club-black hover:bg-gray-50"
+          >
+            Cancelar
+          </button>
+        </div>
+      </form>
+    );
+  };
+
+  const renderBotonVer = (jugador) => (
+    <Link
+      to={`/plantillas/${jugador.id}`}
+      className="inline-flex items-center justify-center h-8 w-8 shrink-0 rounded-md border border-club-red/20 bg-white text-club-red hover:bg-red-50 hover:text-club-redDark transition-colors"
+      aria-label={`Ver ficha de ${nombreCompleto(jugador)}`}
+      title={`Ver ficha de ${nombreCompleto(jugador)}`}
+    >
+      {renderIconoOjo()}
+    </Link>
+  );
+
+  const renderBotonEditar = (jugador) => {
+    if (!puedeEditarJugadores) return null;
+
+    return (
+      <Link
+        to={`/plantillas/${jugador.id}#datos-deportivos`}
+        className="inline-flex items-center justify-center h-8 w-8 shrink-0 rounded-md border border-club-red/20 bg-white text-club-red hover:bg-red-50 hover:text-club-redDark transition-colors"
+        aria-label={`Editar a ${nombreCompleto(jugador)}`}
+        title={`Editar a ${nombreCompleto(jugador)}`}
+      >
+        {renderIconoLapiz()}
+      </Link>
+    );
+  };
+
+  const renderBotonBorrar = (jugador) => {
+    if (!puedeBorrarJugadores) return null;
+
+    const nombre = nombreCompleto(jugador);
+    const borrando = jugadorBorrandoId === jugador.id;
+
+    return (
+      <button
+        type="button"
+        onClick={() => handleBorrarJugador(jugador)}
+        disabled={Boolean(jugadorBorrandoId)}
+        className="inline-flex items-center justify-center h-8 w-8 shrink-0 rounded-md border border-club-red/20 bg-white text-club-red hover:bg-red-50 hover:text-club-redDark disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
+        aria-label={`Borrar a ${nombre}`}
+        title={`Borrar a ${nombre}`}
+      >
+        {renderIconoPapelera()}
+        <span className="sr-only">{borrando ? 'Borrando...' : 'Borrar'}</span>
+      </button>
+    );
+  };
+
+  const renderAccionesJugador = (jugador) => (
+    <div className="inline-flex items-center justify-end gap-1.5">
+      {renderBotonVer(jugador)}
+      {renderBotonEditar(jugador)}
+      {renderBotonBorrar(jugador)}
+    </div>
   );
 
   const renderGraficas = (lista) => {
@@ -435,6 +721,22 @@ export default function Plantillas() {
             <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Edad</th>
             <th className="hidden lg:table-cell px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Lateralidad</th>
             <th className="hidden min-[380px]:table-cell px-2 py-2 sm:px-4 sm:py-3 text-left text-xs font-semibold uppercase tracking-wide">Demarcación</th>
+            <th className="px-2 py-2 sm:px-4 sm:py-3 text-right text-xs font-semibold uppercase tracking-wide">
+              <span className="inline-flex items-center justify-end gap-2">
+                <span>Acciones</span>
+                {puedeAnadirJugadores && (
+                  <button
+                    type="button"
+                    onClick={abrirFormularioJugador}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-club-red/20 bg-white text-club-red hover:bg-red-50 hover:text-club-redDark transition-colors"
+                    aria-label="Abrir formulario para añadir jugador"
+                    title="Añadir jugador"
+                  >
+                    {renderIconoMas()}
+                  </button>
+                )}
+              </span>
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
@@ -460,14 +762,6 @@ export default function Plantillas() {
               </td>
               <td className="px-2 py-2 sm:px-4 sm:py-3 font-medium text-club-black max-w-[120px] sm:max-w-none truncate">
                 <div className="flex items-center gap-1.5">
-                  <Link
-                    to={`/plantillas/${j.id}`}
-                    className="inline-flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 shrink-0 rounded-full text-club-red hover:bg-red-50 hover:text-club-redDark transition-colors"
-                    aria-label={`Ver ficha de ${nombreCompleto(j)}`}
-                    title={`Ver ficha de ${nombreCompleto(j)}`}
-                  >
-                    {renderIconoOjo()}
-                  </Link>
                   <span className="shrink-0 min-w-[1.5rem] text-center rounded-full bg-club-red/10 px-1.5 py-0.5 text-xs font-semibold text-club-red">
                     {j.dorsal ?? '-'}
                   </span>
@@ -481,6 +775,9 @@ export default function Plantillas() {
               <td className="hidden md:table-cell px-4 py-3 text-club-black/80">{calcularEdad(j.fecha_nacimiento) ?? '-'}</td>
               <td className="hidden lg:table-cell px-4 py-3 text-club-black/80">{j.lateralidad || '-'}</td>
               <td className="hidden min-[380px]:table-cell px-2 py-2 sm:px-4 sm:py-3 text-club-black/80 max-w-[110px] truncate">{j.demarcacion || '-'}</td>
+              <td className="px-2 py-2 sm:px-4 sm:py-3 text-right">
+                {renderAccionesJugador(j)}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -521,14 +818,9 @@ export default function Plantillas() {
           <p className="text-sm text-club-black/60">
             Demarcación: {j.demarcacion || '-'}
           </p>
-          <Link
-            to={`/plantillas/${j.id}`}
-            className="mt-2 inline-flex items-center justify-center w-8 h-8 rounded-full text-club-red hover:bg-red-50 hover:text-club-redDark transition-colors"
-            aria-label={`Ver ficha de ${nombreCompleto(j)}`}
-            title={`Ver ficha de ${nombreCompleto(j)}`}
-          >
-            {renderIconoOjo()}
-          </Link>
+          <div className="mt-2 flex items-center justify-end gap-1.5">
+            {renderAccionesJugador(j)}
+          </div>
         </div>
       ))}
     </div>
@@ -684,14 +976,14 @@ export default function Plantillas() {
       {renderFiltroMultiseleccion({
         id: 'lateralidad',
         etiquetaTodos: 'Todas las lateralidades',
-        opciones: LATERALIDAD_OPCIONES,
+        opciones: lateralidades,
         seleccionados: filtroLateralidad,
         setSeleccionados: setFiltroLateralidad,
       })}
       {renderFiltroMultiseleccion({
         id: 'demarcacion',
         etiquetaTodos: 'Todas las demarcaciones',
-        opciones: DEMARCACION_OPCIONES,
+        opciones: demarcaciones,
         seleccionados: filtroDemarcacion,
         setSeleccionados: setFiltroDemarcacion,
       })}
@@ -717,15 +1009,15 @@ export default function Plantillas() {
             <button
               onClick={handleActualizar}
               disabled={refrescando}
-              className="w-full sm:w-auto self-start sm:self-auto bg-club-red hover:bg-club-redDark disabled:opacity-60 text-white font-semibold px-4 py-2 rounded-md transition-colors"
+              className="inline-flex h-12 w-full sm:w-auto items-center justify-center self-start sm:self-auto whitespace-nowrap bg-club-red hover:bg-club-redDark disabled:opacity-60 text-white font-semibold px-4 py-2 rounded-md transition-colors"
             >
               {refrescando ? 'Actualizando...' : 'Actualizar datos'}
             </button>
-            {esAdministrador && (
+            {puedeSincronizar && (
               <button
                 onClick={handleSincronizar}
                 disabled={sincronizando}
-                className="w-full sm:w-auto self-start sm:self-auto bg-club-black hover:bg-black disabled:opacity-60 text-white font-semibold px-4 py-2 rounded-md transition-colors"
+                className="inline-flex h-12 w-full sm:w-auto items-center justify-center self-start sm:self-auto whitespace-nowrap bg-club-black hover:bg-black disabled:opacity-60 text-white font-semibold px-4 py-2 rounded-md transition-colors"
               >
                 {sincronizando ? 'Sincronizando...' : 'Sincronizar Google Sheets'}
               </button>
@@ -739,6 +1031,8 @@ export default function Plantillas() {
           {mensajeSync}
         </p>
       )}
+
+      {renderFormularioJugador()}
 
       {limitadoAUnEquipo ? (
         <div className="mb-6">

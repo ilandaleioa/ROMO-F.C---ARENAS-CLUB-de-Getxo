@@ -1,7 +1,8 @@
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useVistaPlantillas } from '../context/VistaPlantillasContext';
-import { useClub, CLUBES } from '../context/ClubContext';
+import { useClub } from '../context/ClubContext';
+import { useLista } from '../lib/listas';
 
 const linkClass = ({ isActive }) =>
   `block px-4 py-2.5 rounded-md text-sm font-semibold transition-colors ${
@@ -13,11 +14,11 @@ const NAV_ITEMS = [{ to: '/', label: 'Inicio', end: true }];
 const SECONDARY_NAV_ITEMS = [
   { to: '/campogramas', label: 'Campogramas' },
   { to: '/captacion', label: 'CAPTACION' },
-  { to: '/clubes', label: 'Club / Equipo / Categoria' },
 ];
 
 const FINAL_NAV_ITEMS = [
   { to: '/usuarios', label: 'Usuarios' },
+  { to: '/listas', label: 'Listas' },
   { to: '/hojas-calculo', label: 'Hojas de calculo' },
 ];
 
@@ -30,19 +31,28 @@ const VISTA_OPCIONES = [
 export default function Sidebar({ isOpen, onClose }) {
   const { user } = useAuth();
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const { vista, setVista } = useVistaPlantillas();
   const { club, setClub } = useClub();
+  const listaClubes = useLista('clubes');
+  const secondaryNavItems =
+    club === 'ARENAS' ? SECONDARY_NAV_ITEMS.filter((item) => item.to !== '/captacion') : SECONDARY_NAV_ITEMS;
+  const clubesSeleccionables = (listaClubes?.filas || [])
+    .map((fila) => ({
+      valor: String(fila.valor || fila.id?.replace(/^club-/, '').toUpperCase() || '').trim(),
+      label: String(fila.nombre || '').trim(),
+    }))
+    .filter((clubItem) => ['ROMO', 'ARENAS'].includes(clubItem.valor));
 
   if (!user) return null;
 
-  const enPlantillas = pathname === '/';
   const puedeCambiarClub = !user.club || user.club === 'TODOS';
 
   const nav = (
     <nav className="flex flex-col gap-1 p-3">
       {puedeCambiarClub && (
         <div className="md:hidden mb-2 inline-flex rounded-md border border-gray-200 overflow-hidden self-start">
-          {CLUBES.map((c) => (
+          {clubesSeleccionables.map((c) => (
             <button
               key={c.valor}
               type="button"
@@ -65,29 +75,28 @@ export default function Sidebar({ isOpen, onClose }) {
         </NavLink>
       ))}
 
-      {enPlantillas && (
-        <div className="mt-2 pl-2 hidden md:block">
-          {VISTA_OPCIONES.map((opcion) => (
-            <button
-              key={opcion.valor}
-              type="button"
-              onClick={() => {
-                setVista(opcion.valor);
-                onClose?.();
-              }}
-              className={`block w-full text-left px-4 py-2.5 rounded-md text-sm font-semibold transition-colors ${
-                vista === opcion.valor
-                  ? 'bg-club-red text-white'
-                  : 'text-club-black/80 hover:bg-club-red/10 hover:text-club-black'
-              }`}
-            >
-              {opcion.label}
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="mt-2">
+        {VISTA_OPCIONES.map((opcion) => (
+          <button
+            key={opcion.valor}
+            type="button"
+            onClick={() => {
+              setVista(opcion.valor);
+              navigate('/');
+              onClose?.();
+            }}
+            className={`block w-full text-left px-4 py-2.5 rounded-md text-sm font-semibold transition-colors ${
+              pathname === '/' && vista === opcion.valor
+                ? 'bg-club-red text-white'
+                : 'text-club-black/80 hover:bg-club-red/10 hover:text-club-black'
+            }`}
+          >
+            {opcion.label}
+          </button>
+        ))}
+      </div>
 
-      {SECONDARY_NAV_ITEMS.map((item) => (
+      {secondaryNavItems.map((item) => (
         <NavLink key={item.to} to={item.to} className={linkClass} onClick={onClose}>
           {item.label}
         </NavLink>

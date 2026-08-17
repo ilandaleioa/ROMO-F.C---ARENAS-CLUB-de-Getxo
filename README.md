@@ -1,6 +1,6 @@
 # ROMO FC - ARENAS Club de Getxo
 
-Web app interna para consultar las plantillas de jugadores del club, leyendo los datos desde Supabase (sincronizados automaticamente por un script externo desde un Google Form). Esta app **no** gestiona esa sincronizacion, solo lee y muestra los datos con control de acceso por roles.
+Web app interna para consultar las plantillas de jugadores del club, leyendo los datos desde Supabase y sincronizando con Google Sheets en ambos sentidos cuando la configuracion esta completa. La app mantiene los datos de la web y de la hoja alineados mediante el backend, con control de acceso por roles.
 
 ## Estructura del proyecto
 
@@ -119,5 +119,8 @@ Sube tu escudo real a `frontend/public/assets/escudo.png` o sustituye los archiv
 
 ## Notas
 
-- El boton "Actualizar datos" de la pantalla Plantillas simplemente vuelve a consultar Supabase; no dispara ninguna sincronizacion (esa la gestiona el script externo del Google Form).
+- El boton "Actualizar datos" de la pantalla Plantillas solo vuelve a consultar Supabase.
+- El boton "Sincronizar Google Sheets" de Plantillas y el boton "Sincronizar ahora" de Hojas de calculo lanzan la sincronizacion bidireccional entre Supabase y Google Sheets.
+- La sincronizacion calcula una huella de todos los campos de la fila, no solo del nombre y el equipo. Los cambios hechos en Google Sheets se aplican a Supabase y los cambios hechos en la web/Supabase se devuelven a la hoja.
+- Si se edita el mismo jugador en los dos sitios antes de pulsar el boton, Google Sheets es la fuente elegida para resolver el conflicto y despues se vuelve a escribir la fila final en ambos sitios.
 - Los roles validos en la base de datos son exactamente: `administrador`, `responsable`, `tecnico`.

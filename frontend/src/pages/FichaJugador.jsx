@@ -1,21 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { jsPDF } from 'jspdf';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
-import {
-  ETIQUETAS_JUGADOR,
-  SECCIONES_FICHA,
-  LATERALIDAD_OPCIONES,
-  DEMARCACION_OPCIONES,
-} from '../lib/campos';
+import { ETIQUETAS_JUGADOR, SECCIONES_FICHA } from '../lib/campos';
+import { useListaValores } from '../lib/listas';
 
 const ROLES_QUE_PUEDEN_SUBIR_FOTO = ['administrador', 'director', 'responsable', 'tecnico'];
 const ROLES_QUE_PUEDEN_EDITAR_DEPORTIVO = ['administrador', 'responsable', 'director'];
-const OPCIONES_POR_CAMPO = {
-  lateralidad: LATERALIDAD_OPCIONES,
-  demarcacion: DEMARCACION_OPCIONES,
-};
 
 function formatearValor(valor, campo) {
   if (valor === null || valor === undefined || valor === '') return '-';
@@ -69,7 +61,10 @@ function nombreCompleto(jugador) {
 
 export default function FichaJugador() {
   const { id } = useParams();
+  const location = useLocation();
   const { user } = useAuth();
+  const lateralidades = useListaValores('lateralidad');
+  const demarcaciones = useListaValores('demarcacion');
   const [jugador, setJugador] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -79,10 +74,15 @@ export default function FichaJugador() {
   const [guardandoDeportivo, setGuardandoDeportivo] = useState(false);
   const [errorDeportivo, setErrorDeportivo] = useState('');
   const [guardadoOkDeportivo, setGuardadoOkDeportivo] = useState(false);
+  const [syncHojaDeportivo, setSyncHojaDeportivo] = useState(null);
   const [generandoInforme, setGenerandoInforme] = useState(false);
 
   const puedeSubirFoto = user && ROLES_QUE_PUEDEN_SUBIR_FOTO.includes(user.rol);
   const puedeEditarDeportivo = user && ROLES_QUE_PUEDEN_EDITAR_DEPORTIVO.includes(user.rol);
+  const OPCIONES_POR_CAMPO = {
+    lateralidad: lateralidades,
+    demarcacion: demarcaciones,
+  };
 
   async function cargarImagenComoDataUrl(url) {
     try {
@@ -157,6 +157,14 @@ export default function FichaJugador() {
         doc.text(`Equipo: ${jugador.equipo}`, textoX, y);
       }
 
+      if (jugador.edicion) {
+        y += 8;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(12);
+        doc.setTextColor(...gris);
+        doc.text(`Edicion: ${jugador.edicion}`, textoX, y);
+      }
+
       y = Math.max(y, fotoDataUrl ? fotoY + fotoTamano : y);
 
       y += 14;
@@ -168,6 +176,7 @@ export default function FichaJugador() {
         ['Demarcación', formatearValor(jugador.demarcacion)],
         ['Lateralidad', formatearValor(jugador.lateralidad)],
         ['Dorsal', formatearValor(jugador.dorsal)],
+        ['Edicion', formatearValor(jugador.edicion)],
         ['Telefono', formatearValor(jugador.telefono_jugador)],
         ['Email', formatearValor(jugador.email_jugador)],
         ['Fecha de nacimiento', formatearValor(jugador.fecha_nacimiento, 'fecha_nacimiento')],
@@ -208,15 +217,20 @@ export default function FichaJugador() {
     setGuardandoDeportivo(true);
     setErrorDeportivo('');
     setGuardadoOkDeportivo(false);
+    setSyncHojaDeportivo(null);
     try {
-      const { jugador: actualizado } = await api.patch(`/jugadores/${id}/datos-deportivos`, {
+      const { jugador: actualizado, sheet_sync } = await api.patch(`/jugadores/${id}/datos-deportivos`, {
         dorsal: datosDeportivos.dorsal !== '' ? Number(datosDeportivos.dorsal) : null,
         lateralidad: datosDeportivos.lateralidad || null,
         demarcacion: datosDeportivos.demarcacion || null,
       });
       setJugador((prev) => (prev ? { ...prev, ...actualizado } : actualizado));
+      setSyncHojaDeportivo(sheet_sync || null);
       setGuardadoOkDeportivo(true);
-      setTimeout(() => setGuardadoOkDeportivo(false), 3000);
+      setTimeout(() => {
+        setGuardadoOkDeportivo(false);
+        setSyncHojaDeportivo(null);
+      }, 5000);
     } catch (err) {
       setErrorDeportivo(err.message);
     } finally {
@@ -270,6 +284,15 @@ export default function FichaJugador() {
       activo = false;
     };
   }, [id]);
+
+  useEffect(() => {
+    if (!jugador || location.hash !== '#datos-deportivos') return;
+
+    const elemento = document.getElementById('datos-deportivos');
+    if (elemento) {
+      elemento.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [jugador, location.hash]);
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
@@ -342,7 +365,7 @@ export default function FichaJugador() {
               const esDeportivo = seccion.titulo === 'Datos deportivos';
               const editable = esDeportivo && puedeEditarDeportivo;
               return (
-                <div key={seccion.titulo}>
+                <div key={seccion.titulo} id={esDeportivo ? 'datos-deportivos' : undefined}>
                   <h3 className="text-club-red font-bold text-sm uppercase tracking-wide mb-2">
                     {seccion.titulo}
                   </h3>
@@ -396,7 +419,14 @@ export default function FichaJugador() {
                         {guardandoDeportivo ? 'Guardando...' : 'Guardar'}
                       </button>
                       {guardadoOkDeportivo && (
-                        <p className="text-sm text-green-600 font-medium">Guardado</p>
+                        <p className="text-sm text-green-600 font-medium">
+                          {syncHojaDeportivo?.ok ? 'Guardado y hoja actualizada' : 'Guardado'}
+                        </p>
+                      )}
+                      {guardadoOkDeportivo && syncHojaDeportivo && !syncHojaDeportivo.ok && (
+                        <p className="text-sm text-amber-700">
+                          Guardado en la app. Hoja no actualizada: {syncHojaDeportivo.motivo}
+                        </p>
                       )}
                       {errorDeportivo && <p className="text-sm text-club-red">{errorDeportivo}</p>}
                     </div>
