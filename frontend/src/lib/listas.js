@@ -84,6 +84,25 @@ function normalizarFilaEquipo(fila, fallback = {}, indice = 0) {
   };
 }
 
+function normalizarIdsEliminados(valor) {
+  if (!Array.isArray(valor)) return [];
+
+  return Array.from(
+    new Set(
+      valor
+        .map((item) => limpiarTextoLocal(item))
+        .filter(Boolean)
+    )
+  );
+}
+
+function filtrarFilasEliminadas(filas = [], idsEliminados = []) {
+  if (!Array.isArray(filas) || idsEliminados.length === 0) return filas;
+
+  const eliminadas = new Set(idsEliminados);
+  return filas.filter((fila) => !eliminadas.has(fila.id));
+}
+
 function fusionarFilasClubes(filasBase, filasGuardadas) {
   const baseNormalizadas = (filasBase || []).map((fila, indice) => normalizarFilaClub(fila, {}, indice));
 
@@ -245,6 +264,7 @@ function clonarLista(lista) {
     ...lista,
     columnas: lista.columnas.map((columna) => ({ ...columna })),
     filas: lista.filas.map((fila) => clonarFila(fila)),
+    filasEliminadas: Array.isArray(lista.filasEliminadas) ? [...lista.filasEliminadas] : [],
   };
 }
 
@@ -320,39 +340,48 @@ function normalizarListas(listas) {
 
   for (const baseLista of LISTAS_INICIALES) {
     const guardada = listasPorId.get(baseLista.id);
+    const baseClonada = clonarLista(baseLista);
+    const idsEliminados = normalizarIdsEliminados(guardada?.filasEliminadas || guardada?.filas_eliminadas);
+    const filasBase =
+      baseLista.id === 'equipos'
+        ? crearEquiposIniciales(clubesNormalizados?.filas || crearClubesIniciales())
+        : baseClonada.filas;
+
     if (!guardada) {
-      const listaBase = clonarLista(baseLista);
+      const listaBase = {
+        ...baseClonada,
+        filas: filtrarFilasEliminadas(filasBase, idsEliminados),
+        filasEliminadas: idsEliminados,
+      };
       listasNormalizadas.push(listaBase);
-      if (listaBase.id === 'clubes') {
-        clubesNormalizados = listaBase;
-      }
+      if (listaBase.id === 'clubes') clubesNormalizados = listaBase;
       continue;
     }
 
     const filasGuardadas = Array.isArray(guardada.filas) ? guardada.filas : [];
-    const baseClonada = clonarLista(baseLista);
-    const filasBaseEquipos = baseLista.id === 'equipos'
-      ? crearEquiposIniciales(clubesNormalizados?.filas || crearClubesIniciales())
-      : baseClonada.filas;
-    return {
+    const filasNormalizadas =
+      baseLista.id === 'clubes'
+        ? filtrarFilasEliminadas(fusionarFilasClubes(baseClonada.filas, filasGuardadas), idsEliminados)
+        : baseLista.id === 'equipos'
+          ? filtrarFilasEliminadas(fusionarFilasEquipos(filasBase, filasGuardadas), idsEliminados)
+          : filtrarFilasEliminadas(
+              filasGuardadas.length > 0
+                ? filasGuardadas.map((fila, indice) => normalizarFila(baseLista, fila, indice))
+                : filasBase,
+              idsEliminados
+            );
+
+    const lista = {
       ...baseClonada,
       ...guardada,
       id: baseLista.id,
       titulo: baseLista.titulo,
       descripcion: baseLista.descripcion,
       columnas: baseClonada.columnas,
-      filas:
-        baseLista.id === 'clubes'
-          ? fusionarFilasClubes(baseClonada.filas, filasGuardadas)
-          : baseLista.id === 'equipos'
-            ? fusionarFilasEquipos(filasBaseEquipos, filasGuardadas)
-          : filasGuardadas.length > 0
-            ? filasGuardadas.map((fila, indice) => normalizarFila(baseLista, fila, indice))
-            : baseClonada.filas,
+      filas: filasNormalizadas,
+      filasEliminadas: idsEliminados,
     };
-    if (lista.id === 'clubes') {
-      clubesNormalizados = lista;
-    }
+    if (lista.id === 'clubes') clubesNormalizados = lista;
     listasNormalizadas.push(lista);
   }
 
@@ -411,6 +440,14 @@ export function actualizarFilaLista(listaId, filaId, cambios) {
   actualizarLista(listaId, (lista) => ({
     ...lista,
     filas: lista.filas.map((fila) => (fila.id === filaId ? { ...fila, ...cambios } : fila)),
+  }));
+}
+
+export function eliminarFilaLista(listaId, filaId) {
+  actualizarLista(listaId, (lista) => ({
+    ...lista,
+    filas: lista.filas.filter((fila) => fila.id !== filaId),
+    filasEliminadas: normalizarIdsEliminados([...(lista.filasEliminadas || []), filaId]),
   }));
 }
 

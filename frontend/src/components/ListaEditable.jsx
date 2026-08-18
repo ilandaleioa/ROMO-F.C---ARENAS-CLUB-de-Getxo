@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { actualizarFilaLista, crearFilaLista } from '../lib/listas';
+import { actualizarFilaLista, actualizarLista, crearFilaLista, eliminarFilaLista, useListas } from '../lib/listas';
 import { EQUIPOS_POR_CLUB } from '../data/equipos';
 
 function generarId() {
@@ -120,6 +120,7 @@ function agruparEquiposPorClub(filas, clubesDisponibles) {
 
 export default function ListaEditable({ lista, clubesDisponibles = [] }) {
   const { user } = useAuth();
+  const listas = useListas();
   const esAdministrador = user?.rol === 'administrador';
   const columnasVisibles = (esAdministrador ? lista.columnas : lista.columnas.filter((columna) => columna.key !== 'id')).filter(
     (columna) => !(lista.id === 'clubes' && columna.key === 'escudo')
@@ -128,7 +129,9 @@ export default function ListaEditable({ lista, clubesDisponibles = [] }) {
   const [formulario, setFormulario] = useState(() => formularioInicial(lista, null, { clubPorDefecto }));
   const [formAbierto, setFormAbierto] = useState(false);
   const [editandoId, setEditandoId] = useState(null);
+  const [filaOriginal, setFilaOriginal] = useState(null);
   const [error, setError] = useState('');
+  const listaEquipos = useMemo(() => listas.find((item) => item.id === 'equipos') || null, [listas]);
 
   const filasOrdenadas = useMemo(() => {
     if (lista.id !== 'equipos') return lista.filas;
@@ -166,6 +169,7 @@ export default function ListaEditable({ lista, clubesDisponibles = [] }) {
   const limpiarFormulario = () => {
     setFormulario(formularioInicial(lista, null, { clubPorDefecto }));
     setEditandoId(null);
+    setFilaOriginal(null);
     setFormAbierto(false);
     setError('');
   };
@@ -173,6 +177,7 @@ export default function ListaEditable({ lista, clubesDisponibles = [] }) {
   const abrirCrear = () => {
     setFormulario(formularioInicial(lista, null, { clubPorDefecto }));
     setEditandoId(null);
+    setFilaOriginal(null);
     setFormAbierto(true);
     setError('');
   };
@@ -180,6 +185,7 @@ export default function ListaEditable({ lista, clubesDisponibles = [] }) {
   const abrirEdicion = (fila) => {
     setFormulario(formularioInicial(lista, fila, { clubPorDefecto }));
     setEditandoId(fila.id);
+    setFilaOriginal(fila);
     setFormAbierto(true);
     setError('');
   };
@@ -207,6 +213,35 @@ export default function ListaEditable({ lista, clubesDisponibles = [] }) {
     lector.readAsDataURL(archivo);
   };
 
+  const eliminar = (fila) => {
+    const nombreFila = textoLimpio(fila?.nombre || fila?.valor || fila?.club || fila?.id);
+    const relacionadoCount =
+      lista.id === 'clubes'
+        ? (listaEquipos?.filas || []).filter(
+            (equipo) => normalizarComparacion(equipo?.club) === normalizarComparacion(nombreFila)
+          ).length
+        : 0;
+
+    const mensaje =
+      lista.id === 'clubes'
+        ? `¿Quieres borrar el club "${nombreFila || 'sin nombre'}"?${relacionadoCount > 0 ? ` También se borrarán ${relacionadoCount} equipo${relacionadoCount === 1 ? '' : 's'} asociados.` : ''}`
+        : `¿Quieres borrar el equipo "${nombreFila || 'sin nombre'}"?`;
+
+    if (!window.confirm(mensaje)) return;
+
+    if (lista.id === 'clubes') {
+      (listaEquipos?.filas || [])
+        .filter((equipo) => normalizarComparacion(equipo?.club) === normalizarComparacion(nombreFila))
+        .forEach((equipo) => eliminarFilaLista('equipos', equipo.id));
+    }
+
+    eliminarFilaLista(lista.id, fila.id);
+
+    if (editandoId === fila.id) {
+      limpiarFormulario();
+    }
+  };
+
   const guardar = (evento) => {
     evento.preventDefault();
 
@@ -229,6 +264,21 @@ export default function ListaEditable({ lista, clubesDisponibles = [] }) {
 
     if (editandoId) {
       actualizarFilaLista(lista.id, editandoId, fila);
+      if (lista.id === 'clubes') {
+        const clubAnterior = textoLimpio(filaOriginal?.nombre || filaOriginal?.valor);
+        const clubNuevo = textoLimpio(fila.nombre || fila.valor);
+
+        if (clubAnterior && clubNuevo && normalizarComparacion(clubAnterior) !== normalizarComparacion(clubNuevo)) {
+          actualizarLista('equipos', (listaEquiposActual) => ({
+            ...listaEquiposActual,
+            filas: listaEquiposActual.filas.map((equipo) =>
+              normalizarComparacion(equipo?.club) === normalizarComparacion(clubAnterior)
+                ? { ...equipo, club: clubNuevo }
+                : equipo
+            ),
+          }));
+        }
+      }
     } else {
       crearFilaLista(lista.id, fila);
     }
@@ -457,13 +507,24 @@ export default function ListaEditable({ lista, clubesDisponibles = [] }) {
                   </td>
                 ))}
                 <td className="px-4 py-3 text-right">
-                  <button
-                    type="button"
-                    onClick={() => abrirEdicion(fila)}
-                    className="rounded-md border border-club-red/20 px-3 py-1.5 text-xs font-semibold text-club-red transition-colors hover:bg-red-50"
-                  >
-                    Editar
-                  </button>
+                  <div className="inline-flex flex-wrap justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => abrirEdicion(fila)}
+                      className="rounded-md border border-club-red/20 px-3 py-1.5 text-xs font-semibold text-club-red transition-colors hover:bg-red-50"
+                    >
+                      Editar
+                    </button>
+                    {(lista.id === 'clubes' || lista.id === 'equipos') && (
+                      <button
+                        type="button"
+                        onClick={() => eliminar(fila)}
+                        className="rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 transition-colors hover:bg-red-100"
+                      >
+                        Borrar
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
