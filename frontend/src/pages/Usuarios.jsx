@@ -44,6 +44,7 @@ export default function Usuarios() {
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [selectorEquiposAbierto, setSelectorEquiposAbierto] = useState(false);
   const [selectorApartadosAbierto, setSelectorApartadosAbierto] = useState(false);
+  const [apartadosVisiblesDisponibles, setApartadosVisiblesDisponibles] = useState(true);
   const selectorEquiposRef = useRef(null);
   const selectorApartadosRef = useRef(null);
 
@@ -93,6 +94,7 @@ export default function Usuarios() {
 
   const empezarEdicion = (usuario) => {
     setEditandoId(usuario.id);
+    setApartadosVisiblesDisponibles(Object.prototype.hasOwnProperty.call(usuario, 'apartados_visibles'));
     setForm({
       username: usuario.username,
       password: '',
@@ -108,6 +110,7 @@ export default function Usuarios() {
 
   const cancelarEdicion = () => {
     setEditandoId(null);
+    setApartadosVisiblesDisponibles(true);
     setForm(FORM_VACIO);
     setFormError('');
     setMostrarFormulario(false);
@@ -158,6 +161,11 @@ export default function Usuarios() {
         club: form.club,
         activo: form.activo,
       };
+      // Las instalaciones antiguas pueden no tener esta columna. En ese caso
+      // permitimos editar el resto del usuario sin provocar un 503 en el PUT.
+      if (!editandoId || apartadosVisiblesDisponibles) {
+        payload.apartados_visibles = form.apartados_visibles;
+      }
       if (form.password) payload.password = form.password;
 
       if (editandoId) {
@@ -311,6 +319,11 @@ export default function Usuarios() {
 
           <div className="relative" ref={selectorApartadosRef}>
             <label className="block text-sm font-semibold text-club-black mb-1">Apartados visibles</label>
+            {editandoId && !apartadosVisiblesDisponibles && (
+              <p className="mb-1 text-xs text-amber-700">
+                Falta la columna de apartados en la base de datos. Ejecuta la migracion para guardar estas selecciones.
+              </p>
+            )}
             <button
               type="button"
               aria-expanded={selectorApartadosAbierto}

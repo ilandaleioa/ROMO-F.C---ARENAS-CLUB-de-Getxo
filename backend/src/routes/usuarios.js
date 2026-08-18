@@ -23,12 +23,20 @@ const PUBLIC_USER_OPTIONAL_FIELDS = ['club', 'apartados_visibles', 'activo', 'cr
 
 function normalizarUsuario(usuario) {
   if (!usuario) return usuario;
-  return {
+  const normalizado = {
     ...usuario,
     equipo_asignado: usuario.equipo_asignado || null,
     club: usuario.club || null,
-    apartados_visibles: usuario.apartados_visibles || null,
   };
+
+  // No inventamos esta propiedad cuando la base de datos es antigua y aun no
+  // tiene la columna. El frontend usa su ausencia para no intentar guardar un
+  // campo que el esquema no puede persistir.
+  if (Object.prototype.hasOwnProperty.call(usuario, 'apartados_visibles')) {
+    normalizado.apartados_visibles = usuario.apartados_visibles || null;
+  }
+
+  return normalizado;
 }
 
 async function consultarUsuariosPublicos() {
@@ -47,9 +55,16 @@ async function insertarUsuarioConFallback(payload) {
 }
 
 async function actualizarUsuarioConFallback(id, payload) {
-  return ejecutarConFallback(PUBLIC_USER_OPTIONAL_FIELDS, (omitidas) => {
+  // Solo pedimos en la respuesta las columnas opcionales que forman parte de
+  // esta mutacion. Asi una edicion compatible con esquemas antiguos no falla
+  // por una columna opcional que ni siquiera se esta modificando.
+  const camposOpcionalesDeLaMutacion = PUBLIC_USER_OPTIONAL_FIELDS.filter((campo) =>
+    Object.prototype.hasOwnProperty.call(payload, campo),
+  );
+
+  return ejecutarConFallback(camposOpcionalesDeLaMutacion, (omitidas) => {
     const payloadAjustado = omitirCampos(payload, PUBLIC_USER_OPTIONAL_FIELDS, omitidas);
-    const select = construirSelect(PUBLIC_USER_FIELDS_BASE, PUBLIC_USER_OPTIONAL_FIELDS, omitidas);
+    const select = construirSelect(PUBLIC_USER_FIELDS_BASE, camposOpcionalesDeLaMutacion, omitidas);
     return supabaseAdmin.from('usuarios').update(payloadAjustado).eq('id', id).select(select).maybeSingle();
   });
 }
@@ -186,6 +201,13 @@ router.put('/:id', async (req, res) => {
     const { data, error: dbError } = await actualizarUsuarioConFallback(req.params.id, update);
 
     if (dbError) {
+      console.error('[usuarios/PUT] Error de base de datos:', {
+        id: req.params.id,
+        code: dbError.code,
+        message: dbError.message,
+        details: dbError.details,
+        hint: dbError.hint,
+      });
       if (dbError.code === '23505') {
         return res.status(409).json({ error: 'Ese nombre de usuario ya existe.' });
       }

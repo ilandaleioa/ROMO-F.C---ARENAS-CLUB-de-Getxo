@@ -7,14 +7,37 @@ create table if not exists public.captacion_informes (
   fecha date not null default current_date,
   observador text not null,
   jugador_id uuid not null,
+  etapa text not null default '',
+  categoria text not null default '',
+  local text not null default '',
+  visitante text not null default '',
+  partido text not null default '',
+  dorsal text not null default '',
+  lateralidad text not null default '',
+  titularidad text not null default '',
+  minutos_jugados text not null default '',
+  goles text not null default '',
+  goles_encajados text not null default '',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint captacion_informes_jugador_fk
     foreign key (jugador_id)
-    references public."Captación_ Base de datos" (id)
+    references public."CaptaciÃ³n_ Base de datos" (id)
     on update cascade
     on delete restrict
 );
+
+alter table public.captacion_informes add column if not exists etapa text not null default '';
+alter table public.captacion_informes add column if not exists categoria text not null default '';
+alter table public.captacion_informes add column if not exists local text not null default '';
+alter table public.captacion_informes add column if not exists visitante text not null default '';
+alter table public.captacion_informes add column if not exists partido text not null default '';
+alter table public.captacion_informes add column if not exists dorsal text not null default '';
+alter table public.captacion_informes add column if not exists lateralidad text not null default '';
+alter table public.captacion_informes add column if not exists titularidad text not null default '';
+alter table public.captacion_informes add column if not exists minutos_jugados text not null default '';
+alter table public.captacion_informes add column if not exists goles text not null default '';
+alter table public.captacion_informes add column if not exists goles_encajados text not null default '';
 
 create index if not exists captacion_informes_fecha_idx
   on public.captacion_informes (fecha desc);

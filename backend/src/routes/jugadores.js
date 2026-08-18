@@ -6,6 +6,7 @@ const requireRole = require('../middleware/requireRole');
 const resolveClub = require('../middleware/resolveClub');
 const { ROLES } = require('../config/roles');
 const { columnsForRole, sanitizeRow, FULL_COLUMNS } = require('../config/jugadoresColumns');
+const { LATERALIDAD_VALUES, DEMARCACION_VALUES } = require('../config/datosDeportivos');
 const sheetsSync = require('../config/googleSheetsSync');
 const { parseEquiposAsignados, filtrarEquiposPermitidos, puedeVerEquipo } = require('../lib/equiposAsignados');
 
@@ -448,18 +449,33 @@ router.patch(
       }
     }
     if (lateralidad !== undefined) {
-      updates.lateralidad = lateralidad === null ? null : String(lateralidad).trim() || null;
+      const lateralidadNormalizada = lateralidad === null ? null : String(lateralidad).trim() || null;
+      if (lateralidadNormalizada !== null && !LATERALIDAD_VALUES.includes(lateralidadNormalizada)) {
+        return res
+          .status(400)
+          .json({ error: `Lateralidad no valida. Valores permitidos: ${LATERALIDAD_VALUES.join(', ')}.` });
+      }
+      updates.lateralidad = lateralidadNormalizada;
     }
     if (demarcacion !== undefined) {
-      updates.demarcacion = demarcacion === null ? null : String(demarcacion).trim() || null;
+      const demarcacionNormalizada = demarcacion === null ? null : String(demarcacion).trim() || null;
+      if (demarcacionNormalizada !== null && !DEMARCACION_VALUES.includes(demarcacionNormalizada)) {
+        return res
+          .status(400)
+          .json({ error: `Demarcacion no valida. Valores permitidos: ${DEMARCACION_VALUES.join(', ')}.` });
+      }
+      updates.demarcacion = demarcacionNormalizada;
     }
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ error: 'No hay datos para actualizar.' });
     }
 
-    const { rol } = req.user;
-
     try {
+      if (!req.user) {
+        return res.status(401).json({ error: 'No hay sesion activa. Inicia sesion de nuevo.' });
+      }
+
+      const { rol } = req.user;
       const { data: jugadorActual, error: errorJugadorActual } = await supabaseAdmin
         .from('jugadores')
         .select('equipo')
@@ -477,6 +493,26 @@ router.patch(
         return res.status(403).json({ error: 'No tienes permiso para editar este jugador.' });
       }
 
+      if (updates.dorsal !== undefined && updates.dorsal !== null) {
+        const { data: dorsalDuplicado, error: errorDorsalDuplicado } = await supabaseAdmin
+          .from('jugadores')
+          .select('id')
+          .eq('club', req.club)
+          .eq('equipo', jugadorActual.equipo)
+          .eq('dorsal', updates.dorsal)
+          .neq('id', req.params.id)
+          .maybeSingle();
+
+        if (errorDorsalDuplicado) {
+          return res.status(503).json({ error: 'No se pudo comprobar el dorsal del jugador.' });
+        }
+        if (dorsalDuplicado) {
+          return res.status(409).json({
+            error: 'Ya existe otro jugador de ese equipo con ese dorsal. Elige otro numero.',
+          });
+        }
+      }
+
       const { data, error } = await supabaseAdmin
         .from('jugadores')
         .update(updates)
@@ -486,7 +522,19 @@ router.patch(
         .maybeSingle();
 
       if (error) {
-        console.error('Error de Supabase actualizando datos deportivos:', error.message);
+        console.error('Error de Supabase actualizando datos deportivos:', {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+        });
+
+        if (error.code === '23505') {
+          return res.status(409).json({
+            error: 'No se pudo guardar porque ese dorsal ya esta asignado en el equipo.',
+          });
+        }
+
         return res.status(503).json({ error: 'No se pudo actualizar el jugador.' });
       }
       if (!data) {
@@ -507,7 +555,7 @@ router.patch(
 
       res.json({ jugador: await conFotoUrl(sanitizeRow(data, rol)), sheet_sync: sheetSync });
     } catch (err) {
-      console.error('Excepcion actualizando datos deportivos:', err.message);
+      console.error('Excepcion actualizando datos deportivos:', err);
       res.status(503).json({ error: 'No se pudo actualizar el jugador.' });
     }
   }

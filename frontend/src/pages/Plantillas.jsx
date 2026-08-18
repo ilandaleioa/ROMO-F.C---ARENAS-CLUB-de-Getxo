@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useClub } from '../context/ClubContext';
 import { useFiltroEquipos } from '../context/FiltroEquiposContext';
@@ -59,6 +59,17 @@ function nombreCompleto(jugador) {
   return [jugador.nombre, jugador.primer_apellido, jugador.segundo_apellido].filter(Boolean).join(' ');
 }
 
+function opcionesPresentes(lista, obtenerValor) {
+  const presentes = new Set();
+
+  lista.forEach((item) => {
+    const valor = String(obtenerValor(item) || '').trim();
+    if (valor) presentes.add(valor);
+  });
+
+  return Array.from(presentes);
+}
+
 function crearJugadorVacio(equipo = '') {
   return {
     nombre: '',
@@ -73,6 +84,7 @@ function crearJugadorVacio(equipo = '') {
 }
 
 export default function Plantillas() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { club } = useClub();
   const lateralidades = useListaValores('lateralidad');
@@ -327,6 +339,21 @@ export default function Plantillas() {
     return Array.from(anios).sort((a, b) => b - a);
   }, [jugadores]);
 
+  const equiposDisponiblesTabla = useMemo(() => {
+    const equiposPresentes = new Set(opcionesPresentes(jugadores, (j) => j.equipo));
+    return equiposDisponibles.filter((equipo) => equiposPresentes.has(equipo));
+  }, [equiposDisponibles, jugadores]);
+
+  const lateralidadesDisponibles = useMemo(() => {
+    const lateralidadesPresentes = new Set(opcionesPresentes(jugadores, (j) => j.lateralidad));
+    return lateralidades.filter((opcion) => lateralidadesPresentes.has(opcion));
+  }, [jugadores, lateralidades]);
+
+  const demarcacionesDisponibles = useMemo(() => {
+    const demarcacionesPresentes = new Set(opcionesPresentes(jugadores, (j) => j.demarcacion));
+    return demarcaciones.filter((opcion) => demarcacionesPresentes.has(opcion));
+  }, [demarcaciones, jugadores]);
+
   const contarPor = (lista, obtenerClave) =>
     lista.reduce((acc, j) => {
       const clave = obtenerClave(j);
@@ -513,6 +540,7 @@ export default function Plantillas() {
   const renderBotonVer = (jugador) => (
     <Link
       to={`/plantillas/${jugador.id}`}
+      onClick={(event) => event.stopPropagation()}
       className="inline-flex items-center justify-center h-8 w-8 shrink-0 rounded-md border border-club-red/20 bg-white text-club-red hover:bg-red-50 hover:text-club-redDark transition-colors"
       aria-label={`Ver ficha de ${nombreCompleto(jugador)}`}
       title={`Ver ficha de ${nombreCompleto(jugador)}`}
@@ -545,7 +573,10 @@ export default function Plantillas() {
     return (
       <button
         type="button"
-        onClick={() => handleBorrarJugador(jugador)}
+        onClick={(event) => {
+          event.stopPropagation();
+          handleBorrarJugador(jugador);
+        }}
         disabled={Boolean(jugadorBorrandoId)}
         className="inline-flex items-center justify-center h-8 w-8 shrink-0 rounded-md border border-club-red/20 bg-white text-club-red hover:bg-red-50 hover:text-club-redDark disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
         aria-label={`Borrar a ${nombre}`}
@@ -558,12 +589,16 @@ export default function Plantillas() {
   };
 
   const renderAccionesJugador = (jugador) => (
-    <div className="inline-flex items-center justify-end gap-1.5">
+    <div className="inline-flex items-center justify-start gap-1.5">
       {renderBotonVer(jugador)}
       {renderBotonEditar(jugador)}
       {renderBotonBorrar(jugador)}
     </div>
   );
+
+  const abrirFichaJugador = (jugador) => {
+    navigate(`/plantillas/${jugador.id}`);
+  };
 
   const renderGraficas = (lista) => {
     const porEquipo = contarPor(lista, (j) => j.equipo);
@@ -738,7 +773,21 @@ export default function Plantillas() {
         </thead>
         <tbody className="divide-y divide-gray-100">
           {lista.map((j, index) => (
-            <tr key={j.id} className="hover:bg-red-50/40 transition-colors">
+            <tr
+              key={j.id}
+              className="cursor-pointer hover:bg-red-50/40 transition-colors"
+              onClick={() => abrirFichaJugador(j)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  abrirFichaJugador(j);
+                }
+              }}
+              role="link"
+              tabIndex={0}
+              aria-label={`Abrir ficha de ${nombreCompleto(j)}`}
+              title={`Abrir ficha de ${nombreCompleto(j)}`}
+            >
               <td className="px-2 py-2 sm:px-4 sm:py-3">
                 <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-full bg-gray-200 flex items-center justify-center text-[10px] sm:text-xs font-semibold text-club-black/60">
                   {index + 1}
@@ -771,8 +820,10 @@ export default function Plantillas() {
               <td className="hidden md:table-cell px-4 py-3 text-club-black/80">{anioNacimiento(j.fecha_nacimiento) ?? '-'}</td>
               <td className="hidden md:table-cell px-4 py-3 text-club-black/80">{calcularEdad(j.fecha_nacimiento) ?? '-'}</td>
               <td className="hidden min-[380px]:table-cell px-2 py-2 sm:px-4 sm:py-3 text-club-black/80 max-w-[110px] truncate">{j.demarcacion || '-'}</td>
-              <td className="px-2 py-2 sm:px-4 sm:py-3 text-right">
-                {renderAccionesJugador(j)}
+              <td className="px-2 py-2 sm:px-4 sm:py-3 text-left">
+                <div onClick={(event) => event.stopPropagation()}>
+                  {renderAccionesJugador(j)}
+                </div>
               </td>
             </tr>
           ))}
@@ -861,7 +912,7 @@ export default function Plantillas() {
             >
               Todos los equipos
             </button>
-            {equiposDisponibles.map((eq) => (
+            {equiposDisponiblesTabla.map((eq) => (
               <label
                 key={eq}
                 className="flex items-center gap-2 px-4 py-2.5 text-sm border-b border-gray-100 last:border-b-0 text-club-black/80 hover:bg-red-50/60 cursor-pointer"
@@ -972,14 +1023,14 @@ export default function Plantillas() {
       {renderFiltroMultiseleccion({
         id: 'lateralidad',
         etiquetaTodos: 'Todas las lateralidades',
-        opciones: lateralidades,
+        opciones: lateralidadesDisponibles,
         seleccionados: filtroLateralidad,
         setSeleccionados: setFiltroLateralidad,
       })}
       {renderFiltroMultiseleccion({
         id: 'demarcacion',
         etiquetaTodos: 'Todas las demarcaciones',
-        opciones: demarcaciones,
+        opciones: demarcacionesDisponibles,
         seleccionados: filtroDemarcacion,
         setSeleccionados: setFiltroDemarcacion,
       })}

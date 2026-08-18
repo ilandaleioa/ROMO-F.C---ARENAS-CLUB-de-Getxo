@@ -7,8 +7,9 @@ const resolveClub = require('../middleware/resolveClub');
 const { ROLES } = require('../config/roles');
 const { CARGOS_PERSONAL } = require('../config/personal');
 const { parseEquiposAsignados, filtrarEquiposPermitidos } = require('../lib/equiposAsignados');
-const { construirSelect, ejecutarConFallback, esColumnaInexistente } = require('../lib/usuarioColumns');
+const { construirSelect, esColumnaInexistente } = require('../lib/usuarioColumns');
 const {
+  obtenerEquiposPersonalPorClub,
   parseEquiposPersonal,
   serializarEquiposPersonal,
   equipoPersonalCoincide,
@@ -21,7 +22,16 @@ router.use(resolveClub);
 
 const FOTO_BUCKET = 'personal-fotos';
 const FOTO_URL_TTL_SEGUNDOS = 600;
-const PERSONAL_SELECT_BASE_FIELDS = ['id', 'nombre', 'primer_apellido', 'segundo_apellido', 'cargo', 'equipo'];
+const PERSONAL_SELECT_BASE_FIELDS = [
+  'id',
+  'nombre',
+  'primer_apellido',
+  'segundo_apellido',
+  'telefono',
+  'email',
+  'cargo',
+  'equipo',
+];
 const PERSONAL_SELECT_OPTIONAL_FIELDS = ['foto_path'];
 const EXT_POR_MIME = {
   'image/jpeg': 'jpg',
@@ -101,14 +111,43 @@ function normalizarTexto(valor) {
   return String(valor || '').trim();
 }
 
+function normalizarTextoError(error) {
+  return [error?.message, error?.details, error?.hint].filter(Boolean).join(' ').toLowerCase();
+}
+
+function extraerColumnaInexistente(error) {
+  const texto = normalizarTextoError(error);
+  const patrones = [
+    /column\s+"([^"]+)"\s+of\s+relation\s+"[^"]+"\s+does\s+not\s+exist/i,
+    /column\s+'([^']+)'\s+of\s+relation\s+'[^']+'\s+does\s+not\s+exist/i,
+    /column\s+"([^"]+)"\s+does\s+not\s+exist/i,
+    /column\s+'([^']+)'\s+does\s+not\s+exist/i,
+    /column\s+([a-z0-9_]+)\s+does\s+not\s+exist/i,
+    /could not find the\s+'([^']+)'\s+column/i,
+    /could not find the\s+"([^"]+)"\s+column/i,
+  ];
+
+  for (const patron of patrones) {
+    const match = texto.match(patron);
+    if (match?.[1]) {
+      return match[1].trim().toLowerCase();
+    }
+  }
+
+  return null;
+}
+
 function esColumnaOTablaInexistente(error) {
-  const texto = [error?.message, error?.details, error?.hint].filter(Boolean).join(' ');
-  // PostgREST devuelve PGRST205 cuando la tabla todavía no existe en el
+  const texto = normalizarTextoError(error);
+  const columnaInexistente = extraerColumnaInexistente(error);
+  // PostgREST devuelve PGRST205 cuando la tabla todavia no existe en el
   // esquema publicado, aunque PostgreSQL no llegue a devolver 42P01.
   return (
     error?.code === '42P01' ||
     error?.code === '42703' ||
     esColumnaInexistente(error, 'foto_path') ||
+    columnaInexistente === 'club' ||
+    columnaInexistente === 'foto_path' ||
     error?.code === 'PGRST205' ||
     /could not find the table|does not exist|no existe/i.test(texto)
   );
@@ -119,17 +158,61 @@ function construirSelectPersonal(omitidas) {
 }
 
 async function ejecutarConsultaPersonalConFallback(ejecutar) {
-  return ejecutarConFallback(PERSONAL_SELECT_OPTIONAL_FIELDS, ejecutar);
+  const omitidas = new Set();
+  let incluirClub = true;
+
+  while (true) {
+    const respuesta = await ejecutar(omitidas, incluirClub);
+    if (!respuesta?.error) {
+      return respuesta;
+    }
+
+    const faltante = PERSONAL_SELECT_OPTIONAL_FIELDS.find(
+      (campo) => !omitidas.has(campo) && esColumnaInexistente(respuesta.error, campo)
+    );
+    if (faltante) {
+      omitidas.add(faltante);
+      continue;
+    }
+
+    if (incluirClub && esColumnaInexistente(respuesta.error, 'club')) {
+      incluirClub = false;
+      continue;
+    }
+
+    return respuesta;
+  }
+}
+
+async function ejecutarMutacionPersonalConFallback(ejecutar) {
+  let incluirClub = true;
+
+  while (true) {
+    const respuesta = await ejecutar(incluirClub);
+    if (!respuesta?.error) {
+      return respuesta;
+    }
+
+    if (incluirClub && extraerColumnaInexistente(respuesta.error) === 'club') {
+      incluirClub = false;
+      continue;
+    }
+
+    return respuesta;
+  }
+}
+
+function aplicarFiltroClub(query, incluirClub, club) {
+  return incluirClub ? query.eq('club', club) : query;
 }
 
 function validarPayload(body) {
   const nombre = normalizarTexto(body?.nombre);
   const primerApellido = normalizarTexto(body?.primer_apellido);
   const cargo = normalizarTexto(body?.cargo);
-  const equipos = parseEquiposPersonal(body?.equipo);
 
-  if (!nombre || !primerApellido || !cargo || equipos.length === 0) {
-    return 'Nombre, primer apellido, cargo y al menos un equipo son obligatorios.';
+  if (!nombre || !primerApellido || !cargo) {
+    return 'Nombre, primer apellido y cargo son obligatorios.';
   }
   if (!CARGOS_PERSONAL.includes(cargo)) {
     return 'El cargo no es valido.';
@@ -138,15 +221,22 @@ function validarPayload(body) {
   return null;
 }
 
-function prepararRegistro(body, club) {
-  return {
-    club,
+function prepararRegistro(body, club, { incluirClub = true } = {}) {
+  const registro = {
     nombre: normalizarTexto(body?.nombre),
     primer_apellido: normalizarTexto(body?.primer_apellido),
     segundo_apellido: normalizarTexto(body?.segundo_apellido) || null,
+    telefono: normalizarTexto(body?.telefono) || null,
+    email: normalizarTexto(body?.email) || null,
     cargo: normalizarTexto(body?.cargo),
     equipo: serializarEquiposPersonal(body?.equipo),
   };
+
+  if (incluirClub) {
+    registro.club = club;
+  }
+
+  return registro;
 }
 
 function puedeGestionar(req) {
@@ -165,15 +255,15 @@ router.get('/', async (req, res) => {
 
     const equiposFiltro = equiposDesdeQuery(req.query.equipo);
 
-    const { data, error } = await ejecutarConsultaPersonalConFallback((omitidas) => {
+    const { data, error } = await ejecutarConsultaPersonalConFallback((omitidas, incluirClub) => {
       let query = supabaseAdmin
         .from('personal')
-        .select(construirSelectPersonal(omitidas))
-        .eq('club', req.club);
+        .select(construirSelectPersonal(omitidas));
+      query = aplicarFiltroClub(query, incluirClub, req.club);
 
       if (search) {
         query = query.or(
-          `nombre.ilike.%${search}%,primer_apellido.ilike.%${search}%,segundo_apellido.ilike.%${search}%,cargo.ilike.%${search}%,equipo.ilike.%${search}%`
+          `nombre.ilike.%${search}%,primer_apellido.ilike.%${search}%,segundo_apellido.ilike.%${search}%,telefono.ilike.%${search}%,email.ilike.%${search}%,cargo.ilike.%${search}%,equipo.ilike.%${search}%`
         );
       }
 
@@ -214,18 +304,9 @@ router.get('/equipos', async (req, res) => {
       return res.status(409).json({ error: 'Tu usuario no tiene un equipo asignado. Contacta con el administrador.' });
     }
 
-    const { data, error } = await supabaseAdmin.from('personal').select('equipo').eq('club', req.club);
-    if (error) {
-      if (esColumnaOTablaInexistente(error)) {
-        return res.status(503).json({
-          error: 'La tabla personal no tiene el esquema esperado. Ejecuta backend/scripts/crear-tabla-personal.sql en Supabase.',
-        });
-      }
-      return res.status(503).json({ error: 'No se pudo consultar la base de datos de personal.' });
-    }
-
+    const equiposBase = obtenerEquiposPersonalPorClub(req.club);
     const equipos = filtrarEquiposPermitidos(
-      (data || []).flatMap((row) => parseEquiposPersonal(row.equipo)),
+      equiposBase,
       req.user
     ).sort((a, b) =>
       String(a).localeCompare(String(b), 'es', { sensitivity: 'base' })
@@ -243,12 +324,14 @@ router.post('/', requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR), async (req, r
     const error = validarPayload(req.body);
     if (error) return res.status(400).json({ error });
 
-    const { data, error: dbError } = await ejecutarConsultaPersonalConFallback((omitidas) =>
-      supabaseAdmin
-        .from('personal')
-        .insert(prepararRegistro(req.body, req.club))
-        .select(construirSelectPersonal(omitidas))
-        .single()
+    const { data, error: dbError } = await ejecutarMutacionPersonalConFallback((incluirClub) =>
+      ejecutarConsultaPersonalConFallback((omitidas) =>
+        supabaseAdmin
+          .from('personal')
+          .insert(prepararRegistro(req.body, req.club, { incluirClub }))
+          .select(construirSelectPersonal(omitidas))
+          .single()
+      )
     );
 
     if (dbError) {
@@ -273,14 +356,15 @@ router.put('/:id', requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR), async (req,
     const error = validarPayload(req.body);
     if (error) return res.status(400).json({ error });
 
-    const { data, error: dbError } = await ejecutarConsultaPersonalConFallback((omitidas) =>
-      supabaseAdmin
-        .from('personal')
-        .update(prepararRegistro(req.body, req.club))
-        .eq('id', req.params.id)
-        .eq('club', req.club)
-        .select(construirSelectPersonal(omitidas))
-        .maybeSingle()
+    const { data, error: dbError } = await ejecutarMutacionPersonalConFallback((incluirClub) =>
+      ejecutarConsultaPersonalConFallback((omitidas) => {
+        let query = supabaseAdmin
+          .from('personal')
+          .update(prepararRegistro(req.body, req.club, { incluirClub }))
+          .eq('id', req.params.id);
+        query = aplicarFiltroClub(query, incluirClub, req.club);
+        return query.select(construirSelectPersonal(omitidas)).maybeSingle();
+      })
     );
 
     if (dbError) {
@@ -317,20 +401,24 @@ router.post(
 
       let registro = null;
       let fetchError = null;
-      const consultaConFoto = await supabaseAdmin
-        .from('personal')
-        .select('id, foto_path, equipo')
-        .eq('id', req.params.id)
-        .eq('club', req.club)
-        .maybeSingle();
+      const consultaConFoto = await ejecutarConsultaPersonalConFallback((_, incluirClub) => {
+        let query = supabaseAdmin
+          .from('personal')
+          .select('id, foto_path, equipo')
+          .eq('id', req.params.id);
+        query = aplicarFiltroClub(query, incluirClub, req.club);
+        return query.maybeSingle();
+      });
 
       if (consultaConFoto.error && esColumnaOTablaInexistente(consultaConFoto.error)) {
-        const consultaSinFoto = await supabaseAdmin
-          .from('personal')
-          .select('id, equipo')
-          .eq('id', req.params.id)
-          .eq('club', req.club)
-          .maybeSingle();
+        const consultaSinFoto = await ejecutarConsultaPersonalConFallback((_, incluirClub) => {
+          let query = supabaseAdmin
+            .from('personal')
+            .select('id, equipo')
+            .eq('id', req.params.id);
+          query = aplicarFiltroClub(query, incluirClub, req.club);
+          return query.maybeSingle();
+        });
 
         fetchError = consultaSinFoto.error;
         registro = consultaSinFoto.data ? { ...consultaSinFoto.data, foto_path: null } : null;
@@ -362,11 +450,14 @@ router.post(
         return res.status(503).json({ error: 'No se pudo subir la foto.' });
       }
 
-      const { error: updateError } = await supabaseAdmin
-        .from('personal')
-        .update({ foto_path: nuevoPath })
-        .eq('id', registro.id)
-        .eq('club', req.club);
+      const { error: updateError } = await ejecutarConsultaPersonalConFallback((_, incluirClub) => {
+        let query = supabaseAdmin
+          .from('personal')
+          .update({ foto_path: nuevoPath })
+          .eq('id', registro.id);
+        query = aplicarFiltroClub(query, incluirClub, req.club);
+        return query.select('id').maybeSingle();
+      });
 
       if (updateError) {
         if (esColumnaOTablaInexistente(updateError)) {
@@ -396,20 +487,24 @@ router.delete('/:id', requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR), async (r
     const equiposUsuario = parseEquiposAsignados(req.user?.equipo_asignado);
     let registro = null;
     let fetchError = null;
-    const consultaConFoto = await supabaseAdmin
-      .from('personal')
-      .select('id, foto_path, equipo')
-      .eq('id', req.params.id)
-      .eq('club', req.club)
-      .maybeSingle();
+    const consultaConFoto = await ejecutarConsultaPersonalConFallback((_, incluirClub) => {
+      let query = supabaseAdmin
+        .from('personal')
+        .select('id, foto_path, equipo')
+        .eq('id', req.params.id);
+      query = aplicarFiltroClub(query, incluirClub, req.club);
+      return query.maybeSingle();
+    });
 
     if (consultaConFoto.error && esColumnaOTablaInexistente(consultaConFoto.error)) {
-      const consultaSinFoto = await supabaseAdmin
-        .from('personal')
-        .select('id, equipo')
-        .eq('id', req.params.id)
-        .eq('club', req.club)
-        .maybeSingle();
+      const consultaSinFoto = await ejecutarConsultaPersonalConFallback((_, incluirClub) => {
+        let query = supabaseAdmin
+          .from('personal')
+          .select('id, equipo')
+          .eq('id', req.params.id);
+        query = aplicarFiltroClub(query, incluirClub, req.club);
+        return query.maybeSingle();
+      });
 
       fetchError = consultaSinFoto.error;
       registro = consultaSinFoto.data ? { ...consultaSinFoto.data, foto_path: null } : null;
@@ -434,11 +529,14 @@ router.delete('/:id', requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR), async (r
       return res.status(403).json({ error: 'No tienes permiso para borrar este personal.' });
     }
 
-    const { error: deleteError, count } = await supabaseAdmin
-      .from('personal')
-      .delete({ count: 'exact' })
-      .eq('club', req.club)
-      .eq('id', req.params.id);
+    const { error: deleteError, count } = await ejecutarConsultaPersonalConFallback((_, incluirClub) => {
+      let query = supabaseAdmin
+        .from('personal')
+        .delete({ count: 'exact' })
+        .eq('id', req.params.id);
+      query = aplicarFiltroClub(query, incluirClub, req.club);
+      return query;
+    });
 
     if (deleteError) {
       if (esColumnaOTablaInexistente(deleteError)) {

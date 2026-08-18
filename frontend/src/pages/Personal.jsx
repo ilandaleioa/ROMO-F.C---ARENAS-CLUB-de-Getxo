@@ -3,7 +3,12 @@ import { useAuth } from '../context/AuthContext';
 import { useClub } from '../context/ClubContext';
 import { api } from '../lib/api';
 import { CARGOS_PERSONAL } from '../lib/personal';
-import { equiposPersonalLabel, parseEquiposPersonal } from '../lib/personalEquipos';
+import {
+  equiposPersonalLabel,
+  parseEquiposPersonal,
+  TODOS_EQUIPOS,
+  NINGUNO_EQUIPOS,
+} from '../lib/personalEquipos';
 
 function nombreCompleto(personal) {
   return [personal.nombre, personal.primer_apellido, personal.segundo_apellido].filter(Boolean).join(' ');
@@ -14,6 +19,8 @@ function crearPersonalVacio() {
     nombre: '',
     primer_apellido: '',
     segundo_apellido: '',
+    telefono: '',
+    email: '',
     cargo: CARGOS_PERSONAL[0],
     equipos: [],
   };
@@ -45,7 +52,7 @@ export default function Personal() {
 
   const cargarEquipos = useCallback(async () => {
     try {
-      const { equipos: lista } = await api.get('/jugadores/equipos');
+      const { equipos: lista } = await api.get('/personal/equipos');
       setEquipos(lista || []);
     } catch (err) {
       setEquipos([]);
@@ -111,6 +118,8 @@ export default function Personal() {
     () => [...new Set(equipos)].sort((a, b) => String(a).localeCompare(String(b), 'es', { sensitivity: 'base' })),
     [equipos]
   );
+  const todosLosEquiposSeleccionados =
+    equiposOrdenados.length > 0 && equiposOrdenados.every((equipo) => form.equipos.includes(equipo));
 
   const resetForm = () => {
     setForm(crearPersonalVacio());
@@ -125,6 +134,8 @@ export default function Personal() {
       nombre: item.nombre || '',
       primer_apellido: item.primer_apellido || '',
       segundo_apellido: item.segundo_apellido || '',
+      telefono: item.telefono || '',
+      email: item.email || '',
       cargo: CARGOS_PERSONAL.includes(item.cargo) ? item.cargo : CARGOS_PERSONAL[0],
       equipos: parseEquiposPersonal(item.equipo),
     });
@@ -154,13 +165,11 @@ export default function Personal() {
         nombre: form.nombre.trim(),
         primer_apellido: form.primer_apellido.trim(),
         segundo_apellido: form.segundo_apellido.trim(),
+        telefono: form.telefono.trim(),
+        email: form.email.trim(),
         cargo: form.cargo.trim(),
         equipo: form.equipos,
       };
-
-      if (form.equipos.length === 0) {
-        throw new Error('Selecciona al menos un equipo.');
-      }
 
       const respuesta = editandoId
         ? await api.put(`/personal/${editandoId}`, payload)
@@ -209,7 +218,7 @@ export default function Personal() {
         <div>
           <h2 className="text-2xl font-bold text-club-black">PERSONAL</h2>
           <p className="text-sm text-club-black/60 mt-1">
-            Gestiona nombre, apellidos, foto, cargo y equipos del personal del club.
+            Gestiona nombre, apellidos, contacto, foto, cargo y equipos del personal del club.
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
@@ -217,7 +226,7 @@ export default function Personal() {
             type="text"
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar por nombre, cargo o equipo..."
+            placeholder="Buscar por nombre, contacto, cargo o equipo..."
             className="w-full sm:w-72 rounded-md border border-gray-300 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
           />
           <select
@@ -309,6 +318,30 @@ export default function Personal() {
               </div>
               <div>
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-club-black/60">
+                  Teléfono
+                </label>
+                <input
+                  type="tel"
+                  value={form.telefono}
+                  onChange={(e) => setForm((prev) => ({ ...prev, telefono: e.target.value }))}
+                  placeholder="Ej. 600 000 000"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-club-black/60">
+                  Correo electrónico
+                </label>
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
+                  placeholder="Ej. nombre@club.com"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-club-black/60">
                   Cargo
                 </label>
                 <select
@@ -357,27 +390,57 @@ export default function Personal() {
                       {equiposOrdenados.length === 0 ? (
                         <p className="px-3 py-3 text-sm text-club-black/60">No hay equipos disponibles.</p>
                       ) : (
-                        equiposOrdenados.map((equipo) => (
-                          <label
-                            key={equipo}
-                            className="flex items-center gap-2 px-3 py-2 text-sm border-b border-gray-100 last:border-b-0 text-club-black/80 hover:bg-red-50/60 cursor-pointer"
-                          >
+                        <>
+                          <label className="flex items-center gap-2 px-3 py-2 text-sm font-semibold border-b border-gray-100 hover:bg-red-50/60 cursor-pointer">
                             <input
                               type="checkbox"
-                              checked={form.equipos.includes(equipo)}
+                              checked={todosLosEquiposSeleccionados}
                               onChange={() =>
                                 setForm((prev) => ({
                                   ...prev,
-                                  equipos: prev.equipos.includes(equipo)
-                                    ? prev.equipos.filter((item) => item !== equipo)
-                                    : [...prev.equipos, equipo],
+                                  equipos: todosLosEquiposSeleccionados ? [] : [...equiposOrdenados],
                                 }))
                               }
                               className="h-4 w-4 accent-club-red"
                             />
-                            <span className="truncate">{equipo}</span>
+                            <span className="truncate">{TODOS_EQUIPOS}</span>
                           </label>
-                        ))
+                          <label className="flex items-center gap-2 px-3 py-2 text-sm font-semibold border-b border-gray-100 hover:bg-red-50/60 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={form.equipos.length === 0}
+                              onChange={() =>
+                                setForm((prev) => ({
+                                  ...prev,
+                                  equipos: [],
+                                }))
+                              }
+                              className="h-4 w-4 accent-club-red"
+                            />
+                            <span className="truncate">{NINGUNO_EQUIPOS}</span>
+                          </label>
+                          {equiposOrdenados.map((equipo) => (
+                            <label
+                              key={equipo}
+                              className="flex items-center gap-2 px-3 py-2 text-sm border-b border-gray-100 last:border-b-0 text-club-black/80 hover:bg-red-50/60 cursor-pointer"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={form.equipos.includes(equipo)}
+                                onChange={() =>
+                                  setForm((prev) => ({
+                                    ...prev,
+                                    equipos: prev.equipos.includes(equipo)
+                                      ? prev.equipos.filter((item) => item !== equipo)
+                                      : [...prev.equipos, equipo],
+                                  }))
+                                }
+                                className="h-4 w-4 accent-club-red"
+                              />
+                              <span className="truncate">{equipo}</span>
+                            </label>
+                          ))}
+                        </>
                       )}
                     </div>
                   )}
@@ -443,6 +506,7 @@ export default function Personal() {
                   <tr className="text-left text-xs uppercase tracking-wide text-club-black/50">
                     <th className="px-3 py-2">Foto</th>
                     <th className="px-3 py-2">Nombre</th>
+                    <th className="px-3 py-2">Contacto</th>
                     <th className="px-3 py-2">Cargo</th>
                     <th className="px-3 py-2">Equipo</th>
                     {puedeGestionar && <th className="px-3 py-2 text-right">Acciones</th>}
@@ -469,6 +533,19 @@ export default function Personal() {
                         {item.segundo_apellido ? (
                           <div className="text-xs text-club-black/50">ID {item.id}</div>
                         ) : null}
+                      </td>
+                      <td className="px-3 py-3 text-sm text-club-black/80">
+                        {item.telefono ? (
+                          <a href={`tel:${item.telefono}`} className="block hover:text-club-red hover:underline">
+                            {item.telefono}
+                          </a>
+                        ) : null}
+                        {item.email ? (
+                          <a href={`mailto:${item.email}`} className="block hover:text-club-red hover:underline">
+                            {item.email}
+                          </a>
+                        ) : null}
+                        {!item.telefono && !item.email ? <span className="text-club-black/40">—</span> : null}
                       </td>
                       <td className="px-3 py-3 text-club-black/80">{item.cargo}</td>
                       <td className="px-3 py-3 text-club-black/80">{equiposPersonalLabel(item.equipo)}</td>

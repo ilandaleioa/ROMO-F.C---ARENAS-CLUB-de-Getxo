@@ -10,12 +10,34 @@ const TABLA_INFORMES = 'captacion_informes';
 
 const CAMPOS = [
   'id_jugador', 'fecha_alta', 'quien_da_alta', 'club', 'equipo', 'etapa', 'categoria', 'grupo', 'enlace',
-  'nombre', 'primer_apellido', 'segundo_apellido', 'dorsal', 'tipologia', 'altura', 'lateralidad',
-  'foto_jugador', 'fecha_nacimiento', 'anio_nacimiento', 'edad', 'demarcacion', 'otra_demarcacion',
+  'nombre', 'primer_apellido', 'segundo_apellido', 'dorsal', 'altura', 'lateralidad',
+  'foto_jugador', 'fecha_nacimiento', 'anio_nacimiento', 'edad', 'demarcacion', 'otra_demarcacion', 'demarcacion_concreta',
   'valoracion_general', 'descripcion_jugador', 'observaciones',
 ];
 
+const CAMPOS_INFORMES = [
+  'fecha',
+  'observador',
+  'jugador_id',
+  'etapa',
+  'categoria',
+  'local',
+  'visitante',
+  'partido',
+  'dorsal',
+  'tipologia',
+  'lateralidad',
+  'titularidad',
+  'minutos_jugados',
+  'goles',
+  'goles_encajados',
+];
+
 router.use(requireAuth);
+
+function normalizarTextoError(error) {
+  return [error?.message, error?.details, error?.hint].filter(Boolean).join(' ').toLowerCase();
+}
 
 function limpiarPayload(body) {
   return CAMPOS.reduce((payload, campo) => {
@@ -52,8 +74,70 @@ function idJugadorValido(valor) {
 }
 
 function esTablaInexistente(error) {
-  const texto = [error?.message, error?.details, error?.hint].filter(Boolean).join(' ');
-  return error?.code === '42P01' || error?.code === 'PGRST205' || /does not exist|not find|no existe/i.test(texto);
+  const texto = normalizarTextoError(error);
+  return (
+    error?.code === '42P01' ||
+    error?.code === 'PGRST205' ||
+    /could not find the table/i.test(texto) ||
+    /\btable\b.*\bdoes not exist\b/i.test(texto) ||
+    /\brelation\b.*\bdoes not exist\b/i.test(texto)
+  );
+}
+
+function esColumnaInexistente(error, columna) {
+  const columnaNormalizada = String(columna || '').trim().toLowerCase();
+
+  if (!columnaNormalizada) return false;
+
+  return extraerColumnaInexistente(error) === columnaNormalizada;
+}
+
+function extraerColumnaInexistente(error) {
+  const texto = normalizarTextoError(error);
+  const patrones = [
+    /column\s+"([^"]+)"\s+of\s+relation\s+"[^"]+"\s+does\s+not\s+exist/i,
+    /column\s+'([^']+)'\s+of\s+relation\s+'[^']+'\s+does\s+not\s+exist/i,
+    /column\s+"([^"]+)"\s+does\s+not\s+exist/i,
+    /column\s+'([^']+)'\s+does\s+not\s+exist/i,
+    /column\s+([a-z0-9_]+)\s+does\s+not\s+exist/i,
+    /could not find the\s+'([^']+)'\s+column/i,
+    /could not find the\s+"([^"]+)"\s+column/i,
+  ];
+
+  for (const patron of patrones) {
+    const match = texto.match(patron);
+    if (match?.[1]) {
+      return match[1].trim().toLowerCase();
+    }
+  }
+
+  return null;
+}
+
+function omitirCampos(payload, omitidas) {
+  const resultado = { ...payload };
+  for (const campo of omitidas) {
+    delete resultado[campo];
+  }
+  return resultado;
+}
+
+async function ejecutarConFallbackCampos(ejecutar, camposValidos = CAMPOS) {
+  const omitidas = new Set();
+
+  while (true) {
+    const respuesta = await ejecutar(omitidas);
+    if (!respuesta?.error) {
+      return respuesta;
+    }
+
+    const faltante = extraerColumnaInexistente(respuesta.error);
+    if (!faltante || omitidas.has(faltante) || !camposValidos.includes(faltante)) {
+      return respuesta;
+    }
+
+    omitidas.add(faltante);
+  }
 }
 
 function responderError(res, error, accion) {
@@ -63,6 +147,11 @@ function responderError(res, error, accion) {
   if (esTablaInexistente(error)) {
     return res.status(503).json({
       error: `No existe la tabla "${TABLA_CAPTACION}" en Supabase. Ejecuta backend/scripts/crear-tabla-captacion.sql en el editor SQL.`,
+    });
+  }
+  if (extraerColumnaInexistente(error)) {
+    return res.status(503).json({
+      error: 'La tabla de captacion no tiene el esquema esperado. Ejecuta backend/scripts/crear-tabla-captacion.sql en Supabase.',
     });
   }
   return res.status(503).json({ error: `No se pudo ${accion} el registro de captacion.` });
@@ -77,15 +166,19 @@ function responderErrorInformes(res, error, accion) {
       error: `No existe la tabla "${TABLA_INFORMES}" en Supabase. Ejecuta backend/scripts/crear-tabla-captacion-informes.sql en el editor SQL.`,
     });
   }
+  if (extraerColumnaInexistente(error)) {
+    return res.status(503).json({
+      error: 'La tabla de informes de captacion no tiene el esquema esperado. Ejecuta backend/scripts/crear-tabla-captacion-informes.sql en Supabase.',
+    });
+  }
   return res.status(503).json({ error: `No se pudo ${accion} el informe de captacion.` });
 }
 
 function limpiarInformePayload(body) {
-  return {
-    fecha: String(body?.fecha || '').trim(),
-    observador: String(body?.observador || '').trim(),
-    jugador_id: String(body?.jugador_id || '').trim(),
-  };
+  return CAMPOS_INFORMES.reduce((payload, campo) => {
+    payload[campo] = String(body?.[campo] || '').trim();
+    return payload;
+  }, {});
 }
 
 function validarInformePayload(payload) {
@@ -97,12 +190,33 @@ function validarInformePayload(payload) {
   return null;
 }
 
+function calcularPartidoInforme(payload) {
+  const local = String(payload?.local || '').trim();
+  const visitante = String(payload?.visitante || '').trim();
+  if (local && visitante) return `${local} - ${visitante}`;
+  return local || visitante || '';
+}
+
+function completarInformeConJugador(payload, jugador) {
+  const completado = { ...payload };
+  const camposDesdeJugador = ['etapa', 'categoria', 'dorsal', 'tipologia', 'lateralidad'];
+
+  for (const campo of camposDesdeJugador) {
+    if (!String(completado[campo] || '').trim()) {
+      completado[campo] = String(jugador?.[campo] || '').trim();
+    }
+  }
+
+  completado.partido = calcularPartidoInforme(completado);
+  return completado;
+}
+
 async function enriquecerInformes(informes) {
   const ids = Array.from(new Set((informes || []).map((informe) => informe.jugador_id).filter(Boolean)));
   if (!ids.length) return informes || [];
   const { data: jugadores, error } = await supabaseAdmin
     .from(TABLA_CAPTACION)
-    .select('id, nombre, primer_apellido, segundo_apellido, club, equipo, etapa, categoria')
+    .select('id, nombre, primer_apellido, segundo_apellido, club, equipo, etapa, categoria, dorsal, lateralidad')
     .in('id', ids);
   if (error) throw error;
   const jugadoresPorId = new Map((jugadores || []).map((jugador) => [jugador.id, jugador]));
@@ -112,7 +226,7 @@ async function enriquecerInformes(informes) {
 async function obtenerJugadorParaInforme(jugadorId) {
   const { data, error } = await supabaseAdmin
     .from(TABLA_CAPTACION)
-    .select('id, nombre, primer_apellido, segundo_apellido, club, equipo, etapa, categoria')
+    .select('id, nombre, primer_apellido, segundo_apellido, club, equipo, etapa, categoria, dorsal, lateralidad')
     .eq('id', jugadorId)
     .maybeSingle();
   if (error) throw error;
@@ -183,7 +297,14 @@ router.post('/', async (req, res) => {
     payload.id_jugador = rol === ROLES.ADMINISTRADOR && idJugadorValido(payload.id_jugador)
       ? payload.id_jugador
       : crypto.randomUUID();
-    const { data, error } = await supabaseAdmin.from(TABLA_CAPTACION).insert(payload).select('*').single();
+    const { data, error } = await ejecutarConFallbackCampos((omitidas) =>
+      supabaseAdmin
+        .from(TABLA_CAPTACION)
+        .insert(omitirCampos(payload, omitidas))
+        .select('*')
+        .single(),
+      CAMPOS
+    );
     if (error) return responderError(res, error, 'guardar');
     return res.status(201).json({ registro: limpiarRegistroSegunRol(data, rol) });
   } catch (error) {
@@ -198,7 +319,15 @@ router.post('/informes', async (req, res) => {
     if (validationError) return res.status(400).json({ error: validationError });
     const jugador = await obtenerJugadorParaInforme(payload.jugador_id);
     if (!jugador) return res.status(400).json({ error: 'El jugador seleccionado ya no existe en la base de datos de captacion.' });
-    const { data, error } = await supabaseAdmin.from(TABLA_INFORMES).insert(payload).select('*').single();
+    const payloadFinal = completarInformeConJugador(payload, jugador);
+    const { data, error } = await ejecutarConFallbackCampos((omitidas) =>
+      supabaseAdmin
+        .from(TABLA_INFORMES)
+        .insert(omitirCampos(payloadFinal, omitidas))
+        .select('*')
+        .single(),
+      CAMPOS_INFORMES
+    );
     if (error) return responderErrorInformes(res, error, 'guardar');
     return res.status(201).json({ informe: { ...data, jugador } });
   } catch (error) {
@@ -213,7 +342,16 @@ router.put('/informes/:id', async (req, res) => {
     if (validationError) return res.status(400).json({ error: validationError });
     const jugador = await obtenerJugadorParaInforme(payload.jugador_id);
     if (!jugador) return res.status(400).json({ error: 'El jugador seleccionado ya no existe en la base de datos de captacion.' });
-    const { data, error } = await supabaseAdmin.from(TABLA_INFORMES).update(payload).eq('id', req.params.id).select('*').maybeSingle();
+    const payloadFinal = completarInformeConJugador(payload, jugador);
+    const { data, error } = await ejecutarConFallbackCampos((omitidas) =>
+      supabaseAdmin
+        .from(TABLA_INFORMES)
+        .update(omitirCampos(payloadFinal, omitidas))
+        .eq('id', req.params.id)
+        .select('*')
+        .maybeSingle(),
+      CAMPOS_INFORMES
+    );
     if (error) return responderErrorInformes(res, error, 'actualizar');
     if (!data) return res.status(404).json({ error: 'Informe de captacion no encontrado.' });
     return res.json({ informe: { ...data, jugador } });
@@ -229,7 +367,15 @@ router.put('/:id', async (req, res) => {
     const validationError = validarPayload(payload);
     if (validationError) return res.status(400).json({ error: validationError });
     delete payload.id_jugador;
-    const { data, error } = await supabaseAdmin.from(TABLA_CAPTACION).update(payload).eq('id', req.params.id).select('*').maybeSingle();
+    const { data, error } = await ejecutarConFallbackCampos((omitidas) =>
+      supabaseAdmin
+        .from(TABLA_CAPTACION)
+        .update(omitirCampos(payload, omitidas))
+        .eq('id', req.params.id)
+        .select('*')
+        .maybeSingle(),
+      CAMPOS
+    );
     if (error) return responderError(res, error, 'actualizar');
     if (!data) return res.status(404).json({ error: 'Registro de captacion no encontrado.' });
     return res.json({ registro: limpiarRegistroSegunRol(data, rol) });

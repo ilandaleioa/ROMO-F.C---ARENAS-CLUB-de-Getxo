@@ -79,13 +79,29 @@ const BLOQUES = [
   },
   {
     title: 'Perfil del jugador',
-    fields: ['nombre', 'primer_apellido', 'nombre_completo', 'segundo_apellido', 'dorsal', 'tipologia', 'altura', 'lateralidad', 'fecha_nacimiento', 'anio_nacimiento', 'edad', 'demarcacion', 'otra_demarcacion', 'valoracion_general'],
+    fields: ['nombre', 'primer_apellido', 'nombre_completo', 'segundo_apellido', 'dorsal', 'altura', 'lateralidad', 'fecha_nacimiento', 'anio_nacimiento', 'edad', 'demarcacion', 'otra_demarcacion', 'demarcacion_concreta', 'valoracion_general'],
   },
   {
     title: 'Observaciones',
     fields: ['descripcion_jugador', 'observaciones'],
   },
 ];
+
+const CAMPOS_INFORME = ['etapa', 'categoria', 'local', 'visitante', 'partido', 'dorsal', 'tipologia', 'lateralidad', 'titularidad', 'minutos_jugados', 'goles', 'goles_encajados'];
+const ETIQUETAS_INFORME = {
+  etapa: 'Etapa',
+  categoria: 'Categoria',
+  local: 'Local',
+  visitante: 'Visitante',
+  partido: 'Partido',
+  dorsal: 'Dorsal',
+  tipologia: 'Tipologia',
+  lateralidad: 'Lateralidad',
+  titularidad: 'Titularidad',
+  minutos_jugados: 'Minutos jugados',
+  goles: 'Goles',
+  goles_encajados: 'Goles encajados',
+};
 
 const ETIQUETAS = {
   id_jugador: 'ID jugador',
@@ -102,8 +118,7 @@ const ETIQUETAS = {
   nombre_completo: 'Nombre completo',
   segundo_apellido: 'Segundo apellido',
   dorsal: 'Dorsal',
-  tipologia: 'Tipologia',
-  altura: 'Altura',
+  altura: 'Altura (cm)',
   lateralidad: 'Lateralidad',
   foto_jugador: 'Foto jugador',
   fecha_nacimiento: 'Fecha nacimiento',
@@ -111,6 +126,7 @@ const ETIQUETAS = {
   edad: 'Edad',
   demarcacion: 'Demarcacion',
   otra_demarcacion: 'Otra demarcacion -',
+  demarcacion_concreta: 'Demarcacion concreta',
   valoracion_general: 'Valoracion general',
   descripcion_jugador: 'Descripcion del jugador',
   observaciones: 'Observaciones',
@@ -136,6 +152,18 @@ function renderValor(registro, campo) {
   }
 
   return formatearValor(valor, campo);
+}
+
+function calcularPartidoInforme(informe) {
+  const local = String(informe?.local || '').trim();
+  const visitante = String(informe?.visitante || '').trim();
+  if (local && visitante) return `${local} - ${visitante}`;
+  return local || visitante || '';
+}
+
+function formatearValorInforme(valor) {
+  const texto = String(valor ?? '').trim();
+  return texto || '-';
 }
 
 function formatearFechaHora(valor) {
@@ -384,6 +412,22 @@ export default function CaptacionDetalle() {
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="text-sm font-semibold text-club-black">{formatearFecha(informe.fecha)}</p>
                         <p className="text-xs font-semibold uppercase tracking-wide text-club-black/45">{informe.observador || 'Sin observador'}</p>
+                      </div>
+                      <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                        {CAMPOS_INFORME.map((campo) => {
+                          const valor = campo === 'partido'
+                            ? formatearValorInforme(calcularPartidoInforme(informe) || informe.partido)
+                            : formatearValorInforme(informe[campo]);
+
+                          return (
+                            <div key={campo} className="rounded-lg border border-gray-200 bg-white p-3">
+                              <p className="text-[11px] font-semibold uppercase tracking-wide text-club-black/45">
+                                {ETIQUETAS_INFORME[campo]}
+                              </p>
+                              <p className="mt-1 text-sm font-medium text-club-black">{valor}</p>
+                            </div>
+                          );
+                        })}
                       </div>
                       <p className="mt-3 text-xs text-club-black/55">Creado: {formatearFechaHora(informe.created_at)}</p>
                     </article>
