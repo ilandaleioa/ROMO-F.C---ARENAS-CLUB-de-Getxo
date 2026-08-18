@@ -1,0 +1,13 @@
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+temp-google.json
+**/node_modules
+*.log
+.git
+.git/**
+.vercel
+README.md
