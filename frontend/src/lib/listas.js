@@ -1,7 +1,163 @@
 import { useMemo, useSyncExternalStore } from 'react';
+import { CLUBES_MAESTROS } from '../data/clubes';
+import { EQUIPOS_POR_CLUB } from '../data/equipos';
 
 const STORAGE_KEY = 'listas_maestras_v2';
 const STORAGE_KEY_LEGACY = 'listas_maestras_v1';
+
+function limpiarTextoLocal(valor) {
+  return String(valor ?? '').trim();
+}
+
+function normalizarClaveClub(valor) {
+  return limpiarTextoLocal(valor)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/gi, '')
+    .toUpperCase();
+}
+
+function normalizarClaveEquipo(valor) {
+  return limpiarTextoLocal(valor)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/gi, '')
+    .toUpperCase();
+}
+
+function normalizarFilaClub(fila, fallback = {}, indice = 0) {
+  const nombre = limpiarTextoLocal(fila?.nombre) || limpiarTextoLocal(fallback?.nombre);
+  const valor = limpiarTextoLocal(fila?.valor) || nombre || limpiarTextoLocal(fallback?.valor) || limpiarTextoLocal(fallback?.nombre);
+
+  return {
+    id: limpiarTextoLocal(fila?.id) || limpiarTextoLocal(fallback?.id) || `club-${String(indice + 1).padStart(3, '0')}`,
+    valor,
+    nombre,
+    escudo: limpiarTextoLocal(fila?.escudo) || limpiarTextoLocal(fallback?.escudo),
+  };
+}
+
+function crearClubesIniciales() {
+  return CLUBES_MAESTROS.map((club, indice) => {
+    const nombre = limpiarTextoLocal(club?.nombre);
+    return normalizarFilaClub(
+      {
+        id: `club-${String(indice + 1).padStart(3, '0')}`,
+        valor: nombre,
+        nombre,
+        escudo: limpiarTextoLocal(club?.escudo),
+      },
+      {},
+      indice
+    );
+  });
+}
+
+function crearEquiposIniciales(clubes = crearClubesIniciales()) {
+  return (clubes || []).flatMap((club, indiceClub) => {
+    const clubNombre = limpiarTextoLocal(club?.nombre || club?.valor);
+    if (!clubNombre) return [];
+
+    const clubClave = normalizarClaveClub(club?.valor || clubNombre);
+    return EQUIPOS_POR_CLUB.map((equipoNombre, indiceEquipo) =>
+      normalizarFilaEquipo(
+        {
+          id: `equipo-${clubClave}-${normalizarClaveEquipo(equipoNombre)}`,
+          club: clubNombre,
+          nombre: equipoNombre,
+        },
+        {},
+        indiceClub * EQUIPOS_POR_CLUB.length + indiceEquipo
+      )
+    );
+  });
+}
+
+function normalizarFilaEquipo(fila, fallback = {}, indice = 0) {
+  const club = limpiarTextoLocal(fila?.club) || limpiarTextoLocal(fallback?.club);
+  const nombre = limpiarTextoLocal(fila?.nombre) || limpiarTextoLocal(fallback?.nombre);
+
+  return {
+    id: limpiarTextoLocal(fila?.id) || limpiarTextoLocal(fallback?.id) || `equipo-${String(indice + 1).padStart(3, '0')}`,
+    club,
+    nombre,
+  };
+}
+
+function fusionarFilasClubes(filasBase, filasGuardadas) {
+  const baseNormalizadas = (filasBase || []).map((fila, indice) => normalizarFilaClub(fila, {}, indice));
+
+  const guardadasNormalizadas = (filasGuardadas || []).map((fila, indice) => normalizarFilaClub(fila, {}, indice));
+  const guardadasPorClave = new Map();
+  guardadasNormalizadas.forEach((fila) => {
+    const clave = normalizarClaveClub(fila.valor || fila.nombre);
+    if (clave && !guardadasPorClave.has(clave)) {
+      guardadasPorClave.set(clave, fila);
+    }
+  });
+
+  const resultado = baseNormalizadas.map((baseFila) => {
+    const clave = normalizarClaveClub(baseFila.valor || baseFila.nombre);
+    const guardada = guardadasPorClave.get(clave);
+    if (!guardada) return baseFila;
+
+    return {
+      ...baseFila,
+      ...guardada,
+      id: guardada.id || baseFila.id,
+      valor: guardada.valor || baseFila.valor,
+      nombre: guardada.nombre || baseFila.nombre,
+      escudo: guardada.escudo || baseFila.escudo,
+    };
+  });
+
+  const clavesBase = new Set(baseNormalizadas.map((fila) => normalizarClaveClub(fila.valor || fila.nombre)).filter(Boolean));
+  guardadasNormalizadas.forEach((fila) => {
+    const clave = normalizarClaveClub(fila.valor || fila.nombre);
+    if (!clave || clavesBase.has(clave)) return;
+    resultado.push(fila);
+  });
+
+  return resultado;
+}
+
+function fusionarFilasEquipos(filasBase, filasGuardadas) {
+  const baseNormalizadas = (filasBase || []).map((fila, indice) => normalizarFilaEquipo(fila, {}, indice));
+  const guardadasNormalizadas = (filasGuardadas || []).map((fila, indice) => normalizarFilaEquipo(fila, {}, indice));
+  const guardadasPorClave = new Map();
+
+  guardadasNormalizadas.forEach((fila) => {
+    const clave = `${normalizarClaveClub(fila.club)}|${normalizarClaveEquipo(fila.nombre)}`;
+    if (clave && !guardadasPorClave.has(clave)) {
+      guardadasPorClave.set(clave, fila);
+    }
+  });
+
+  const resultado = baseNormalizadas.map((baseFila) => {
+    const clave = `${normalizarClaveClub(baseFila.club)}|${normalizarClaveEquipo(baseFila.nombre)}`;
+    const guardada = guardadasPorClave.get(clave);
+    if (!guardada) return baseFila;
+
+    return {
+      ...baseFila,
+      ...guardada,
+      id: guardada.id || baseFila.id,
+      club: guardada.club || baseFila.club,
+      nombre: guardada.nombre || baseFila.nombre,
+    };
+  });
+
+  const clavesBase = new Set(
+    baseNormalizadas.map((fila) => `${normalizarClaveClub(fila.club)}|${normalizarClaveEquipo(fila.nombre)}`).filter(Boolean)
+  );
+  guardadasNormalizadas.forEach((fila) => {
+    const clave = `${normalizarClaveClub(fila.club)}|${normalizarClaveEquipo(fila.nombre)}`;
+    if (!clave || clavesBase.has(clave)) return;
+    resultado.push(fila);
+  });
+
+  return resultado;
+}
 
 export const LISTAS_INICIALES = [
   {
@@ -13,10 +169,7 @@ export const LISTAS_INICIALES = [
       { key: 'nombre', label: 'Club' },
       { key: 'escudo', label: 'Escudo', tipo: 'imagen' },
     ],
-    filas: [
-      { id: 'club-romo', valor: 'ROMO', nombre: 'ROMO FC', escudo: '' },
-      { id: 'club-arenas', valor: 'ARENAS', nombre: 'ARENAS CLUB', escudo: '' },
-    ],
+    filas: crearClubesIniciales(),
   },
   {
     id: 'equipos',
@@ -27,7 +180,7 @@ export const LISTAS_INICIALES = [
       { key: 'club', label: 'Club' },
       { key: 'nombre', label: 'Equipo' },
     ],
-    filas: [],
+    filas: crearEquiposIniciales(),
   },
   {
     id: 'etapas',
@@ -162,23 +315,48 @@ function normalizarListas(listas) {
       .map((lista) => [lista.id, lista])
   );
 
-  return LISTAS_INICIALES.map((baseLista) => {
+  let clubesNormalizados = null;
+  const listasNormalizadas = [];
+
+  for (const baseLista of LISTAS_INICIALES) {
     const guardada = listasPorId.get(baseLista.id);
-    if (!guardada) return clonarLista(baseLista);
+    if (!guardada) {
+      const listaBase = clonarLista(baseLista);
+      listasNormalizadas.push(listaBase);
+      if (listaBase.id === 'clubes') {
+        clubesNormalizados = listaBase;
+      }
+      continue;
+    }
 
     const filasGuardadas = Array.isArray(guardada.filas) ? guardada.filas : [];
+    const baseClonada = clonarLista(baseLista);
+    const filasBaseEquipos = baseLista.id === 'equipos'
+      ? crearEquiposIniciales(clubesNormalizados?.filas || crearClubesIniciales())
+      : baseClonada.filas;
     return {
-      ...clonarLista(baseLista),
+      ...baseClonada,
       ...guardada,
       id: baseLista.id,
       titulo: baseLista.titulo,
       descripcion: baseLista.descripcion,
-      columnas: clonarLista(baseLista).columnas,
-      filas: filasGuardadas.length > 0
-        ? filasGuardadas.map((fila, indice) => normalizarFila(baseLista, fila, indice))
-        : clonarLista(baseLista).filas,
+      columnas: baseClonada.columnas,
+      filas:
+        baseLista.id === 'clubes'
+          ? fusionarFilasClubes(baseClonada.filas, filasGuardadas)
+          : baseLista.id === 'equipos'
+            ? fusionarFilasEquipos(filasBaseEquipos, filasGuardadas)
+          : filasGuardadas.length > 0
+            ? filasGuardadas.map((fila, indice) => normalizarFila(baseLista, fila, indice))
+            : baseClonada.filas,
     };
-  });
+    if (lista.id === 'clubes') {
+      clubesNormalizados = lista;
+    }
+    listasNormalizadas.push(lista);
+  }
+
+  return listasNormalizadas;
 }
 
 let listas = leerListasGuardadas();

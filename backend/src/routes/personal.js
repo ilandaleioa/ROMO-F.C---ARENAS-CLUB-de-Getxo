@@ -6,7 +6,12 @@ const requireRole = require('../middleware/requireRole');
 const resolveClub = require('../middleware/resolveClub');
 const { ROLES } = require('../config/roles');
 const { CARGOS_PERSONAL } = require('../config/personal');
-const { parseEquiposAsignados, filtrarEquiposPermitidos, puedeVerEquipo } = require('../lib/equiposAsignados');
+const { parseEquiposAsignados, filtrarEquiposPermitidos } = require('../lib/equiposAsignados');
+const {
+  parseEquiposPersonal,
+  serializarEquiposPersonal,
+  equipoPersonalCoincide,
+} = require('../lib/personalEquipos');
 
 const router = express.Router();
 
@@ -35,20 +40,7 @@ const uploadFoto = multer({
 
 function equiposDesdeQuery(equipoQuery) {
   if (equipoQuery === undefined) return null;
-  const valores = Array.isArray(equipoQuery) ? equipoQuery : [equipoQuery];
-  return Array.from(
-    new Set(
-      valores
-        .map((e) => String(e || '').trim())
-        .filter((e) => e && e !== 'Todos')
-    )
-  );
-}
-
-function aplicarFiltroEquipos(query, equipos) {
-  if (equipos.length === 1) return query.eq('equipo', equipos[0]);
-  if (equipos.length > 1) return query.in('equipo', equipos);
-  return query;
+  return parseEquiposPersonal(equipoQuery);
 }
 
 function timeoutResult(ms) {
@@ -116,10 +108,10 @@ function validarPayload(body) {
   const nombre = normalizarTexto(body?.nombre);
   const primerApellido = normalizarTexto(body?.primer_apellido);
   const cargo = normalizarTexto(body?.cargo);
-  const equipo = normalizarTexto(body?.equipo);
+  const equipos = parseEquiposPersonal(body?.equipo);
 
-  if (!nombre || !primerApellido || !cargo || !equipo) {
-    return 'Nombre, primer apellido, cargo y equipo son obligatorios.';
+  if (!nombre || !primerApellido || !cargo || equipos.length === 0) {
+    return 'Nombre, primer apellido, cargo y al menos un equipo son obligatorios.';
   }
   if (!CARGOS_PERSONAL.includes(cargo)) {
     return 'El cargo no es valido.';
@@ -135,7 +127,7 @@ function prepararRegistro(body, club) {
     primer_apellido: normalizarTexto(body?.primer_apellido),
     segundo_apellido: normalizarTexto(body?.segundo_apellido) || null,
     cargo: normalizarTexto(body?.cargo),
-    equipo: normalizarTexto(body?.equipo),
+    equipo: serializarEquiposPersonal(body?.equipo),
   };
 }
 
@@ -159,14 +151,6 @@ router.get('/', async (req, res) => {
       .eq('club', req.club);
 
     const equiposFiltro = equiposDesdeQuery(req.query.equipo);
-    if (equiposAsignados.length > 0) {
-      const permitidos = new Set(equiposAsignados);
-      const equiposFinales = equiposFiltro === null ? equiposAsignados : equiposFiltro.filter((eq) => permitidos.has(eq));
-      if (equiposFinales.length === 0) return res.json({ personal: [] });
-      query = aplicarFiltroEquipos(query, equiposFinales);
-    } else if (equiposFiltro !== null) {
-      query = aplicarFiltroEquipos(query, equiposFiltro);
-    }
 
     if (search) {
       query = query.or(
@@ -187,7 +171,17 @@ router.get('/', async (req, res) => {
       return res.status(503).json({ error: 'No se pudo consultar la base de datos de personal.' });
     }
 
-    const sanitized = await conFotosUrl((data || []).map((row) => ({ ...row })), { timeoutMs: 1500 });
+    const filasFiltradas = (data || []).filter((row) => {
+      if (equiposAsignados.length > 0 && !equipoPersonalCoincide(row.equipo, equiposAsignados)) {
+        return false;
+      }
+      if (equiposFiltro !== null && !equipoPersonalCoincide(row.equipo, equiposFiltro)) {
+        return false;
+      }
+      return true;
+    });
+
+    const sanitized = await conFotosUrl(filasFiltradas.map((row) => ({ ...row })), { timeoutMs: 1500 });
     res.json({ personal: sanitized });
   } catch (err) {
     console.error('Error inesperado al listar personal:', err);
@@ -212,7 +206,10 @@ router.get('/equipos', async (req, res) => {
       return res.status(503).json({ error: 'No se pudo consultar la base de datos de personal.' });
     }
 
-    const equipos = filtrarEquiposPermitidos((data || []).map((row) => row.equipo), req.user).sort((a, b) =>
+    const equipos = filtrarEquiposPermitidos(
+      (data || []).flatMap((row) => parseEquiposPersonal(row.equipo)),
+      req.user
+    ).sort((a, b) =>
       String(a).localeCompare(String(b), 'es', { sensitivity: 'base' })
     );
 
@@ -357,6 +354,7 @@ router.post(
 
 router.delete('/:id', requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR), async (req, res) => {
   try {
+    const equiposUsuario = parseEquiposAsignados(req.user?.equipo_asignado);
     const { data: registro, error: fetchError } = await supabaseAdmin
       .from('personal')
       .select('id, foto_path, equipo')
@@ -376,7 +374,7 @@ router.delete('/:id', requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR), async (r
       return res.status(404).json({ error: 'Personal no encontrado.' });
     }
 
-    if (!puedeVerEquipo(req.user, registro.equipo) && parseEquiposAsignados(req.user?.equipo_asignado).length > 0) {
+    if (equiposUsuario.length > 0 && !equipoPersonalCoincide(registro.equipo, equiposUsuario)) {
       return res.status(403).json({ error: 'No tienes permiso para borrar este personal.' });
     }
 

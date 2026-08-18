@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useClub } from '../context/ClubContext';
 import { api } from '../lib/api';
 import { CARGOS_PERSONAL } from '../lib/personal';
+import { equiposPersonalLabel, parseEquiposPersonal } from '../lib/personalEquipos';
 
 function nombreCompleto(personal) {
   return [personal.nombre, personal.primer_apellido, personal.segundo_apellido].filter(Boolean).join(' ');
@@ -14,7 +15,7 @@ function crearPersonalVacio() {
     primer_apellido: '',
     segundo_apellido: '',
     cargo: CARGOS_PERSONAL[0],
-    equipo: '',
+    equipos: [],
   };
 }
 
@@ -39,10 +40,12 @@ export default function Personal() {
   const [editandoId, setEditandoId] = useState(null);
   const [form, setForm] = useState(crearPersonalVacio);
   const [fotoFile, setFotoFile] = useState(null);
+  const [selectorEquiposAbierto, setSelectorEquiposAbierto] = useState(false);
+  const selectorEquiposRef = useRef(null);
 
   const cargarEquipos = useCallback(async () => {
     try {
-      const { equipos: lista } = await api.get('/personal/equipos');
+      const { equipos: lista } = await api.get('/jugadores/equipos');
       setEquipos(lista || []);
     } catch (err) {
       setEquipos([]);
@@ -63,6 +66,29 @@ export default function Personal() {
       setError(err.message);
     }
   }, [busqueda, filtroEquipo]);
+
+  useEffect(() => {
+    const cerrarSelectorSiHaceFalta = (e) => {
+      const fueraEquipos = selectorEquiposRef.current && !selectorEquiposRef.current.contains(e.target);
+      if (fueraEquipos) {
+        setSelectorEquiposAbierto(false);
+      }
+    };
+
+    const cerrarConEscape = (e) => {
+      if (e.key === 'Escape') {
+        setSelectorEquiposAbierto(false);
+      }
+    };
+
+    document.addEventListener('mousedown', cerrarSelectorSiHaceFalta);
+    document.addEventListener('keydown', cerrarConEscape);
+
+    return () => {
+      document.removeEventListener('mousedown', cerrarSelectorSiHaceFalta);
+      document.removeEventListener('keydown', cerrarConEscape);
+    };
+  }, []);
 
   useEffect(() => {
     let vivo = true;
@@ -90,6 +116,7 @@ export default function Personal() {
     setForm(crearPersonalVacio());
     setFotoFile(null);
     setEditandoId(null);
+    setSelectorEquiposAbierto(false);
   };
 
   const iniciarEdicion = (item) => {
@@ -99,10 +126,11 @@ export default function Personal() {
       primer_apellido: item.primer_apellido || '',
       segundo_apellido: item.segundo_apellido || '',
       cargo: CARGOS_PERSONAL.includes(item.cargo) ? item.cargo : CARGOS_PERSONAL[0],
-      equipo: item.equipo || '',
+      equipos: parseEquiposPersonal(item.equipo),
     });
     setFotoFile(null);
     setMensaje('');
+    setSelectorEquiposAbierto(false);
   };
 
   const subirFotoSiHaceFalta = async (id) => {
@@ -127,8 +155,12 @@ export default function Personal() {
         primer_apellido: form.primer_apellido.trim(),
         segundo_apellido: form.segundo_apellido.trim(),
         cargo: form.cargo.trim(),
-        equipo: form.equipo.trim(),
+        equipo: form.equipos,
       };
+
+      if (form.equipos.length === 0) {
+        throw new Error('Selecciona al menos un equipo.');
+      }
 
       const respuesta = editandoId
         ? await api.put(`/personal/${editandoId}`, payload)
@@ -177,7 +209,7 @@ export default function Personal() {
         <div>
           <h2 className="text-2xl font-bold text-club-black">PERSONAL</h2>
           <p className="text-sm text-club-black/60 mt-1">
-            Gestiona nombre, apellidos, foto, cargo y equipo del personal del club.
+            Gestiona nombre, apellidos, foto, cargo y equipos del personal del club.
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
@@ -294,21 +326,65 @@ export default function Personal() {
               </div>
               <div>
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-club-black/60">
-                  Equipo
+                  Equipos internos
                 </label>
-                <input
-                  list="equipos-personal"
-                  type="text"
-                  value={form.equipo}
-                  onChange={(e) => setForm((prev) => ({ ...prev, equipo: e.target.value }))}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
-                  required
-                />
-                <datalist id="equipos-personal">
-                  {equiposOrdenados.map((equipo) => (
-                    <option key={equipo} value={equipo} />
-                  ))}
-                </datalist>
+                <div className="relative" ref={selectorEquiposRef}>
+                  <button
+                    type="button"
+                    aria-expanded={selectorEquiposAbierto}
+                    aria-haspopup="listbox"
+                    onClick={() => setSelectorEquiposAbierto((abierto) => !abierto)}
+                    className="w-full flex items-center justify-between gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-left focus:outline-none focus:ring-2 focus:ring-club-red"
+                  >
+                    <span className="truncate">
+                      {form.equipos.length > 0
+                        ? equiposPersonalLabel(form.equipos, { compacto: true })
+                        : 'Selecciona uno o varios equipos'}
+                    </span>
+                    <span
+                      className={`h-2.5 w-2.5 shrink-0 border-b-2 border-r-2 border-club-black/50 transition-transform ${
+                        selectorEquiposAbierto ? 'rotate-[225deg]' : 'rotate-45'
+                      }`}
+                      aria-hidden="true"
+                    />
+                  </button>
+                  {selectorEquiposAbierto && (
+                    <div
+                      className="absolute z-30 mt-2 w-full max-h-72 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg"
+                      role="listbox"
+                      aria-multiselectable="true"
+                    >
+                      {equiposOrdenados.length === 0 ? (
+                        <p className="px-3 py-3 text-sm text-club-black/60">No hay equipos disponibles.</p>
+                      ) : (
+                        equiposOrdenados.map((equipo) => (
+                          <label
+                            key={equipo}
+                            className="flex items-center gap-2 px-3 py-2 text-sm border-b border-gray-100 last:border-b-0 text-club-black/80 hover:bg-red-50/60 cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={form.equipos.includes(equipo)}
+                              onChange={() =>
+                                setForm((prev) => ({
+                                  ...prev,
+                                  equipos: prev.equipos.includes(equipo)
+                                    ? prev.equipos.filter((item) => item !== equipo)
+                                    : [...prev.equipos, equipo],
+                                }))
+                              }
+                              className="h-4 w-4 accent-club-red"
+                            />
+                            <span className="truncate">{equipo}</span>
+                          </label>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+                <p className="mt-1 text-xs text-club-black/50">
+                  Puedes asignar varias categorías o equipos internos al mismo miembro del personal.
+                </p>
               </div>
               <div>
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-club-black/60">
@@ -395,7 +471,7 @@ export default function Personal() {
                         ) : null}
                       </td>
                       <td className="px-3 py-3 text-club-black/80">{item.cargo}</td>
-                      <td className="px-3 py-3 text-club-black/80">{item.equipo}</td>
+                      <td className="px-3 py-3 text-club-black/80">{equiposPersonalLabel(item.equipo)}</td>
                       {puedeGestionar && (
                         <td className="px-3 py-3">
                           <div className="flex justify-end gap-2">

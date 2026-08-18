@@ -164,35 +164,49 @@ export default function CaptacionDetalle() {
     async function cargarDetalle() {
       setLoading(true);
       setError('');
-      setLoadingInformes(true);
-      setErrorInformes('');
 
       try {
-        const [detalle, respuestaInformes] = await Promise.all([
-          api.get(`/captacion/${id}`),
-          api.get('/captacion/informes'),
-        ]);
+        const detalle = await api.get(`/captacion/${id}`);
 
         if (cancelado) return;
 
         setRegistro(detalle?.registro || null);
-        const todosLosInformes = Array.isArray(respuestaInformes?.informes) ? respuestaInformes.informes : [];
-        setInformes(todosLosInformes.filter((informe) => String(informe?.jugador_id || '') === String(id || '')));
       } catch (err) {
         if (!cancelado) {
           setRegistro(null);
-          setInformes([]);
           setError(err.message);
         }
       } finally {
         if (!cancelado) {
           setLoading(false);
+        }
+      }
+    }
+
+    async function cargarInformes() {
+      setLoadingInformes(true);
+      setErrorInformes('');
+
+      try {
+        const respuestaInformes = await api.get('/captacion/informes');
+        if (cancelado) return;
+
+        const todosLosInformes = Array.isArray(respuestaInformes?.informes) ? respuestaInformes.informes : [];
+        setInformes(todosLosInformes.filter((informe) => String(informe?.jugador_id || '') === String(id || '')));
+      } catch (err) {
+        if (!cancelado) {
+          setInformes([]);
+          setErrorInformes(err.message);
+        }
+      } finally {
+        if (!cancelado) {
           setLoadingInformes(false);
         }
       }
     }
 
     cargarDetalle();
+    cargarInformes();
     return () => {
       cancelado = true;
     };

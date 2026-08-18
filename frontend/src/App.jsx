@@ -17,6 +17,8 @@ import HojasCalculo from './pages/HojasCalculo';
 import Captacion from './pages/Captacion';
 import CaptacionDetalle from './pages/CaptacionDetalle';
 import Clubes from './pages/Clubes';
+import ClubesMaestros from './pages/ClubesMaestros';
+import EquiposMaestros from './pages/EquiposMaestros';
 import Listas from './pages/Listas';
 import Personal from './pages/Personal';
 import { ROLES_GESTION_USUARIOS } from './lib/roles';
@@ -133,6 +135,26 @@ function AppRoutes() {
           <ProtectedRoute>
             <Layout>
               <Clubes />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/listas/clubes"
+        element={
+          <ProtectedRoute allowedRoles={['administrador', 'director']} requiredApartado="clubes_maestros">
+            <Layout>
+              <ClubesMaestros />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/listas/equipos"
+        element={
+          <ProtectedRoute allowedRoles={['administrador', 'director']} requiredApartado="equipos_maestros">
+            <Layout>
+              <EquiposMaestros />
             </Layout>
           </ProtectedRoute>
         }

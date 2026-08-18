@@ -22,6 +22,16 @@ export function AuthProvider({ children }) {
     refreshMe();
   }, [refreshMe]);
 
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      setUser(null);
+      setLoading(false);
+    };
+
+    window.addEventListener('romofc:auth-expired', handleAuthExpired);
+    return () => window.removeEventListener('romofc:auth-expired', handleAuthExpired);
+  }, []);
+
   const login = async (username, password) => {
     const { user } = await api.post('/auth/login', { username, password });
     setUser(user);

@@ -2,20 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useFiltroEquipos } from '../context/FiltroEquiposContext';
-import { useClub } from '../context/ClubContext';
-import { useLista } from '../lib/listas';
+import { CLUBES, useClub } from '../context/ClubContext';
 import { usuarioLimitadoAUnEquipo } from '../lib/equiposAsignados';
 import ClubLogo from './ClubLogo';
 
 function SelectorClub({ grande = false }) {
   const { club, setClub } = useClub();
-  const listaClubes = useLista('clubes');
-  const clubesSeleccionables = (listaClubes?.filas || [])
-    .map((fila) => ({
-      valor: String(fila.valor || fila.id?.replace(/^club-/, '').toUpperCase() || '').trim(),
-      label: String(fila.nombre || '').trim(),
-    }))
-    .filter((clubItem) => ['ROMO', 'ARENAS'].includes(clubItem.valor));
 
   return (
     <div
@@ -23,7 +15,7 @@ function SelectorClub({ grande = false }) {
         grande ? 'flex w-full' : 'inline-flex shrink-0'
       }`}
     >
-      {clubesSeleccionables.map((c) => (
+      {CLUBES.map((c) => (
         <button
           key={c.valor}
           type="button"
@@ -193,14 +185,10 @@ function BotonesHistorial() {
 export default function Header({ onToggleSidebar, menuAbierto, onToggleMenu }) {
   const { user, logout } = useAuth();
   const { club, setClub } = useClub();
-  const listaClubes = useLista('clubes');
   const puedeCambiarClub = user && (!user.club || user.club === 'TODOS');
   const mostrarFiltroEquipos = user && !usuarioLimitadoAUnEquipo(user);
   const headerBgClass = club === 'ARENAS' ? 'bg-club-red' : 'bg-club-black';
-  const nombreClub =
-    (listaClubes?.filas || []).find(
-      (fila) => String(fila.valor || fila.id?.replace(/^club-/, '').toUpperCase() || '').trim() === club
-    )?.nombre || (club === 'ARENAS' ? 'ARENAS CLUB' : 'ROMO F.C.');
+  const nombreClub = CLUBES.find((item) => item.valor === club)?.label || (club === 'ARENAS' ? 'ARENAS CLUB' : 'ROMO F.C.');
 
   useEffect(() => {
     if (user && user.club && user.club !== 'TODOS') {

@@ -1,8 +1,7 @@
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useVistaPlantillas } from '../context/VistaPlantillasContext';
-import { useClub } from '../context/ClubContext';
-import { useLista } from '../lib/listas';
+import { CLUBES, useClub } from '../context/ClubContext';
 import { APARTADOS_APP, usuarioPuedeVerItem, usuarioPuedeVerApartado } from '../lib/apartados';
 
 const linkClass = ({ isActive }) =>
@@ -23,13 +22,6 @@ export default function Sidebar({ isOpen, onClose }) {
   const navigate = useNavigate();
   const { vista, setVista } = useVistaPlantillas();
   const { club, setClub } = useClub();
-  const listaClubes = useLista('clubes');
-  const clubesSeleccionables = (listaClubes?.filas || [])
-    .map((fila) => ({
-      valor: String(fila.valor || fila.id?.replace(/^club-/, '').toUpperCase() || '').trim(),
-      label: String(fila.nombre || '').trim(),
-    }))
-    .filter((clubItem) => ['ROMO', 'ARENAS'].includes(clubItem.valor));
 
   if (!user) return null;
 
@@ -43,7 +35,7 @@ export default function Sidebar({ isOpen, onClose }) {
     <nav className="flex flex-col gap-1 p-3">
       {puedeCambiarClub && (
         <div className="md:hidden mb-2 inline-flex rounded-md border border-gray-200 overflow-hidden self-start">
-          {clubesSeleccionables.map((c) => (
+          {CLUBES.map((c) => (
             <button
               key={c.valor}
               type="button"

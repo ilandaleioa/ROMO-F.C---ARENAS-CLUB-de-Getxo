@@ -7,6 +7,8 @@ export const APARTADOS_APP = [
   { key: 'personal', label: 'PERSONAL', path: '/personal' },
   { key: 'usuarios', label: 'Usuarios', path: '/usuarios', roles: ['administrador', 'director'] },
   { key: 'listas', label: 'Listas', path: '/listas', roles: ['administrador', 'director'] },
+  { key: 'clubes_maestros', label: 'CLUBES', path: '/listas/clubes', roles: ['administrador', 'director'] },
+  { key: 'equipos_maestros', label: 'EQUIPOS', path: '/listas/equipos', roles: ['administrador', 'director'] },
   { key: 'hojas_calculo', label: 'Hojas de calculo', path: '/hojas-calculo' },
 ];
 

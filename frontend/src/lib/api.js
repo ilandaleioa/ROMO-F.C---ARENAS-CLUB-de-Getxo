@@ -8,6 +8,11 @@ const API_URL = configuredApiUrl
   ? configuredApiUrl.replace(/\/$/, '')
   : '/api';
 
+function notificarSesionInvalida() {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new Event('romofc:auth-expired'));
+}
+
 async function request(path, options = {}) {
   // FormData (subida de ficheros) no debe llevar Content-Type manual: el
   // navegador necesita fijar el boundary del multipart el mismo.
@@ -37,6 +42,10 @@ async function request(path, options = {}) {
   }
 
   if (!res.ok) {
+    if (res.status === 401) {
+      notificarSesionInvalida();
+    }
+
     const fallbackMessage =
       responseText && responseText.trim()
         ? responseText.trim().startsWith('<')

@@ -6,6 +6,7 @@ const requireRole = require('../middleware/requireRole');
 const { ROLES, ALL_ROLES } = require('../config/roles');
 const { CLUBES_USUARIO } = require('../config/clubs');
 const { parseEquiposAsignados, serializeEquiposAsignados } = require('../lib/equiposAsignados');
+const { construirSelect, omitirCampos, ejecutarConFallback } = require('../lib/usuarioColumns');
 const {
   parseApartadosVisibles,
   serializeApartadosVisibles,
@@ -17,15 +18,8 @@ const router = express.Router();
 // Pantalla y endpoints exclusivos de Administrador y Director.
 router.use(requireAuth, requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR));
 
-const PUBLIC_USER_FIELDS = 'id, username, rol, equipo_asignado, club, apartados_visibles, activo, creado_en';
-const PUBLIC_USER_FIELDS_BASE = 'id, username, rol, equipo_asignado, club, activo, creado_en';
-
-function esColumnaInexistente(error, columna) {
-  const mensaje = String(error?.message || error?.details || '').toLowerCase();
-  return mensaje.includes(`column usuarios.${columna.toLowerCase()} does not exist`)
-    || mensaje.includes(`column "${columna.toLowerCase()}" does not exist`)
-    || mensaje.includes(`column '${columna.toLowerCase()}' does not exist`);
-}
+const PUBLIC_USER_FIELDS_BASE = ['id', 'username', 'rol', 'equipo_asignado'];
+const PUBLIC_USER_OPTIONAL_FIELDS = ['club', 'apartados_visibles', 'activo', 'creado_en'];
 
 function normalizarUsuario(usuario) {
   if (!usuario) return usuario;
@@ -38,61 +32,40 @@ function normalizarUsuario(usuario) {
 }
 
 async function consultarUsuariosPublicos() {
-  const respuesta = await supabaseAdmin
-    .from('usuarios')
-    .select(PUBLIC_USER_FIELDS)
-    .order('username', { ascending: true });
-
-  if (!respuesta.error || !esColumnaInexistente(respuesta.error, 'apartados_visibles')) {
-    return respuesta;
-  }
-
-  return supabaseAdmin
-    .from('usuarios')
-    .select(PUBLIC_USER_FIELDS_BASE)
-    .order('username', { ascending: true });
+  return ejecutarConFallback(PUBLIC_USER_OPTIONAL_FIELDS, (omitidas) => {
+    const select = construirSelect(PUBLIC_USER_FIELDS_BASE, PUBLIC_USER_OPTIONAL_FIELDS, omitidas);
+    return supabaseAdmin.from('usuarios').select(select).order('username', { ascending: true });
+  });
 }
 
 async function insertarUsuarioConFallback(payload) {
-  let respuesta = await supabaseAdmin.from('usuarios').insert(payload).select(PUBLIC_USER_FIELDS).single();
-  if (!respuesta.error || !esColumnaInexistente(respuesta.error, 'apartados_visibles')) {
-    return respuesta;
-  }
-
-  const payloadBase = { ...payload };
-  delete payloadBase.apartados_visibles;
-  return supabaseAdmin.from('usuarios').insert(payloadBase).select(PUBLIC_USER_FIELDS_BASE).single();
+  return ejecutarConFallback(PUBLIC_USER_OPTIONAL_FIELDS, (omitidas) => {
+    const payloadAjustado = omitirCampos(payload, PUBLIC_USER_OPTIONAL_FIELDS, omitidas);
+    const select = construirSelect(PUBLIC_USER_FIELDS_BASE, PUBLIC_USER_OPTIONAL_FIELDS, omitidas);
+    return supabaseAdmin.from('usuarios').insert(payloadAjustado).select(select).single();
+  });
 }
 
 async function actualizarUsuarioConFallback(id, payload) {
-  let respuesta = await supabaseAdmin
-    .from('usuarios')
-    .update(payload)
-    .eq('id', id)
-    .select(PUBLIC_USER_FIELDS)
-    .maybeSingle();
-
-  if (!respuesta.error || !esColumnaInexistente(respuesta.error, 'apartados_visibles')) {
-    return respuesta;
-  }
-
-  const payloadBase = { ...payload };
-  delete payloadBase.apartados_visibles;
-  return supabaseAdmin
-    .from('usuarios')
-    .update(payloadBase)
-    .eq('id', id)
-    .select(PUBLIC_USER_FIELDS_BASE)
-    .maybeSingle();
+  return ejecutarConFallback(PUBLIC_USER_OPTIONAL_FIELDS, (omitidas) => {
+    const payloadAjustado = omitirCampos(payload, PUBLIC_USER_OPTIONAL_FIELDS, omitidas);
+    const select = construirSelect(PUBLIC_USER_FIELDS_BASE, PUBLIC_USER_OPTIONAL_FIELDS, omitidas);
+    return supabaseAdmin.from('usuarios').update(payloadAjustado).eq('id', id).select(select).maybeSingle();
+  });
 }
 
 router.get('/', async (req, res) => {
-  const { data, error } = await consultarUsuariosPublicos();
+  try {
+    const { data, error } = await consultarUsuariosPublicos();
 
-  if (error) {
+    if (error) {
+      return res.status(503).json({ error: 'No se pudo consultar la base de datos de usuarios.' });
+    }
+    res.json({ usuarios: (data || []).map(normalizarUsuario) });
+  } catch (err) {
+    console.error('Error inesperado al listar usuarios:', err);
     return res.status(503).json({ error: 'No se pudo consultar la base de datos de usuarios.' });
   }
-  res.json({ usuarios: (data || []).map(normalizarUsuario) });
 });
 
 function validarPayload(body, { requierePassword }) {
@@ -155,88 +128,103 @@ function validarAlcanceEquipos(actor, equipoAsignado) {
 }
 
 router.post('/', async (req, res) => {
-  const error = validarPayload(req.body, { requierePassword: true });
-  if (error) return res.status(400).json({ error });
-  const errorAlcance = validarAlcanceEquipos(req.user, req.body.equipo_asignado);
-  if (errorAlcance) return res.status(403).json({ error: errorAlcance });
+  try {
+    const error = validarPayload(req.body, { requierePassword: true });
+    if (error) return res.status(400).json({ error });
+    const errorAlcance = validarAlcanceEquipos(req.user, req.body.equipo_asignado);
+    if (errorAlcance) return res.status(403).json({ error: errorAlcance });
 
-  const { username, password, rol, equipo_asignado, apartados_visibles, club, activo } = req.body;
-  const password_hash = await bcrypt.hash(password, 12);
+    const { username, password, rol, equipo_asignado, apartados_visibles, club, activo } = req.body;
+    const password_hash = await bcrypt.hash(password, 12);
 
-  const { data, error: dbError } = await insertarUsuarioConFallback({
-    username: username.trim(),
-    password_hash,
-    rol,
-    equipo_asignado: serializeEquiposAsignados(equipo_asignado),
-    apartados_visibles: normalizarApartadosVisibles(apartados_visibles),
-    club,
-    activo: activo !== false,
-  });
+    const { data, error: dbError } = await insertarUsuarioConFallback({
+      username: username.trim(),
+      password_hash,
+      rol,
+      equipo_asignado: serializeEquiposAsignados(equipo_asignado),
+      apartados_visibles: normalizarApartadosVisibles(apartados_visibles),
+      club,
+      activo: activo !== false,
+    });
 
-  if (dbError) {
-    if (dbError.code === '23505') {
-      return res.status(409).json({ error: 'Ese nombre de usuario ya existe.' });
+    if (dbError) {
+      if (dbError.code === '23505') {
+        return res.status(409).json({ error: 'Ese nombre de usuario ya existe.' });
+      }
+      return res.status(503).json({ error: 'No se pudo crear el usuario.' });
     }
+
+    res.status(201).json({ usuario: normalizarUsuario(data) });
+  } catch (err) {
+    console.error('Error inesperado creando usuario:', err);
     return res.status(503).json({ error: 'No se pudo crear el usuario.' });
   }
-
-  res.status(201).json({ usuario: normalizarUsuario(data) });
 });
 
 router.put('/:id', async (req, res) => {
-  const error = validarPayload(req.body, { requierePassword: false });
-  if (error) return res.status(400).json({ error });
-  const errorAlcance = validarAlcanceEquipos(req.user, req.body.equipo_asignado);
-  if (errorAlcance) return res.status(403).json({ error: errorAlcance });
+  try {
+    const error = validarPayload(req.body, { requierePassword: false });
+    if (error) return res.status(400).json({ error });
+    const errorAlcance = validarAlcanceEquipos(req.user, req.body.equipo_asignado);
+    if (errorAlcance) return res.status(403).json({ error: errorAlcance });
 
-  const { username, password, rol, equipo_asignado, apartados_visibles, club, activo } = req.body;
+    const { username, password, rol, equipo_asignado, apartados_visibles, club, activo } = req.body;
 
-  const update = {
-    username: username.trim(),
-    rol,
-    equipo_asignado: serializeEquiposAsignados(equipo_asignado),
-    apartados_visibles: normalizarApartadosVisibles(apartados_visibles),
-    club,
-    activo: activo !== false,
-  };
+    const update = {
+      username: username.trim(),
+      rol,
+      equipo_asignado: serializeEquiposAsignados(equipo_asignado),
+      apartados_visibles: normalizarApartadosVisibles(apartados_visibles),
+      club,
+      activo: activo !== false,
+    };
 
-  if (password) {
-    update.password_hash = await bcrypt.hash(password, 12);
-  }
-
-  const { data, error: dbError } = await actualizarUsuarioConFallback(req.params.id, update);
-
-  if (dbError) {
-    if (dbError.code === '23505') {
-      return res.status(409).json({ error: 'Ese nombre de usuario ya existe.' });
+    if (password) {
+      update.password_hash = await bcrypt.hash(password, 12);
     }
+
+    const { data, error: dbError } = await actualizarUsuarioConFallback(req.params.id, update);
+
+    if (dbError) {
+      if (dbError.code === '23505') {
+        return res.status(409).json({ error: 'Ese nombre de usuario ya existe.' });
+      }
+      return res.status(503).json({ error: 'No se pudo actualizar el usuario.' });
+    }
+    if (!data) {
+      return res.status(404).json({ error: 'Usuario no encontrado.' });
+    }
+
+    res.json({ usuario: normalizarUsuario(data) });
+  } catch (err) {
+    console.error('Error inesperado actualizando usuario:', err);
     return res.status(503).json({ error: 'No se pudo actualizar el usuario.' });
   }
-  if (!data) {
-    return res.status(404).json({ error: 'Usuario no encontrado.' });
-  }
-
-  res.json({ usuario: normalizarUsuario(data) });
 });
 
 router.delete('/:id', async (req, res) => {
-  if (String(req.params.id) === String(req.user.id)) {
-    return res.status(400).json({ error: 'No puedes eliminar tu propio usuario.' });
-  }
+  try {
+    if (String(req.params.id) === String(req.user.id)) {
+      return res.status(400).json({ error: 'No puedes eliminar tu propio usuario.' });
+    }
 
-  const { error, count } = await supabaseAdmin
-    .from('usuarios')
-    .delete({ count: 'exact' })
-    .eq('id', req.params.id);
+    const { error, count } = await supabaseAdmin
+      .from('usuarios')
+      .delete({ count: 'exact' })
+      .eq('id', req.params.id);
 
-  if (error) {
+    if (error) {
+      return res.status(503).json({ error: 'No se pudo eliminar el usuario.' });
+    }
+    if (!count) {
+      return res.status(404).json({ error: 'Usuario no encontrado.' });
+    }
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Error inesperado eliminando usuario:', err);
     return res.status(503).json({ error: 'No se pudo eliminar el usuario.' });
   }
-  if (!count) {
-    return res.status(404).json({ error: 'Usuario no encontrado.' });
-  }
-
-  res.json({ ok: true });
 });
 
 module.exports = router;

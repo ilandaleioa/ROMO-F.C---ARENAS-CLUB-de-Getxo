@@ -4,28 +4,60 @@ const supabaseAdmin = require('../config/supabaseClient');
 const { createSessionToken, setSessionCookie, clearSessionCookie } = require('../lib/session');
 const requireAuth = require('../middleware/requireAuth');
 const { ALL_ROLES } = require('../config/roles');
+const { construirSelect, ejecutarConFallback } = require('../lib/usuarioColumns');
 
 const router = express.Router();
-
-function esColumnaInexistente(error, columna) {
-  const mensaje = String(error?.message || error?.details || '').toLowerCase();
-  return mensaje.includes(`column usuarios.${columna.toLowerCase()} does not exist`)
-    || mensaje.includes(`column "${columna.toLowerCase()}" does not exist`)
-    || mensaje.includes(`column '${columna.toLowerCase()}' does not exist`);
-}
+const RETRY_DELAY_MS = 250;
 
 async function consultarUsuarioLogin(username) {
-  const selectConApartados = 'id, username, password_hash, rol, equipo_asignado, club, apartados_visibles, activo';
-  const selectBase = 'id, username, password_hash, rol, equipo_asignado, club, activo';
+  const camposBase = ['id', 'username', 'password_hash', 'rol', 'equipo_asignado'];
+  const camposOpcionales = ['club', 'apartados_visibles', 'activo'];
 
-  const consulta = () => supabaseAdmin.from('usuarios').select(selectConApartados).eq('username', username).maybeSingle();
-  const resultado = await consulta();
+  return ejecutarConFallback(camposOpcionales, (omitidas) => {
+    const select = construirSelect(camposBase, camposOpcionales, omitidas);
+    return supabaseAdmin.from('usuarios').select(select).eq('username', username).maybeSingle();
+  });
+}
 
-  if (!resultado.error || !esColumnaInexistente(resultado.error, 'apartados_visibles')) {
-    return resultado;
+function esErrorDeConexion(err) {
+  const mensaje = String(err?.message || '').toLowerCase();
+  const causaMensaje = String(err?.cause?.message || '').toLowerCase();
+  const causaCodigo = String(err?.cause?.code || err?.code || '').toUpperCase();
+
+  return (
+    mensaje.includes('fetch failed') ||
+    mensaje.includes('network') ||
+    causaMensaje.includes('fetch failed') ||
+    ['ENOTFOUND', 'ECONNRESET', 'ETIMEDOUT', 'EAI_AGAIN', 'UND_ERR_CONNECT_TIMEOUT'].includes(causaCodigo)
+  );
+}
+
+function esperar(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function consultarUsuarioLoginConReintento(username, intentos = 2) {
+  let ultimoError = null;
+
+  for (let intento = 1; intento <= intentos; intento += 1) {
+    try {
+      return await consultarUsuarioLogin(username);
+    } catch (err) {
+      ultimoError = err;
+
+      if (!esErrorDeConexion(err) || intento === intentos) {
+        throw err;
+      }
+
+      console.warn(
+        `[auth/login] Fallo de conexion al consultar usuarios, reintentando (${intento}/${intentos}):`,
+        err?.cause?.code || err?.code || err?.message || err
+      );
+      await esperar(RETRY_DELAY_MS * intento);
+    }
   }
 
-  return supabaseAdmin.from('usuarios').select(selectBase).eq('username', username).maybeSingle();
+  throw ultimoError;
 }
 
 router.post('/login', async (req, res) => {
@@ -37,13 +69,21 @@ router.post('/login', async (req, res) => {
 
   let data;
   try {
-    const result = await consultarUsuarioLogin(username);
+    const result = await consultarUsuarioLoginConReintento(username);
 
     if (result.error) throw result.error;
     data = result.data;
   } catch (err) {
-    console.error('[auth/login] Error al consultar la base de datos:', err.message || err);
-    return res.status(503).json({ error: 'No se pudo conectar con la base de datos. Intentalo de nuevo mas tarde.' });
+    const causa = err?.cause?.code || err?.cause?.message || err?.code || err?.message || err;
+    console.error('[auth/login] Error al consultar la base de datos:', causa);
+
+    if (esErrorDeConexion(err)) {
+      return res.status(503).json({
+        error: 'No se pudo conectar con Supabase. Revisa SUPABASE_URL, la service role key y el acceso de red del despliegue.',
+      });
+    }
+
+    return res.status(503).json({ error: 'No se pudo consultar la base de datos. Intentalo de nuevo mas tarde.' });
   }
 
   // Respuesta identica si el usuario no existe o la contrasena es incorrecta,
