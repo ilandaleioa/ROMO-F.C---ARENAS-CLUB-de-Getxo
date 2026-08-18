@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useClub } from '../context/ClubContext';
 import { api } from '../lib/api';
-import { useListaValores } from '../lib/listas';
+import { useLista, useListaValores } from '../lib/listas';
 
 const CAMPOS = [
   { key: 'id_jugador', label: 'ID JUGADOR', type: 'text' },
@@ -209,6 +209,47 @@ function obtenerFotoJugadorUrl(registro) {
   return /^https?:\/\//i.test(valor) || /^data:/i.test(valor) ? valor : '';
 }
 
+function normalizarComparacion(valor) {
+  return String(valor || '')
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase('es');
+}
+
+function obtenerEquiposFiltradosPorClub(listaEquipos, clubSeleccionado) {
+  const clubNormalizado = normalizarComparacion(clubSeleccionado);
+  if (!clubNormalizado) return [];
+
+  const equipos = [];
+  const vistos = new Set();
+
+  (listaEquipos?.filas || []).forEach((fila) => {
+    const clubFila = String(fila?.club || '').trim();
+    const equipoFila = String(fila?.nombre || '').trim();
+    if (!clubFila || !equipoFila) return;
+    if (clubNormalizado && normalizarComparacion(clubFila) !== clubNormalizado) return;
+
+    const clave = normalizarComparacion(equipoFila);
+    if (vistos.has(clave)) return;
+    vistos.add(clave);
+    equipos.push(equipoFila);
+  });
+
+  return equipos;
+}
+
+function obtenerOpcionesEquipoFormulario(listaEquipos, clubSeleccionado, equipoActual = '') {
+  const equipos = obtenerEquiposFiltradosPorClub(listaEquipos, clubSeleccionado);
+  const equipoLimpio = String(equipoActual || '').trim();
+
+  if (equipoLimpio && !equipos.some((equipo) => normalizarComparacion(equipo) === normalizarComparacion(equipoLimpio))) {
+    equipos.push(equipoLimpio);
+  }
+
+  return equipos;
+}
+
 export default function Captacion() {
   const { user } = useAuth();
   const { club } = useClub();
@@ -313,6 +354,7 @@ export default function Captacion() {
   }, [busqueda, camposVisibles, registros]);
 
   const clubes = useListaValores('clubes');
+  const listaEquipos = useLista('equipos');
 
   const opcionesClubes = useMemo(() => {
     const opciones = clubes.map((nombre) => String(nombre || '').trim()).filter(Boolean);
@@ -323,10 +365,24 @@ export default function Captacion() {
     return [...new Map(opciones.map((opcion) => [opcion.toLowerCase(), opcion])).values()];
   }, [clubes, form.club]);
 
+  const opcionesEquipos = useMemo(
+    () => obtenerOpcionesEquipoFormulario(listaEquipos, form.club, form.equipo),
+    [form.club, form.equipo, listaEquipos]
+  );
+
   const actualizarCampo = (key, value) => {
     setForm((prev) => ({
       ...prev,
       [key]: value,
+      ...(key === 'club'
+        ? {
+            equipo: obtenerEquiposFiltradosPorClub(listaEquipos, value).some(
+              (equipo) => normalizarComparacion(equipo) === normalizarComparacion(prev.equipo)
+            )
+              ? prev.equipo
+              : '',
+          }
+        : {}),
       ...(key === 'fecha_nacimiento' ? calcularDatosNacimiento(value) : {}),
     }));
   };
@@ -642,6 +698,26 @@ export default function Captacion() {
                       >
                         <option value="">Seleccionar</option>
                         {opcionesClubes.map((opcion) => (
+                          <option key={opcion} value={opcion}>
+                            {opcion}
+                          </option>
+                        ))}
+                      </select>
+                    ) : campo.key === 'equipo' ? (
+                      <select
+                        value={form[campo.key]}
+                        onChange={(event) => actualizarCampo(campo.key, event.target.value)}
+                        disabled={!String(form.club || '').trim()}
+                        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-club-black/50"
+                      >
+                        <option value="">
+                          {String(form.club || '').trim()
+                            ? opcionesEquipos.length > 0
+                              ? 'Seleccionar'
+                              : 'Sin equipos disponibles'
+                            : 'Selecciona primero un club'}
+                        </option>
+                        {opcionesEquipos.map((opcion) => (
                           <option key={opcion} value={opcion}>
                             {opcion}
                           </option>
