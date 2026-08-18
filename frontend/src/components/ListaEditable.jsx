@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { actualizarFilaLista, actualizarLista, crearFilaLista, eliminarFilaLista, useListas } from '../lib/listas';
 import { EQUIPOS_POR_CLUB } from '../data/equipos';
@@ -118,6 +118,26 @@ function agruparEquiposPorClub(filas, clubesDisponibles) {
     .sort((a, b) => a.etiqueta.localeCompare(b.etiqueta, 'es', { sensitivity: 'base' }));
 }
 
+function obtenerEquiposPorClub(filas = []) {
+  const equiposPorClub = new Map();
+
+  filas.forEach((fila) => {
+    const club = textoLimpio(fila?.club);
+    const equipo = textoLimpio(fila?.nombre);
+    if (!club || !equipo) return;
+
+    const clave = normalizarComparacion(club);
+    if (!equiposPorClub.has(clave)) equiposPorClub.set(clave, []);
+    equiposPorClub.get(clave).push(equipo);
+  });
+
+  equiposPorClub.forEach((equipos, clave) => {
+    equiposPorClub.set(clave, Array.from(new Set(equipos)).sort(ordenarEquiposPersonalizado));
+  });
+
+  return equiposPorClub;
+}
+
 export default function ListaEditable({ lista, clubesDisponibles = [] }) {
   const { user } = useAuth();
   const listas = useListas();
@@ -132,6 +152,7 @@ export default function ListaEditable({ lista, clubesDisponibles = [] }) {
   const [filaOriginal, setFilaOriginal] = useState(null);
   const [error, setError] = useState('');
   const listaEquipos = useMemo(() => listas.find((item) => item.id === 'equipos') || null, [listas]);
+  const formSectionRef = useRef(null);
 
   const filasOrdenadas = useMemo(() => {
     if (lista.id !== 'equipos') return lista.filas;
@@ -151,6 +172,10 @@ export default function ListaEditable({ lista, clubesDisponibles = [] }) {
   const gruposEquipos = useMemo(
     () => (lista.id === 'equipos' ? agruparEquiposPorClub(filasOrdenadas, clubesDisponibles) : []),
     [clubesDisponibles, filasOrdenadas, lista.id]
+  );
+  const equiposPorClub = useMemo(
+    () => (lista.id === 'clubes' ? obtenerEquiposPorClub(listaEquipos?.filas || []) : new Map()),
+    [lista.id, listaEquipos]
   );
 
   const camposUnicos = lista.id === 'equipos' ? ['club', 'nombre'] : camposObligatorios(lista).map((columna) => columna.key);
@@ -286,6 +311,22 @@ export default function ListaEditable({ lista, clubesDisponibles = [] }) {
     limpiarFormulario();
   };
 
+  useEffect(() => {
+    if (!formAbierto) return;
+
+    const seccionFormulario = formSectionRef.current;
+    if (!seccionFormulario) return;
+
+    seccionFormulario.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    const primerCampo = seccionFormulario.querySelector(
+      'input:not([type="hidden"]):not([readonly]):not([disabled]), select:not([disabled]), textarea:not([disabled])'
+    );
+    if (primerCampo && typeof primerCampo.focus === 'function') {
+      primerCampo.focus();
+    }
+  }, [formAbierto]);
+
   return (
     <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
       <div className="border-b border-gray-200 px-4 py-4 sm:px-5">
@@ -361,7 +402,11 @@ export default function ListaEditable({ lista, clubesDisponibles = [] }) {
       )}
 
       {formAbierto && (
-        <form onSubmit={guardar} className="border-b border-gray-200 bg-red-50/40 px-4 py-4 sm:px-5">
+        <form
+          ref={formSectionRef}
+          onSubmit={guardar}
+          className="border-b border-gray-200 bg-red-50/40 px-4 py-4 sm:px-5"
+        >
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h4 className="text-sm font-bold text-club-black">{editandoId ? 'Editar fila' : 'Nueva fila'}</h4>
             <p className="text-xs text-club-black/55">
@@ -461,6 +506,9 @@ export default function ListaEditable({ lista, clubesDisponibles = [] }) {
                   {columna.label}
                 </th>
               ))}
+              {lista.id === 'clubes' && (
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Equipos asociados</th>
+              )}
               <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide">Acciones</th>
             </tr>
           </thead>
@@ -506,6 +554,34 @@ export default function ListaEditable({ lista, clubesDisponibles = [] }) {
                     )}
                   </td>
                 ))}
+                {lista.id === 'clubes' && (() => {
+                  const equipos = equiposPorClub.get(normalizarComparacion(fila.nombre)) || [];
+
+                  return (
+                    <td className="px-4 py-3 text-club-black/80">
+                      {equipos.length > 0 ? (
+                        <details className="group max-w-xl">
+                          <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-club-black [&::-webkit-details-marker]:hidden">
+                            <span>{equipos.length} equipo{equipos.length === 1 ? '' : 's'}</span>
+                            <span className="text-club-red transition-transform group-open:rotate-180">⌄</span>
+                          </summary>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {equipos.map((equipo) => (
+                              <span
+                                key={`${fila.id}-${equipo}`}
+                                className="inline-flex items-center rounded-full bg-club-red/10 px-3 py-1 text-xs font-semibold text-club-red"
+                              >
+                                {equipo}
+                              </span>
+                            ))}
+                          </div>
+                        </details>
+                      ) : (
+                        <span className="text-sm text-club-black/45">Sin equipos asociados</span>
+                      )}
+                    </td>
+                  );
+                })()}
                 <td className="px-4 py-3 text-right">
                   <div className="inline-flex flex-wrap justify-end gap-2">
                     <button

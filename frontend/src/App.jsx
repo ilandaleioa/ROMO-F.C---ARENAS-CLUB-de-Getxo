@@ -18,7 +18,6 @@ import Captacion from './pages/Captacion';
 import CaptacionDetalle from './pages/CaptacionDetalle';
 import Clubes from './pages/Clubes';
 import ClubesMaestros from './pages/ClubesMaestros';
-import EquiposMaestros from './pages/EquiposMaestros';
 import Listas from './pages/Listas';
 import Personal from './pages/Personal';
 import { ROLES_GESTION_USUARIOS } from './lib/roles';
@@ -150,14 +149,12 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/equipos"
+        element={<Navigate to="/listas/clubes" replace />}
+      />
+      <Route
         path="/listas/equipos"
-        element={
-          <ProtectedRoute allowedRoles={['administrador', 'director']} requiredApartado="equipos_maestros">
-            <Layout>
-              <EquiposMaestros />
-            </Layout>
-          </ProtectedRoute>
-        }
+        element={<Navigate to="/listas/clubes" replace />}
       />
       <Route
         path="/usuarios"

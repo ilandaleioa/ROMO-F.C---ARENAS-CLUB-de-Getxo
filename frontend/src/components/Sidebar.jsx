@@ -102,7 +102,13 @@ export default function Sidebar({ isOpen, onClose }) {
       )}
 
       {restoNavItems.map((item) => (
-        <NavLink key={item.path} to={item.path} end={item.path === '/'} className={linkClass} onClick={onClose}>
+        <NavLink
+          key={item.path}
+          to={item.path}
+          end={item.path === '/' || item.path === '/listas'}
+          className={linkClass}
+          onClick={onClose}
+        >
           {item.label}
         </NavLink>
       ))}

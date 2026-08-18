@@ -4,6 +4,10 @@ function esColumnaInexistente(error, columna) {
 
   return (
     error?.code === '42703' ||
+    (error?.code === 'PGRST204' && (
+      texto.includes(`could not find the '${columnaNormalizada}' column`) ||
+      texto.includes(`could not find the \"${columnaNormalizada}\" column`)
+    )) ||
     texto.includes(`column usuarios.${columnaNormalizada} does not exist`) ||
     texto.includes(`column "${columnaNormalizada}" of relation "usuarios" does not exist`) ||
     texto.includes(`column "${columnaNormalizada}" does not exist`) ||

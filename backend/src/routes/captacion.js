@@ -9,7 +9,7 @@ const TABLA_CAPTACION = 'Captación_ Base de datos';
 const TABLA_INFORMES = 'captacion_informes';
 
 const CAMPOS = [
-  'id_jugador', 'fecha_alta', 'quien_da_alta', 'club', 'equipo', 'categoria', 'grupo', 'enlace',
+  'id_jugador', 'fecha_alta', 'quien_da_alta', 'club', 'equipo', 'etapa', 'categoria', 'grupo', 'enlace',
   'nombre', 'primer_apellido', 'segundo_apellido', 'dorsal', 'tipologia', 'altura', 'lateralidad',
   'foto_jugador', 'fecha_nacimiento', 'anio_nacimiento', 'edad', 'demarcacion', 'otra_demarcacion',
   'valoracion_general', 'descripcion_jugador', 'observaciones',
@@ -22,6 +22,12 @@ function limpiarPayload(body) {
     payload[campo] = String(body?.[campo] || '').trim();
     return payload;
   }, {});
+}
+
+function validarPayload(payload) {
+  if (!payload.nombre) return 'El nombre es obligatorio.';
+  if (!payload.primer_apellido) return 'El primer apellido es obligatorio.';
+  return null;
 }
 
 function limpiarRegistroSegunRol(registro, rol) {
@@ -82,7 +88,7 @@ async function enriquecerInformes(informes) {
   if (!ids.length) return informes || [];
   const { data: jugadores, error } = await supabaseAdmin
     .from(TABLA_CAPTACION)
-    .select('id, nombre, primer_apellido, segundo_apellido, club, equipo, categoria')
+    .select('id, nombre, primer_apellido, segundo_apellido, club, equipo, etapa, categoria')
     .in('id', ids);
   if (error) throw error;
   const jugadoresPorId = new Map((jugadores || []).map((jugador) => [jugador.id, jugador]));
@@ -92,7 +98,7 @@ async function enriquecerInformes(informes) {
 async function obtenerJugadorParaInforme(jugadorId) {
   const { data, error } = await supabaseAdmin
     .from(TABLA_CAPTACION)
-    .select('id, nombre, primer_apellido, segundo_apellido, club, equipo, categoria')
+    .select('id, nombre, primer_apellido, segundo_apellido, club, equipo, etapa, categoria')
     .eq('id', jugadorId)
     .maybeSingle();
   if (error) throw error;
@@ -145,6 +151,8 @@ router.post('/', async (req, res) => {
   try {
     const { rol } = req.user;
     const payload = limpiarPayload(req.body);
+    const validationError = validarPayload(payload);
+    if (validationError) return res.status(400).json({ error: validationError });
     payload.id_jugador = rol === ROLES.ADMINISTRADOR && idJugadorValido(payload.id_jugador)
       ? payload.id_jugador
       : crypto.randomUUID();
@@ -175,6 +183,8 @@ router.put('/:id', async (req, res) => {
   try {
     const { rol } = req.user;
     const payload = limpiarPayload(req.body);
+    const validationError = validarPayload(payload);
+    if (validationError) return res.status(400).json({ error: validationError });
     delete payload.id_jugador;
     const { data, error } = await supabaseAdmin.from(TABLA_CAPTACION).update(payload).eq('id', req.params.id).select('*').maybeSingle();
     if (error) return responderError(res, error, 'actualizar');

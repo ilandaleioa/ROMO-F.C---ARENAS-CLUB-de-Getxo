@@ -101,7 +101,14 @@ function normalizarTexto(valor) {
 
 function esColumnaOTablaInexistente(error) {
   const texto = [error?.message, error?.details, error?.hint].filter(Boolean).join(' ');
-  return error?.code === '42P01' || error?.code === '42703' || /does not exist|no existe/i.test(texto);
+  // PostgREST devuelve PGRST205 cuando la tabla todavía no existe en el
+  // esquema publicado, aunque PostgreSQL no llegue a devolver 42P01.
+  return (
+    error?.code === '42P01' ||
+    error?.code === '42703' ||
+    error?.code === 'PGRST205' ||
+    /could not find the table|does not exist|no existe/i.test(texto)
+  );
 }
 
 function validarPayload(body) {

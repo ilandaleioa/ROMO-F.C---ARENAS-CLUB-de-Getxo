@@ -11,7 +11,8 @@ const CAMPOS = [
   { key: 'quien_da_alta', label: 'QUIEN DA ALTA', type: 'selectWithAdd' },
   { key: 'club', label: 'CLUB', type: 'clubSelect' },
   { key: 'equipo', label: 'EQUIPO', type: 'text' },
-  { key: 'categoria', label: 'CATEGORIA', type: 'text' },
+  { key: 'etapa', label: 'ETAPA', type: 'listaSelect', listaId: 'etapas' },
+  { key: 'categoria', label: 'CATEGORIA', type: 'listaSelect', listaId: 'categorias' },
   { key: 'grupo', label: 'GRUPO', type: 'text' },
   { key: 'enlace', label: 'ENLACE', type: 'url' },
   { key: 'nombre', label: 'NOMBRE', type: 'text', required: true },
@@ -27,11 +28,13 @@ const CAMPOS = [
   { key: 'anio_nacimiento', label: 'ANO DE NACIMIENTO', type: 'number' },
   { key: 'edad', label: 'EDAD', type: 'number' },
   { key: 'demarcacion', label: 'DEMARCACION', type: 'select', options: ['PORTERO', 'LATERAL', 'CENTRAL', 'MEDIO', 'MEDIA PUNTA', 'EXTREMO', 'DELANTERO'] },
-  { key: 'otra_demarcacion', label: 'OTRA DEMARCACION', type: 'text' },
-  { key: 'valoracion_general', label: 'VALORACION GENERAL', type: 'number' },
+  { key: 'otra_demarcacion', label: 'OTRA DEMARCACION', type: 'select', options: ['PORTERO', 'LATERAL', 'CENTRAL', 'MEDIO', 'MEDIA PUNTA', 'EXTREMO', 'DELANTERO'] },
+  { key: 'valoracion_general', label: 'VALORACION GENERAL', type: 'ratingButtons' },
   { key: 'descripcion_jugador', label: 'DESCRIPCION DEL JUGADOR', type: 'textarea' },
   { key: 'observaciones', label: 'OBSERVACIONES', type: 'textarea' },
 ];
+
+const VALORACION_GENERAL_OPCIONES = [1, 2, 3, 4, 5];
 
 const RESPONSABLES_ALTA_INICIALES = ['Adrian', 'Alex', 'Mikel'];
 const RESPONSABLES_ALTA_STORAGE_KEY = 'captacion.responsablesAlta';
@@ -102,6 +105,17 @@ function obtenerFechaHoyISO() {
   const mes = String(hoy.getMonth() + 1).padStart(2, '0');
   const dia = String(hoy.getDate()).padStart(2, '0');
   return `${anio}-${mes}-${dia}`;
+}
+
+function archivoADataUrl(archivo) {
+  if (!archivo) return Promise.resolve('');
+
+  return new Promise((resolve, reject) => {
+    const lector = new FileReader();
+    lector.onload = () => resolve(String(lector.result || ''));
+    lector.onerror = () => reject(new Error('No se pudo leer la imagen seleccionada.'));
+    lector.readAsDataURL(archivo);
+  });
 }
 
 function normalizarFechaInput(valor) {
@@ -250,6 +264,17 @@ function obtenerOpcionesEquipoFormulario(listaEquipos, clubSeleccionado, equipoA
   return equipos;
 }
 
+function obtenerOpcionesSelect(campo, valorActual = '') {
+  const opcionesBase = Array.isArray(campo.options) ? campo.options : [];
+  const valorLimpio = String(valorActual || '').trim();
+
+  if (!valorLimpio) {
+    return opcionesBase;
+  }
+
+  return opcionesBase.some((opcion) => opcion === valorLimpio) ? opcionesBase : [...opcionesBase, valorLimpio];
+}
+
 export default function Captacion() {
   const { user } = useAuth();
   const { club } = useClub();
@@ -354,6 +379,8 @@ export default function Captacion() {
   }, [busqueda, camposVisibles, registros]);
 
   const clubes = useListaValores('clubes');
+  const etapas = useListaValores('etapas');
+  const categorias = useListaValores('categorias');
   const listaEquipos = useLista('equipos');
 
   const opcionesClubes = useMemo(() => {
@@ -368,6 +395,14 @@ export default function Captacion() {
   const opcionesEquipos = useMemo(
     () => obtenerOpcionesEquipoFormulario(listaEquipos, form.club, form.equipo),
     [form.club, form.equipo, listaEquipos]
+  );
+
+  const opcionesListas = useMemo(
+    () => ({
+      etapas: etapas.map((nombre) => String(nombre || '').trim()).filter(Boolean),
+      categorias: categorias.map((nombre) => String(nombre || '').trim()).filter(Boolean),
+    }),
+    [categorias, etapas]
   );
 
   const actualizarCampo = (key, value) => {
@@ -482,17 +517,23 @@ export default function Captacion() {
     setGuardando(true);
     setError('');
     try {
-      const payload = new FormData();
       const datosNacimiento = calcularDatosNacimiento(form.fecha_nacimiento);
       const formCalculado = {
         ...form,
         ...datosNacimiento,
       };
-      camposVisibles.forEach((campo) => {
-        payload.append(campo.key, String(formCalculado[campo.key] || '').trim());
-      });
+      const payload = {
+        ...camposVisibles.reduce(
+          (acc, campo) => ({
+            ...acc,
+            [campo.key]: String(formCalculado[campo.key] || '').trim(),
+          }),
+          {}
+        ),
+      };
+
       if (fotoJugadorFile) {
-        payload.append('foto', fotoJugadorFile);
+        payload.foto_jugador = await archivoADataUrl(fotoJugadorFile);
       }
 
       let registroGuardado;
@@ -690,6 +731,31 @@ export default function Captacion() {
                         rows={3}
                         className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
                       />
+                    ) : campo.type === 'ratingButtons' ? (
+                      <div className="space-y-2 sm:col-span-2 lg:col-span-2">
+                        <div className="grid grid-cols-5 gap-2">
+                          {VALORACION_GENERAL_OPCIONES.map((valor) => {
+                            const seleccionado = String(form[campo.key]) === String(valor);
+                            return (
+                              <button
+                                key={valor}
+                                type="button"
+                                onClick={() => actualizarCampo(campo.key, String(valor))}
+                                aria-pressed={seleccionado}
+                                aria-label={`Valoracion ${valor}`}
+                                className={`inline-flex items-center justify-center rounded-md border px-3 py-2 text-sm font-bold transition-all focus:outline-none focus:ring-2 focus:ring-club-red focus:ring-offset-1 ${
+                                  seleccionado
+                                    ? 'border-club-red bg-club-red text-white shadow-sm'
+                                    : 'border-gray-300 bg-white text-club-black hover:border-club-red/40 hover:bg-red-50'
+                                }`}
+                              >
+                                {valor}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <p className="text-xs text-club-black/45">Selecciona una puntuacion del 1 al 5.</p>
+                      </div>
                     ) : campo.type === 'clubSelect' ? (
                       <select
                         value={form[campo.key]}
@@ -718,6 +784,19 @@ export default function Captacion() {
                             : 'Selecciona primero un club'}
                         </option>
                         {opcionesEquipos.map((opcion) => (
+                          <option key={opcion} value={opcion}>
+                            {opcion}
+                          </option>
+                        ))}
+                      </select>
+                    ) : campo.type === 'listaSelect' ? (
+                      <select
+                        value={form[campo.key]}
+                        onChange={(event) => actualizarCampo(campo.key, event.target.value)}
+                        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
+                      >
+                        <option value="">{(opcionesListas[campo.listaId] || []).length > 0 ? 'Seleccionar' : 'Sin opciones disponibles'}</option>
+                        {(opcionesListas[campo.listaId] || []).map((opcion) => (
                           <option key={opcion} value={opcion}>
                             {opcion}
                           </option>
@@ -787,7 +866,7 @@ export default function Captacion() {
                         className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
                       >
                         <option value="">Seleccionar</option>
-                        {campo.options.map((opcion) => (
+                        {obtenerOpcionesSelect(campo, form[campo.key]).map((opcion) => (
                           <option key={opcion} value={opcion}>
                             {opcion}
                           </option>

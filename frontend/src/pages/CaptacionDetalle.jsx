@@ -75,7 +75,7 @@ const BLOQUES = [
   },
   {
     title: 'Contexto deportivo',
-    fields: ['club', 'equipo', 'categoria', 'grupo', 'enlace'],
+    fields: ['club', 'equipo', 'etapa', 'categoria', 'grupo', 'enlace'],
   },
   {
     title: 'Perfil del jugador',
@@ -93,6 +93,7 @@ const ETIQUETAS = {
   quien_da_alta: 'Quien da alta',
   club: 'Club',
   equipo: 'Equipo',
+  etapa: 'Etapa',
   categoria: 'Categoria',
   grupo: 'Grupo',
   enlace: 'Enlace',
@@ -273,7 +274,7 @@ export default function CaptacionDetalle() {
 
               <div className="space-y-5">
                 <div className="flex flex-wrap gap-2">
-                  {['club', 'equipo', 'categoria', 'grupo', 'demarcacion', 'lateralidad'].map((campo) => {
+                  {['club', 'equipo', 'etapa', 'categoria', 'grupo', 'demarcacion', 'lateralidad'].map((campo) => {
                     const valor = renderValor(registro, campo);
                     if (!valor || valor === '-') return null;
                     return (
