@@ -14,7 +14,7 @@ function formatearValor(valor, campo) {
   if (typeof valor === 'boolean') return valor ? 'Si' : 'No';
   if (campo === 'fecha_nacimiento') {
     const [anio, mes, dia] = String(valor).split('-');
-    if (anio && mes && dia) return `${dia}-${mes}-${anio}`;
+    if (anio && mes && dia) return `${dia}/${mes}/${anio}`;
   }
   return String(valor);
 }
@@ -295,146 +295,228 @@ export default function FichaJugador() {
   }, [jugador, location.hash]);
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <Link to="/" className="text-club-red font-semibold hover:underline text-sm">
-          &larr; Volver a plantillas
-        </Link>
-        <Link to="/campogramas" className="text-club-red font-semibold hover:underline text-sm">
-          &larr; Volver a campograma
-        </Link>
+    <div className="w-full px-4 sm:px-6 py-6">
+      <div className="mb-6 flex flex-col gap-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            to="/"
+            className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-club-black hover:bg-gray-50"
+          >
+            Volver al listado
+          </Link>
+          <Link
+            to="/campogramas"
+            className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-club-black hover:bg-gray-50"
+          >
+            Volver a campograma
+          </Link>
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-wide text-club-black/50">Plantillas</p>
+            <h2 className="text-2xl font-bold text-club-black">Ficha de jugador</h2>
+          </div>
+        </div>
       </div>
 
-      {loading && <p className="mt-6 text-club-black/60">Cargando ficha...</p>}
-
-      {error && (
-        <p className="mt-6 text-sm text-club-red font-medium bg-red-50 border border-club-red/30 rounded-md px-3 py-2">
-          {error}
-        </p>
-      )}
-
-      {jugador && (
-        <div className="mt-4 bg-white border border-gray-200 rounded-xl shadow-sm">
-          <div className="sticky top-[72px] z-40 bg-club-black text-white px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center gap-5 sm:gap-6 rounded-t-xl">
-            {jugador.foto_url ? (
-              <img
-                src={jugador.foto_url}
-                alt={`Foto de ${jugador.nombre}`}
-                className="w-24 h-24 sm:w-36 sm:h-36 rounded-2xl object-cover border-2 border-white/30 shrink-0"
-              />
-            ) : (
-              <div className="w-24 h-24 sm:w-36 sm:h-36 rounded-2xl bg-white/10 flex items-center justify-center text-xs text-white/40 shrink-0 text-center">
-                Sin foto
-              </div>
-            )}
-            <div className="min-w-0">
-              <h2 className="text-lg sm:text-xl font-bold truncate">
-                {nombreCompleto(jugador)}
-              </h2>
-              <p className="text-white/60 text-sm truncate">Equipo: {jugador.equipo}</p>
+      {loading ? (
+        <div className="rounded-lg border border-gray-200 bg-white px-4 py-8 text-center text-club-black/60">
+          Cargando ficha...
+        </div>
+      ) : error ? (
+        <div className="rounded-lg border border-club-red/20 bg-red-50 px-4 py-6 text-club-red">
+          <p className="font-semibold">No se pudo cargar la ficha.</p>
+          <p className="mt-1 text-sm">{error}</p>
+        </div>
+      ) : jugador ? (
+        <div className="space-y-6">
+          <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+            <div className="border-b border-gray-100 bg-gradient-to-r from-club-black to-club-red px-5 py-4 text-white">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/70">Ficha completa</p>
+              <h3 className="mt-1 text-2xl font-bold">{nombreCompleto(jugador) || 'Jugador sin nombre'}</h3>
+              <p className="text-sm text-white/80">{jugador.equipo || 'Sin equipo asignado'}</p>
             </div>
-          </div>
 
-          <div className="px-4 sm:px-6 pt-4 flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 sm:gap-4">
-            {puedeSubirFoto && (
-              <label className="inline-flex w-full sm:w-auto items-center justify-center text-sm font-medium text-club-red cursor-pointer hover:underline">
-                {subiendoFoto ? 'Subiendo foto...' : 'Cambiar foto'}
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  className="hidden"
-                  onChange={handleFotoChange}
-                  disabled={subiendoFoto}
-                />
-              </label>
-            )}
-            <button
-              onClick={handleGenerarInforme}
-              disabled={generandoInforme}
-              className="w-full sm:w-auto text-sm font-semibold bg-club-black text-white px-3 py-2 rounded-md hover:bg-club-black/80 disabled:opacity-60"
-            >
-              {generandoInforme ? 'Generando informe...' : 'Informe jugador'}
-            </button>
-          </div>
-          {errorFoto && <p className="px-4 sm:px-6 text-sm text-club-red mt-1">{errorFoto}</p>}
-
-          <div className="p-4 sm:p-6 space-y-6">
-            {SECCIONES_FICHA.map((seccion) => {
-              const camposDisponibles = seccion.campos.filter((campo) => tieneDatoCampo(jugador, campo));
-              if (camposDisponibles.length === 0) return null;
-              const esDeportivo = seccion.titulo === 'Datos deportivos';
-              const editable = esDeportivo && puedeEditarDeportivo;
-              return (
-                <div key={seccion.titulo} id={esDeportivo ? 'datos-deportivos' : undefined}>
-                  <h3 className="text-club-red font-bold text-sm uppercase tracking-wide mb-2">
-                    {seccion.titulo}
-                  </h3>
-                  <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 sm:gap-x-6 gap-y-3">
-                    {camposDisponibles.map((campo) => (
-                      <div key={campo}>
-                        <dt className="text-xs text-club-black/50 font-semibold">
-                          {ETIQUETAS_JUGADOR[campo] || campo}
-                        </dt>
-                        {editable && campo === 'dorsal' ? (
-                          <input
-                            type="number"
-                            min="1"
-                            max="99"
-                            value={datosDeportivos.dorsal}
-                            onChange={(e) =>
-                              setDatosDeportivos((prev) => ({ ...prev, dorsal: e.target.value }))
-                            }
-                            className="mt-0.5 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
-                          />
-                        ) : editable ? (
-                          <select
-                            value={datosDeportivos[campo] || ''}
-                            onChange={(e) =>
-                              setDatosDeportivos((prev) => ({ ...prev, [campo]: e.target.value }))
-                            }
-                            className="mt-0.5 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
-                          >
-                            <option value="">-</option>
-                            {OPCIONES_POR_CAMPO[campo].map((opcion) => (
-                              <option key={opcion} value={opcion}>
-                                {opcion}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          <dd className="text-club-black">
-                            {formatearValor(obtenerValorCampoFicha(jugador, campo), campo)}
-                          </dd>
-                        )}
-                      </div>
-                    ))}
-                  </dl>
-                  {editable && (
-                    <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-3">
-                      <button
-                        onClick={handleGuardarDatosDeportivos}
-                        disabled={guardandoDeportivo}
-                        className="w-full sm:w-auto text-sm font-semibold bg-club-red text-white px-3 py-2 rounded-md hover:bg-club-red/90 disabled:opacity-60"
-                      >
-                        {guardandoDeportivo ? 'Guardando...' : 'Guardar'}
-                      </button>
-                      {guardadoOkDeportivo && (
-                        <p className="text-sm text-green-600 font-medium">
-                          {syncHojaDeportivo?.ok ? 'Guardado y hoja actualizada' : 'Guardado'}
-                        </p>
-                      )}
-                      {guardadoOkDeportivo && syncHojaDeportivo && !syncHojaDeportivo.ok && (
-                        <p className="text-sm text-amber-700">
-                          Guardado en la app. Hoja no actualizada: {syncHojaDeportivo.motivo}
-                        </p>
-                      )}
-                      {errorDeportivo && <p className="text-sm text-club-red">{errorDeportivo}</p>}
+            <div className="grid gap-6 p-5 xl:grid-cols-[280px_1fr]">
+              <div className="space-y-4">
+                <div className="overflow-hidden rounded-2xl border border-gray-200 bg-gray-50">
+                  {jugador.foto_url ? (
+                    <img src={jugador.foto_url} alt={`Foto de ${nombreCompleto(jugador)}`} className="h-80 w-full object-cover" />
+                  ) : (
+                    <div className="flex h-80 items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 text-center text-sm font-semibold text-club-black/40">
+                      Sin foto disponible
                     </div>
                   )}
                 </div>
-              );
-            })}
-          </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-club-black/50">Dorsal</p>
+                    <p className="mt-1 text-xl font-bold text-club-black">{formatearValor(obtenerValorCampoFicha(jugador, 'dorsal'), 'dorsal')}</p>
+                  </div>
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-club-black/50">Edad</p>
+                    <p className="mt-1 text-xl font-bold text-club-black">{formatearValor(obtenerValorCampoFicha(jugador, 'edad'), 'edad')}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {puedeSubirFoto && (
+                    <label className="inline-flex w-full items-center justify-center rounded-md border border-club-red/20 bg-club-red/5 px-4 py-2 text-sm font-semibold text-club-red cursor-pointer hover:bg-club-red/10">
+                      {subiendoFoto ? 'Subiendo foto...' : 'Cambiar foto'}
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        className="hidden"
+                        onChange={handleFotoChange}
+                        disabled={subiendoFoto}
+                      />
+                    </label>
+                  )}
+                  <button
+                    onClick={handleGenerarInforme}
+                    disabled={generandoInforme}
+                    className="w-full rounded-md bg-club-black px-4 py-2 text-sm font-semibold text-white hover:bg-club-black/80 disabled:opacity-60"
+                  >
+                    {generandoInforme ? 'Generando informe...' : 'Informe jugador'}
+                  </button>
+                  {errorFoto ? <p className="text-sm text-club-red">{errorFoto}</p> : null}
+                </div>
+              </div>
+
+              <div className="space-y-5">
+                <div className="flex flex-wrap gap-2">
+                  {['equipo', 'edicion', 'lateralidad', 'demarcacion', 'colegio_instituto', 'club_procedencia'].map((campo) => {
+                    const valor = formatearValor(obtenerValorCampoFicha(jugador, campo), campo);
+                    if (!valor || valor === '-') return null;
+                    return (
+                      <span
+                        key={campo}
+                        className="inline-flex items-center rounded-full border border-club-red/20 bg-club-red/5 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-club-red"
+                      >
+                        {valor}
+                      </span>
+                    );
+                  })}
+                </div>
+
+                <div className="space-y-4">
+                  {SECCIONES_FICHA.map((seccion) => {
+                    const camposDisponibles = seccion.campos.filter((campo) => tieneDatoCampo(jugador, campo));
+                    if (camposDisponibles.length === 0) return null;
+                    const esDeportivo = seccion.titulo === 'Datos deportivos';
+                    const editable = esDeportivo && puedeEditarDeportivo;
+
+                    return (
+                      <section
+                        key={seccion.titulo}
+                        id={esDeportivo ? 'datos-deportivos' : undefined}
+                        className="rounded-2xl border border-gray-200 bg-gray-50 p-4"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <h4 className="text-sm font-bold uppercase tracking-wide text-club-black">{seccion.titulo}</h4>
+                          {editable ? (
+                            <span className="text-xs font-semibold uppercase tracking-wide text-club-red">Editable</span>
+                          ) : null}
+                        </div>
+
+                        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                          {camposDisponibles.map((campo) => {
+                            const valorCampo = obtenerValorCampoFicha(jugador, campo);
+                            const valor = formatearValor(valorCampo, campo);
+                            const esLargo = campo === 'observaciones';
+
+                            return (
+                              <div
+                                key={campo}
+                                className={`rounded-xl border border-gray-200 bg-white p-4 ${
+                                  esLargo ? 'sm:col-span-2 xl:col-span-3' : ''
+                                }`}
+                              >
+                                <p className="text-xs font-semibold uppercase tracking-wide text-club-black/45">
+                                  {ETIQUETAS_JUGADOR[campo] || campo}
+                                </p>
+                                <div className={`mt-2 text-sm text-club-black/80 ${esLargo ? 'whitespace-pre-line leading-6' : 'break-words'}`}>
+                                  {editable && campo === 'dorsal' ? (
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      max="99"
+                                      value={datosDeportivos.dorsal}
+                                      onChange={(e) =>
+                                        setDatosDeportivos((prev) => ({ ...prev, dorsal: e.target.value }))
+                                      }
+                                      className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
+                                    />
+                                  ) : editable && (campo === 'lateralidad' || campo === 'demarcacion') ? (
+                                    <select
+                                      value={datosDeportivos[campo] || ''}
+                                      onChange={(e) =>
+                                        setDatosDeportivos((prev) => ({ ...prev, [campo]: e.target.value }))
+                                      }
+                                      className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
+                                    >
+                                      <option value="">-</option>
+                                      {(OPCIONES_POR_CAMPO[campo] || []).map((opcion) => (
+                                        <option key={opcion} value={opcion}>
+                                          {opcion}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  ) : campo === 'fecha_nacimiento' ? (
+                                    valor
+                                  ) : campo === 'edad' ? (
+                                    valor
+                                  ) : campo === 'anio_nacimiento' ? (
+                                    formatearValor(obtenerValorCampoFicha(jugador, campo), campo)
+                                  ) : campo === 'telefono_jugador' && valor !== '-' ? (
+                                    <a href={`tel:${String(valor).replace(/\s+/g, '')}`} className="font-semibold text-club-red hover:underline">
+                                      {valor}
+                                    </a>
+                                  ) : campo === 'email_jugador' && valor !== '-' ? (
+                                    <a href={`mailto:${valor}`} className="font-semibold text-club-red hover:underline">
+                                      {valor}
+                                    </a>
+                                  ) : (
+                                    valor
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {editable ? (
+                          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+                            <button
+                              onClick={handleGuardarDatosDeportivos}
+                              disabled={guardandoDeportivo}
+                              className="w-full rounded-md bg-club-red px-4 py-2 text-sm font-semibold text-white hover:bg-club-red/90 disabled:opacity-60 sm:w-auto"
+                            >
+                              {guardandoDeportivo ? 'Guardando...' : 'Guardar cambios'}
+                            </button>
+                            {guardadoOkDeportivo ? (
+                              <p className="text-sm font-medium text-green-600">
+                                {syncHojaDeportivo?.ok ? 'Guardado y hoja actualizada' : 'Guardado'}
+                              </p>
+                            ) : null}
+                            {guardadoOkDeportivo && syncHojaDeportivo && !syncHojaDeportivo.ok ? (
+                              <p className="text-sm text-amber-700">
+                                Guardado en la app. Hoja no actualizada: {syncHojaDeportivo.motivo}
+                              </p>
+                            ) : null}
+                            {errorDeportivo ? <p className="text-sm text-club-red">{errorDeportivo}</p> : null}
+                          </div>
+                        ) : null}
+                      </section>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      ) : (
+        <div className="rounded-lg border border-gray-200 bg-white px-4 py-8 text-center text-club-black/60">
+          El registro solicitado no existe.
         </div>
       )}
     </div>
