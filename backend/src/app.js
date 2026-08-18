@@ -62,6 +62,12 @@ app.use(cookieParser());
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 
+// Si alguien abre el backend en el navegador, lo mandamos al frontend.
+// En desarrollo el frontend vive en Vite; en produccion esto apunta a la URL publica.
+app.get('/', (req, res) => {
+  res.redirect(302, env.frontendOrigin);
+});
+
 app.use('/api/auth', authRoutes);
 app.use('/api/jugadores', jugadoresRoutes);
 app.use('/api/usuarios', usuariosRoutes);

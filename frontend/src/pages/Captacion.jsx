@@ -14,7 +14,7 @@ const CAMPOS = [
   { key: 'etapa', label: 'ETAPA', type: 'listaSelect', listaId: 'etapas' },
   { key: 'categoria', label: 'CATEGORIA', type: 'listaSelect', listaId: 'categorias' },
   { key: 'grupo', label: 'GRUPO', type: 'text' },
-  { key: 'enlace', label: 'ENLACE', type: 'url' },
+  { key: 'enlace', label: 'ENLACE FEDERACIÓN', type: 'url' },
   { key: 'nombre', label: 'NOMBRE', type: 'text', required: true },
   { key: 'primer_apellido', label: 'PRIMER APELLIDO', type: 'text', required: true },
   { key: 'nombre_completo', label: 'NOMBRE COMPLETO', type: 'computed' },
@@ -28,7 +28,7 @@ const CAMPOS = [
   { key: 'anio_nacimiento', label: 'ANO DE NACIMIENTO', type: 'number' },
   { key: 'edad', label: 'EDAD', type: 'number' },
   { key: 'demarcacion', label: 'DEMARCACION', type: 'select', options: ['PORTERO', 'LATERAL', 'CENTRAL', 'MEDIO', 'MEDIA PUNTA', 'EXTREMO', 'DELANTERO'] },
-  { key: 'otra_demarcacion', label: 'OTRA DEMARCACION', type: 'select', options: ['PORTERO', 'LATERAL', 'CENTRAL', 'MEDIO', 'MEDIA PUNTA', 'EXTREMO', 'DELANTERO'] },
+  { key: 'otra_demarcacion', label: 'OTRA DEMARCACION -', type: 'select', options: ['PORTERO', 'LATERAL', 'CENTRAL', 'MEDIO', 'MEDIA PUNTA', 'EXTREMO', 'DELANTERO'] },
   { key: 'valoracion_general', label: 'VALORACION GENERAL', type: 'ratingButtons' },
   { key: 'descripcion_jugador', label: 'DESCRIPCION DEL JUGADOR', type: 'textarea' },
   { key: 'observaciones', label: 'OBSERVACIONES', type: 'textarea' },
@@ -146,11 +146,20 @@ function formatearFechaCorta(valor) {
   return `${dia}/${mes}/${anio}`;
 }
 
-function crearFormVacio() {
+function crearFormVacio({ clubPredeterminado = '', responsablePredeterminado = '' } = {}) {
   return CAMPOS.reduce(
     (acc, campo) => ({
       ...acc,
-      [campo.key]: campo.key === 'fecha_alta' ? obtenerFechaHoyISO() : campo.key === 'id_jugador' ? generarIdJugador() : '',
+      [campo.key]:
+        campo.key === 'fecha_alta'
+          ? obtenerFechaHoyISO()
+          : campo.key === 'id_jugador'
+            ? generarIdJugador()
+            : campo.key === 'club'
+              ? clubPredeterminado
+              : campo.key === 'quien_da_alta'
+                ? responsablePredeterminado
+                : '',
     }),
     {}
   );
@@ -361,6 +370,11 @@ export default function Captacion() {
   }, [responsablesAlta]);
 
   useEffect(() => {
+    if (!user?.username) return;
+    asegurarResponsableAlta(user.username);
+  }, [user?.username]);
+
+  useEffect(() => {
     return () => {
       if (fotoJugadorPreview.startsWith('blob:')) {
         URL.revokeObjectURL(fotoJugadorPreview);
@@ -403,6 +417,20 @@ export default function Captacion() {
       categorias: categorias.map((nombre) => String(nombre || '').trim()).filter(Boolean),
     }),
     [categorias, etapas]
+  );
+
+  const camposFormulario = useMemo(
+    () =>
+      camposVisibles.map((campo) =>
+        campo.key === 'categoria'
+          ? {
+              ...campo,
+              type: 'select',
+              options: opcionesListas.categorias,
+            }
+          : campo
+      ),
+    [camposVisibles, opcionesListas.categorias]
   );
 
   const actualizarCampo = (key, value) => {
@@ -456,7 +484,7 @@ export default function Captacion() {
   };
 
   const cancelarFormulario = () => {
-    setForm(crearFormVacio());
+    setForm(crearFormVacio({ clubPredeterminado: club, responsablePredeterminado: user?.username || '' }));
     setEditandoId(null);
     setMostrarFormulario(false);
     setFotoJugadorFile(null);
@@ -465,7 +493,7 @@ export default function Captacion() {
   };
 
   const nuevoRegistro = () => {
-    setForm(crearFormVacio());
+    setForm(crearFormVacio({ clubPredeterminado: club, responsablePredeterminado: user?.username || '' }));
     setEditandoId(null);
     setMostrarFormulario(true);
     setFotoJugadorFile(null);
@@ -721,7 +749,7 @@ export default function Captacion() {
             >
               <h3 className="font-bold text-club-black">{editandoId ? 'Editar registro' : 'Nuevo registro'}</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {camposVisibles.map((campo) => (
+                {camposFormulario.map((campo) => (
                   <div key={campo.key} className={campo.type === 'textarea' ? 'sm:col-span-2' : ''}>
                     <label className="block text-xs font-semibold text-club-black/70 mb-1">{campo.label}</label>
                     {campo.type === 'textarea' ? (

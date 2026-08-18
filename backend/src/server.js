@@ -12,5 +12,7 @@ server.on('error', (error) => {
     console.error('No se puede iniciar el backend:', error);
   }
 
-  process.exitCode = 1;
+  // Si el servidor no puede arrancar, salimos de inmediato para evitar que
+  // `node --watch` se quede en un estado ambiguo con procesos duplicados.
+  process.exit(1);
 });

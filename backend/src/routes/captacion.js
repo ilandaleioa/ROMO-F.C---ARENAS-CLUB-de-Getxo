@@ -30,6 +30,14 @@ function validarPayload(payload) {
   return null;
 }
 
+function obtenerFechaHoyISO() {
+  const hoy = new Date();
+  const anio = hoy.getFullYear();
+  const mes = String(hoy.getMonth() + 1).padStart(2, '0');
+  const dia = String(hoy.getDate()).padStart(2, '0');
+  return `${anio}-${mes}-${dia}`;
+}
+
 function limpiarRegistroSegunRol(registro, rol) {
   if (!registro || rol === ROLES.ADMINISTRADOR) {
     return registro;
@@ -52,7 +60,11 @@ function responderError(res, error, accion) {
   console.error(`Error ${accion} registros de captacion:`, {
     code: error?.code, message: error?.message, details: error?.details, hint: error?.hint,
   });
-  if (esTablaInexistente(error)) return res.status(503).json({ error: `No existe la tabla "${TABLA_CAPTACION}" en Supabase.` });
+  if (esTablaInexistente(error)) {
+    return res.status(503).json({
+      error: `No existe la tabla "${TABLA_CAPTACION}" en Supabase. Ejecuta backend/scripts/crear-tabla-captacion.sql en el editor SQL.`,
+    });
+  }
   return res.status(503).json({ error: `No se pudo ${accion} el registro de captacion.` });
 }
 
@@ -61,7 +73,9 @@ function responderErrorInformes(res, error, accion) {
     code: error?.code, message: error?.message, details: error?.details, hint: error?.hint,
   });
   if (esTablaInexistente(error)) {
-    return res.status(503).json({ error: `No existe la tabla "${TABLA_INFORMES}" en Supabase. Ejecuta el SQL de creacion de informes.` });
+    return res.status(503).json({
+      error: `No existe la tabla "${TABLA_INFORMES}" en Supabase. Ejecuta backend/scripts/crear-tabla-captacion-informes.sql en el editor SQL.`,
+    });
   }
   return res.status(503).json({ error: `No se pudo ${accion} el informe de captacion.` });
 }
@@ -123,9 +137,19 @@ router.get('/informes', async (_req, res) => {
       .select('*')
       .order('fecha', { ascending: false })
       .order('created_at', { ascending: false });
-    if (error) return responderErrorInformes(res, error, 'consultar');
+    if (error) {
+      if (esTablaInexistente(error)) {
+        console.warn(`La tabla "${TABLA_INFORMES}" no existe en Supabase. Se devuelve una lista vacia para no bloquear la pantalla de captacion.`);
+        return res.json({ informes: [] });
+      }
+      return responderErrorInformes(res, error, 'consultar');
+    }
     return res.json({ informes: await enriquecerInformes(data || []) });
   } catch (error) {
+    if (esTablaInexistente(error)) {
+      console.warn(`La tabla "${TABLA_INFORMES}" no existe en Supabase. Se devuelve una lista vacia para no bloquear la pantalla de captacion.`);
+      return res.json({ informes: [] });
+    }
     return responderErrorInformes(res, error, 'consultar');
   }
 });
@@ -149,10 +173,13 @@ router.get('/:id', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { rol } = req.user;
+    const { rol, club: clubSesion, username } = req.user;
     const payload = limpiarPayload(req.body);
     const validationError = validarPayload(payload);
     if (validationError) return res.status(400).json({ error: validationError });
+    if (!payload.fecha_alta) payload.fecha_alta = obtenerFechaHoyISO();
+    if (!payload.club) payload.club = String(clubSesion || '').trim();
+    if (!payload.quien_da_alta) payload.quien_da_alta = String(username || '').trim();
     payload.id_jugador = rol === ROLES.ADMINISTRADOR && idJugadorValido(payload.id_jugador)
       ? payload.id_jugador
       : crypto.randomUUID();
@@ -179,22 +206,6 @@ router.post('/informes', async (req, res) => {
   }
 });
 
-router.put('/:id', async (req, res) => {
-  try {
-    const { rol } = req.user;
-    const payload = limpiarPayload(req.body);
-    const validationError = validarPayload(payload);
-    if (validationError) return res.status(400).json({ error: validationError });
-    delete payload.id_jugador;
-    const { data, error } = await supabaseAdmin.from(TABLA_CAPTACION).update(payload).eq('id', req.params.id).select('*').maybeSingle();
-    if (error) return responderError(res, error, 'actualizar');
-    if (!data) return res.status(404).json({ error: 'Registro de captacion no encontrado.' });
-    return res.json({ registro: limpiarRegistroSegunRol(data, rol) });
-  } catch (error) {
-    return responderError(res, error, 'actualizar');
-  }
-});
-
 router.put('/informes/:id', async (req, res) => {
   try {
     const payload = limpiarInformePayload(req.body);
@@ -211,14 +222,19 @@ router.put('/informes/:id', async (req, res) => {
   }
 });
 
-router.delete('/:id', async (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
-    const { data, error } = await supabaseAdmin.from(TABLA_CAPTACION).delete().eq('id', req.params.id).select('id').maybeSingle();
-    if (error) return responderError(res, error, 'eliminar');
+    const { rol } = req.user;
+    const payload = limpiarPayload(req.body);
+    const validationError = validarPayload(payload);
+    if (validationError) return res.status(400).json({ error: validationError });
+    delete payload.id_jugador;
+    const { data, error } = await supabaseAdmin.from(TABLA_CAPTACION).update(payload).eq('id', req.params.id).select('*').maybeSingle();
+    if (error) return responderError(res, error, 'actualizar');
     if (!data) return res.status(404).json({ error: 'Registro de captacion no encontrado.' });
-    return res.json({ ok: true });
+    return res.json({ registro: limpiarRegistroSegunRol(data, rol) });
   } catch (error) {
-    return responderError(res, error, 'eliminar');
+    return responderError(res, error, 'actualizar');
   }
 });
 
@@ -230,6 +246,17 @@ router.delete('/informes/:id', async (req, res) => {
     return res.json({ ok: true });
   } catch (error) {
     return responderErrorInformes(res, error, 'eliminar');
+  }
+});
+
+router.delete('/:id', async (req, res) => {
+  try {
+    const { data, error } = await supabaseAdmin.from(TABLA_CAPTACION).delete().eq('id', req.params.id).select('id').maybeSingle();
+    if (error) return responderError(res, error, 'eliminar');
+    if (!data) return res.status(404).json({ error: 'Registro de captacion no encontrado.' });
+    return res.json({ ok: true });
+  } catch (error) {
+    return responderError(res, error, 'eliminar');
   }
 });
 

@@ -110,7 +110,7 @@ const ETIQUETAS = {
   anio_nacimiento: 'Anio nacimiento',
   edad: 'Edad',
   demarcacion: 'Demarcacion',
-  otra_demarcacion: 'Otra demarcacion',
+  otra_demarcacion: 'Otra demarcacion -',
   valoracion_general: 'Valoracion general',
   descripcion_jugador: 'Descripcion del jugador',
   observaciones: 'Observaciones',

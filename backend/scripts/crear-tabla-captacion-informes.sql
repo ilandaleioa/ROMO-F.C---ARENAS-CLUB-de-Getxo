@@ -1,4 +1,5 @@
 -- Ejecutar en el SQL Editor de Supabase.
+-- Primero crea la tabla principal con backend/scripts/crear-tabla-captacion.sql.
 -- Cada informe apunta a un registro de la tabla de captacion mediante jugador_id.
 
 create table if not exists public.captacion_informes (
@@ -20,4 +21,3 @@ create index if not exists captacion_informes_fecha_idx
 
 create index if not exists captacion_informes_jugador_idx
   on public.captacion_informes (jugador_id);
-

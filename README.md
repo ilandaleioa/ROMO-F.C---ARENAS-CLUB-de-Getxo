@@ -59,6 +59,7 @@ npm run dev      # o "npm start" para produccion
 ```
 
 El backend queda escuchando en `http://localhost:4000` (o el puerto que definas). Ruta de comprobacion: `GET /api/health`.
+Si abres `http://localhost:4000/` en el navegador, te redirige al frontend.
 La sincronizacion desde Google Sheets se hace por club. Si ARENAS no muestra jugadores, revisa que `GOOGLE_SHEETS_SPREADSHEET_ID_ARENAS`, `GOOGLE_SHEETS_GID_ARENAS` y la service account esten configurados en `backend/.env`.
 
 ### Despliegue en Vercel
@@ -120,7 +121,7 @@ npm install
 npm run dev
 ```
 
-La app queda disponible en `http://localhost:5173`.
+La app queda disponible en `http://localhost:5173`. En local, esa es la URL que debes abrir para ver la interfaz.
 
 ### Escudo del club
 
