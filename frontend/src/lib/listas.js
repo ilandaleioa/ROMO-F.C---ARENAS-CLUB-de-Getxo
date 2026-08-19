@@ -109,12 +109,14 @@ function normalizarFilaEquipo(fila, fallback = {}, indice = 0) {
   );
   const nombreFederacion =
     limpiarTextoLocal(fila?.nombre_federacion) || limpiarTextoLocal(fallback?.nombre_federacion);
+  const abreviatura = limpiarTextoLocal(fila?.abreviatura) || limpiarTextoLocal(fallback?.abreviatura);
 
   return {
     id: limpiarTextoLocal(fila?.id) || limpiarTextoLocal(fallback?.id) || `equipo-${String(indice + 1).padStart(3, '0')}`,
     club,
     nombre,
     nombre_federacion: nombreFederacion,
+    abreviatura,
   };
 }
 
@@ -206,6 +208,7 @@ function fusionarFilasEquipos(filasBase, filasGuardadas) {
       club: guardada.club || baseFila.club,
       nombre: guardada.nombre || baseFila.nombre,
       nombre_federacion: guardada.nombre_federacion || baseFila.nombre_federacion,
+      abreviatura: guardada.abreviatura || baseFila.abreviatura,
     };
   });
 
@@ -242,6 +245,7 @@ export const LISTAS_INICIALES = [
       { key: 'club', label: 'Club' },
       { key: 'nombre_federacion', label: 'Nombre FED', obligatorio: false },
       { key: 'nombre', label: 'Equipo interno' },
+      { key: 'abreviatura', label: 'Abreviatura', obligatorio: false },
     ],
     filas: crearEquiposIniciales(),
   },

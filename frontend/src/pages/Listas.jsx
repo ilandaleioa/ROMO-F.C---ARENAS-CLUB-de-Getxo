@@ -6,7 +6,9 @@ export default function Listas() {
   const listas = useListas();
   const listaClubes = listas.find((lista) => lista.id === 'clubes') || null;
   const clubesDisponibles = useMemo(() => obtenerClubesDisponibles(listaClubes), [listaClubes]);
-  const listasVisibles = listas.filter((lista) => lista.id !== 'clubes' && lista.id !== 'equipos' && lista.id !== 'lateralidad');
+  const listasVisibles = listas.filter(
+    (lista) => lista.id !== 'clubes' && lista.id !== 'equipos' && lista.id !== 'lateralidad' && lista.id !== 'demarcacion'
+  );
 
   return (
     <div className="w-full px-4 py-6 sm:px-6">

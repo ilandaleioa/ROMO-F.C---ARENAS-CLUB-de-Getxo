@@ -1135,7 +1135,7 @@ function ActividadFila({ actividad, compacta = false }) {
   );
 }
 
-// Escudos publicados por Euskadifutbol para la competiciÃ³n 24057860.
+// Escudos publicados por Euskadifutbol para la competición 24057860.
 // Se mantienen aquí asociados al nombre oficial que devuelve la jornada para
 // que los partidos sigan mostrando el escudo correcto aunque cambie el rival.
 const ESCUDOS_CLUBES = {

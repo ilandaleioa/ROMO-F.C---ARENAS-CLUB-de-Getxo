@@ -5,6 +5,7 @@ import { useClub } from '../context/ClubContext';
 import { api } from '../lib/api';
 import { useLista, useListaValores } from '../lib/listas';
 import TableScroll from '../components/TableScroll';
+import SelectBuscador from '../components/SelectBuscador';
 
 const DEMARCACION_CONCRETA_OPCIONES = [
   'Portero',
@@ -89,7 +90,7 @@ const CAMPOS_INFORME_TABLA = [
 ];
 const BLOQUES_INFORME_FORM = [
   { title: 'Datos basicos', fields: ['fecha', 'observador', 'club', 'equipo', 'jugador_id'], gridClassName: 'sm:grid-cols-2 xl:grid-cols-5' },
-  { title: 'Partido', fields: ['etapa', 'categoria', 'local', 'visitante', 'partido'], gridClassName: 'sm:grid-cols-2 xl:grid-cols-2' },
+  { title: 'Partido', fields: ['etapa', 'categoria', 'local', 'visitante', 'partido'], gridClassName: 'sm:grid-cols-2 xl:grid-cols-5' },
   { title: 'INFORME', fields: ['dorsal', 'tipologia', 'lateralidad', 'descripcion'], gridClassName: 'sm:grid-cols-2 xl:grid-cols-3' },
   { title: 'VALORACIÓN EN POSICIÓN', fields: ['demarcacion_concreta'], gridClassName: 'sm:grid-cols-2 xl:grid-cols-3' },
   { title: 'DATOS PARTIDO', fields: ['titularidad', 'minutos_jugados', 'goles', 'goles_encajados'], gridClassName: 'sm:grid-cols-2 xl:grid-cols-3' },
@@ -529,9 +530,14 @@ function CaptacionFormulario({
               })}
             </div>
 
-            <div className="space-y-4">
+            <div className="grid gap-4 lg:grid-cols-2">
               {BLOQUES_FORMULARIO_CAPTACION.map((bloque) => (
-                <section key={bloque.title} className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                <section
+                  key={bloque.title}
+                  className={`rounded-2xl border border-gray-200 bg-gray-50 p-4 ${
+                    bloque.title === 'Perfil del jugador' || bloque.title === 'Observaciones' ? 'lg:col-span-2' : ''
+                  }`}
+                >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <h4 className="text-sm font-bold uppercase tracking-wide text-club-black">{bloque.title}</h4>
                   </div>
@@ -633,65 +639,6 @@ function obtenerOpcionesClubEquipo(listaEquipos, valoresActuales = []) {
   });
 
   return opciones.sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
-}
-
-function obtenerOpcionesInformeUnicas(registros, clave, valorActual = '') {
-  const opciones = [];
-  const vistos = new Set();
-
-  (registros || []).forEach((registro) => {
-    const valor = String(registro?.[clave] || '').trim();
-    if (!valor) return;
-
-    const claveNormalizada = normalizarComparacion(valor);
-    if (vistos.has(claveNormalizada)) return;
-
-    vistos.add(claveNormalizada);
-    opciones.push(valor);
-  });
-
-  const valorLimpio = String(valorActual || '').trim();
-  if (valorLimpio) {
-    const claveNormalizada = normalizarComparacion(valorLimpio);
-    if (!vistos.has(claveNormalizada)) {
-      opciones.push(valorLimpio);
-    }
-  }
-
-  return opciones.sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
-}
-
-function obtenerOpcionesClubesInforme(registros, valorActual = '') {
-  return obtenerOpcionesInformeUnicas(registros, 'club', valorActual);
-}
-
-function obtenerOpcionesEquiposInforme(registros, clubSeleccionado, valorActual = '') {
-  const clubNormalizado = normalizarComparacion(clubSeleccionado);
-  const equipos = [];
-  const vistos = new Set();
-
-  (registros || []).forEach((registro) => {
-    const club = String(registro?.club || '').trim();
-    const equipo = String(registro?.equipo || '').trim();
-    if (!club || !equipo) return;
-    if (clubNormalizado && normalizarComparacion(club) !== clubNormalizado) return;
-
-    const clave = normalizarComparacion(equipo);
-    if (vistos.has(clave)) return;
-
-    vistos.add(clave);
-    equipos.push(equipo);
-  });
-
-  const valorLimpio = String(valorActual || '').trim();
-  if (valorLimpio) {
-    const clave = normalizarComparacion(valorLimpio);
-    if (!vistos.has(clave)) {
-      equipos.push(valorLimpio);
-    }
-  }
-
-  return equipos.sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
 }
 
 function obtenerOpcionesJugadoresInforme(registros, clubSeleccionado, equipoSeleccionado, jugadorActual = '') {
@@ -951,6 +898,7 @@ export default function Captacion() {
   const [editandoInformeId, setEditandoInformeId] = useState(null);
   const [mostrarFormularioInforme, setMostrarFormularioInforme] = useState(false);
   const [guardandoInforme, setGuardandoInforme] = useState(false);
+  const [jugadorInformesFiltro, setJugadorInformesFiltro] = useState(null);
   const camposVisibles = useMemo(() => {
     const prioritarios = CAMPOS_TABLA_PRIORITARIOS.map((key) => CAMPOS.find((campo) => campo.key === key)).filter(Boolean);
     const resto = CAMPOS.filter((campo) => !CAMPOS_TABLA_PRIORITARIOS.includes(campo.key));
@@ -1042,17 +990,35 @@ export default function Captacion() {
     });
   }, [busqueda, camposVisibles, filtros, registros]);
 
+  const informesFiltrados = useMemo(() => {
+    if (!jugadorInformesFiltro) return informes;
+    return informes.filter((informe) => String(informe?.jugador?.id || '') === String(jugadorInformesFiltro.id));
+  }, [informes, jugadorInformesFiltro]);
+
+  function verInformesDeJugador(registro) {
+    setJugadorInformesFiltro({ id: registro.id, nombre: nombreCompleto(registro) || 'Jugador' });
+    setSeccionActiva('informes');
+  }
+
+  function limpiarFiltroInformesPorJugador() {
+    setJugadorInformesFiltro(null);
+  }
+
   const clubes = useListaValores('clubes');
   const etapas = useListaValores('etapas');
   const categorias = useListaValores('categorias');
   const listaEquipos = useLista('equipos');
-  const opcionesClubesInforme = useMemo(
-    () => obtenerOpcionesClubesInforme(registros, formInforme.club),
-    [formInforme.club, registros]
-  );
+  const opcionesClubesInforme = useMemo(() => {
+    const opciones = clubes.map((nombre) => String(nombre || '').trim()).filter(Boolean);
+    const clubActual = String(formInforme.club || '').trim();
+    if (clubActual && !opciones.some((opcion) => normalizarComparacion(opcion) === normalizarComparacion(clubActual))) {
+      opciones.push(clubActual);
+    }
+    return [...new Map(opciones.map((opcion) => [normalizarComparacion(opcion), opcion])).values()];
+  }, [clubes, formInforme.club]);
   const opcionesEquiposInforme = useMemo(
-    () => obtenerOpcionesEquiposInforme(registros, formInforme.club, formInforme.equipo),
-    [formInforme.club, formInforme.equipo, registros]
+    () => obtenerOpcionesEquipoFormulario(listaEquipos, formInforme.club, formInforme.equipo),
+    [formInforme.club, formInforme.equipo, listaEquipos]
   );
   const opcionesJugadoresInforme = useMemo(
     () => obtenerOpcionesJugadoresInforme(registros, formInforme.club, formInforme.equipo, formInforme.jugador_id),
@@ -1530,70 +1496,47 @@ export default function Captacion() {
       );
     } else if (campo === 'club') {
       control = (
-        <select
-          required
+        <SelectBuscador
           value={valor}
-          onChange={(event) => actualizarCampoInforme(campo, event.target.value)}
-          className={selectClass}
-        >
-          <option value="">{opcionesClubesInforme.length > 0 ? 'Seleccionar club' : 'Sin opciones disponibles'}</option>
-          {opcionesClubesInforme.map((opcion) => (
-            <option key={opcion} value={opcion}>
-              {opcion}
-            </option>
-          ))}
-        </select>
+          options={opcionesClubesInforme}
+          emptyLabel={opcionesClubesInforme.length > 0 ? 'Seleccionar club' : 'Sin opciones disponibles'}
+          onChange={(opcion) => actualizarCampoInforme(campo, opcion)}
+          required
+          disabled={opcionesClubesInforme.length === 0}
+        />
       );
     } else if (campo === 'equipo') {
       const hayClubSeleccionado = Boolean(String(formInforme.club || '').trim());
       control = (
-        <select
-          required
+        <SelectBuscador
           value={valor}
-          onChange={(event) => actualizarCampoInforme(campo, event.target.value)}
+          options={opcionesEquiposInforme}
+          emptyLabel={opcionesEquiposInforme.length > 0 ? 'Seleccionar equipo' : 'Sin opciones disponibles'}
+          onChange={(opcion) => actualizarCampoInforme(campo, opcion)}
+          required
           disabled={!hayClubSeleccionado}
-          className={selectClass}
-        >
-          <option value="">
-            {!hayClubSeleccionado
-              ? 'Selecciona primero un club'
-              : opcionesEquiposInforme.length > 0
-                ? 'Seleccionar equipo'
-                : 'Sin opciones disponibles'}
-          </option>
-          {opcionesEquiposInforme.map((opcion) => (
-            <option key={opcion} value={opcion}>
-              {opcion}
-            </option>
-          ))}
-        </select>
+        />
       );
     } else if (campo === 'jugador_id') {
       const hayClubSeleccionado = Boolean(String(formInforme.club || '').trim());
       const hayEquipoSeleccionado = Boolean(String(formInforme.equipo || '').trim());
       control = (
-        <select
-          required
+        <SelectBuscador
           value={valor}
-          onChange={(event) => actualizarCampoInforme(campo, event.target.value)}
-          disabled={!hayClubSeleccionado || !hayEquipoSeleccionado}
-          className={selectClass}
-        >
-          <option value="">
-            {!hayClubSeleccionado
+          options={opcionesJugadoresInforme}
+          emptyLabel={
+            !hayClubSeleccionado
               ? 'Selecciona primero un club'
               : !hayEquipoSeleccionado
                 ? 'Selecciona primero un equipo'
                 : opcionesJugadoresInforme.length > 0
                   ? 'Seleccionar jugador'
-                  : 'Sin jugadores disponibles'}
-          </option>
-          {opcionesJugadoresInforme.map((opcion) => (
-            <option key={opcion.value} value={opcion.value}>
-              {opcion.label}
-            </option>
-          ))}
-        </select>
+                  : 'Sin jugadores disponibles'
+          }
+          onChange={(opcion) => actualizarCampoInforme(campo, opcion)}
+          required
+          disabled={!hayClubSeleccionado || !hayEquipoSeleccionado}
+        />
       );
     } else if (campo === 'local' || campo === 'visitante') {
       control = (
@@ -1606,31 +1549,26 @@ export default function Captacion() {
         />
       );
     } else if (campo === 'etapa' || campo === 'categoria') {
-      const opciones = opcionesListas[campo] || [];
+      const claveOpciones = campo === 'etapa' ? 'etapas' : 'categorias';
+      const opciones = opcionesListas[claveOpciones] || [];
       control = (
-        <select
+        <SelectBuscador
           value={valor}
-          onChange={(event) => actualizarCampoInforme(campo, event.target.value)}
-          className={selectClass}
-        >
-          <option value="">{opciones.length > 0 ? 'Seleccionar' : 'Sin opciones disponibles'}</option>
-          {opciones.map((opcion) => (
-            <option key={opcion} value={opcion}>
-              {opcion}
-            </option>
-          ))}
-        </select>
+          options={opciones}
+          emptyLabel={opciones.length > 0 ? 'Seleccionar' : 'Sin opciones disponibles'}
+          onChange={(opcion) => actualizarCampoInforme(campo, opcion)}
+          disabled={opciones.length === 0}
+        />
       );
     } else if (campo === 'lateralidad') {
+      const opcionesLateralidad = ['DIESTRO', 'ZURDO', 'AMBAS'];
       control = (
-        <select value={valor} onChange={(event) => actualizarCampoInforme(campo, event.target.value)} className={selectClass}>
-          <option value="">Seleccionar</option>
-          {['DIESTRO', 'ZURDO', 'AMBAS'].map((opcion) => (
-            <option key={opcion} value={opcion}>
-              {opcion}
-            </option>
-          ))}
-        </select>
+        <SelectBuscador
+          value={valor}
+          options={opcionesLateralidad}
+          emptyLabel="Seleccionar"
+          onChange={(opcion) => actualizarCampoInforme(campo, opcion)}
+        />
       );
     } else if (campo === 'demarcacion_concreta') {
       control = (
@@ -1974,7 +1912,7 @@ export default function Captacion() {
                   onClick={nuevoRegistro}
                   className="w-full sm:w-auto bg-club-red hover:bg-club-redDark text-white font-semibold px-4 py-2 rounded-md transition-colors"
                 >
-                  + Nuevo registro
+                  + Nuevo jugador
                 </button>
               )}
             </div>
@@ -2310,6 +2248,17 @@ export default function Captacion() {
                           </button>
                           <button
                             type="button"
+                            onClick={() => verInformesDeJugador(registro)}
+                            title="Ver informes de este jugador"
+                            aria-label="Ver informes de este jugador"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-club-black/60 transition-colors hover:bg-gray-100 hover:text-club-black"
+                          >
+                            <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5" aria-hidden="true">
+                              <path d="M5 2.5A1.5 1.5 0 0 1 6.5 1h4.086a1.5 1.5 0 0 1 1.06.44l2.914 2.914a1.5 1.5 0 0 1 .44 1.06V17.5A1.5 1.5 0 0 1 13.5 19h-7A1.5 1.5 0 0 1 5 17.5v-15ZM7 9a.75.75 0 0 0 0 1.5h6a.75.75 0 0 0 0-1.5H7Zm0 3a.75.75 0 0 0 0 1.5h6a.75.75 0 0 0 0-1.5H7Zm0 3a.75.75 0 0 0 0 1.5h3a.75.75 0 0 0 0-1.5H7Z" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => eliminarRegistro(registro)}
                             title="Eliminar"
                             aria-label="Eliminar"
@@ -2402,9 +2351,14 @@ export default function Captacion() {
                   Cancelar
                 </button>
               </div>
-              <div className="space-y-4">
+              <div className="grid gap-4 lg:grid-cols-2">
                 {BLOQUES_INFORME_FORM.map((bloque) => (
-                  <section key={bloque.title} className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                  <section
+                    key={bloque.title}
+                    className={`rounded-lg border border-gray-200 bg-gray-50 p-4 ${
+                      ['Datos basicos', 'Partido', 'INFORME'].includes(bloque.title) ? 'lg:col-span-2' : ''
+                    }`}
+                  >
                     <h4 className="text-sm font-bold uppercase tracking-wide text-club-black">{bloque.title}</h4>
                     <div className={`mt-4 grid grid-cols-1 gap-4 ${bloque.gridClassName || 'sm:grid-cols-2 xl:grid-cols-3'}`}>
                       {bloque.fields.map((campo) => renderCampoInforme(campo))}
@@ -2421,9 +2375,27 @@ export default function Captacion() {
             </p>
           )}
 
-          <div className="mb-4 inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5">
-            <span className="text-2xl font-bold text-club-red tabular-nums">{informes.length}</span>
-            <span className="text-sm font-medium text-club-black/70">{informes.length === 1 ? 'informe' : 'informes'}</span>
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <div className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5">
+              <span className="text-2xl font-bold text-club-red tabular-nums">{informesFiltrados.length}</span>
+              <span className="text-sm font-medium text-club-black/70">{informesFiltrados.length === 1 ? 'informe' : 'informes'}</span>
+            </div>
+            {jugadorInformesFiltro && (
+              <div className="inline-flex items-center gap-2 rounded-lg border border-club-red/30 bg-red-50 px-3 py-2 text-sm text-club-black">
+                <span>
+                  Filtrando por: <strong>{jugadorInformesFiltro.nombre}</strong>
+                </span>
+                <button
+                  type="button"
+                  onClick={limpiarFiltroInformesPorJugador}
+                  title="Quitar filtro"
+                  aria-label="Quitar filtro"
+                  className="font-semibold text-club-red hover:text-club-redDark"
+                >
+                  ×
+                </button>
+              </div>
+            )}
           </div>
 
           <TableScroll className="overflow-x-auto rounded-lg border border-gray-200">
@@ -2443,12 +2415,14 @@ export default function Captacion() {
                   <tr>
                     <td colSpan={CAMPOS_INFORME_TABLA.length + 1} className="px-4 py-6 text-center text-club-black/60">Cargando informes...</td>
                   </tr>
-                ) : informes.length === 0 ? (
+                ) : informesFiltrados.length === 0 ? (
                   <tr>
-                    <td colSpan={CAMPOS_INFORME_TABLA.length + 1} className="px-4 py-6 text-center text-club-black/60">No se han encontrado informes.</td>
+                    <td colSpan={CAMPOS_INFORME_TABLA.length + 1} className="px-4 py-6 text-center text-club-black/60">
+                      {jugadorInformesFiltro ? 'Este jugador no tiene informes registrados.' : 'No se han encontrado informes.'}
+                    </td>
                   </tr>
                 ) : (
-                  informes.map((informe) => (
+                  informesFiltrados.map((informe) => (
                     <tr key={informe.id} className="hover:bg-red-50/40 transition-colors">
                       <td className="px-4 py-3 whitespace-nowrap">
                         <button

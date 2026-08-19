@@ -27,6 +27,7 @@ const CAMPOS_INFORMES = [
   'visitante',
   'partido',
   'dorsal',
+  'tipologia',
   'lateralidad',
   'descripcion',
   'demarcacion_concreta',
@@ -214,25 +215,8 @@ function validarInformePayload(payload) {
   return null;
 }
 
-function calcularPartidoInforme(payload) {
-  const local = String(payload?.local || '').trim();
-  const visitante = String(payload?.visitante || '').trim();
-  if (local && visitante) return `${local} Vs ${visitante}`;
-  return '';
-}
-
 function completarInformeConJugador(payload, jugador) {
-  const completado = { ...payload };
-  const camposDesdeJugador = ['club', 'equipo', 'etapa', 'categoria', 'dorsal', 'lateralidad'];
-
-  for (const campo of camposDesdeJugador) {
-    if (!String(completado[campo] || '').trim()) {
-      completado[campo] = String(jugador?.[campo] || '').trim();
-    }
-  }
-
-  completado.partido = calcularPartidoInforme(completado);
-  return completado;
+  return { ...payload };
 }
 
 async function enriquecerInformes(informes) {
@@ -240,7 +224,7 @@ async function enriquecerInformes(informes) {
   if (!ids.length) return informes || [];
   const { data: jugadores, error } = await supabaseAdmin
     .from(TABLA_CAPTACION)
-    .select('id, nombre, primer_apellido, segundo_apellido, club, equipo, etapa, categoria, dorsal, lateralidad')
+    .select('id, nombre, primer_apellido, segundo_apellido, club, equipo, categoria, dorsal, lateralidad')
     .in('id', ids);
   if (error) throw error;
   const jugadoresPorId = new Map((jugadores || []).map((jugador) => [jugador.id, jugador]));
@@ -250,7 +234,7 @@ async function enriquecerInformes(informes) {
 async function obtenerJugadorParaInforme(jugadorId) {
   const { data, error } = await supabaseAdmin
     .from(TABLA_CAPTACION)
-    .select('id, nombre, primer_apellido, segundo_apellido, club, equipo, etapa, categoria, dorsal, lateralidad')
+    .select('id, nombre, primer_apellido, segundo_apellido, club, equipo, categoria, dorsal, lateralidad')
     .eq('id', jugadorId)
     .maybeSingle();
   if (error) throw error;

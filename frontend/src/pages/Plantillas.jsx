@@ -971,7 +971,7 @@ export default function Plantillas({ soloGraficas = false }) {
               className={`w-full text-left px-4 py-2.5 text-sm font-semibold border-b border-gray-100 transition-colors ${
                 equiposSeleccionados.length === 0
                   ? 'bg-club-red text-white'
-                  : 'text-club-black hover:bg-red-50/60'
+                  : 'text-club-red hover:bg-red-50/60'
               }`}
             >
               Todos los equipos

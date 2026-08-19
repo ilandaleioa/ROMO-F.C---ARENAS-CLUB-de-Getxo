@@ -303,10 +303,25 @@ export default function CaptacionDetalle() {
       ) : registro ? (
         <div className="space-y-6">
           <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-            <div className="border-b border-gray-100 bg-gradient-to-r from-club-black to-club-red px-5 py-4 text-white">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/70">Ficha completa</p>
-              <h3 className="mt-1 text-2xl font-bold">{nombre}</h3>
-              <p className="text-sm text-white/80">{registro.club || 'Sin club asignado'}</p>
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 bg-gradient-to-r from-club-black to-club-red px-5 py-4 text-white">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/70">Ficha completa</p>
+                <h3 className="mt-1 text-2xl font-bold">{nombre}</h3>
+                <p className="text-sm text-white/80">{registro.club || 'Sin club asignado'}</p>
+              </div>
+              <a
+                href="#informes-vinculados"
+                onClick={(evento) => {
+                  evento.preventDefault();
+                  document.getElementById('informes-vinculados')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }}
+                className="inline-flex items-center gap-2 rounded-lg border border-white/25 bg-white/10 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/20"
+              >
+                <span className="rounded-full bg-white px-2 py-0.5 text-sm font-bold text-club-red tabular-nums">
+                  {loadingInformes ? '...' : informes.length}
+                </span>
+                <span>{informes.length === 1 ? 'Informe' : 'Informes'}</span>
+              </a>
             </div>
 
             <div className="grid gap-6 p-5 lg:grid-cols-[240px_1fr]">
@@ -349,9 +364,14 @@ export default function CaptacionDetalle() {
                   })}
                 </div>
 
-                <div className="space-y-4">
+                <div className="grid gap-4 lg:grid-cols-2">
                   {BLOQUES.map((bloque) => (
-                    <section key={bloque.title} className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                    <section
+                      key={bloque.title}
+                      className={`rounded-2xl border border-gray-200 bg-gray-50 p-4 ${
+                        bloque.title === 'Perfil del jugador' || bloque.title === 'Observaciones' ? 'lg:col-span-2' : ''
+                      }`}
+                    >
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <h4 className="text-sm font-bold uppercase tracking-wide text-club-black">{bloque.title}</h4>
                         {bloque.title === 'Perfil del jugador' && fotoUrl ? (
@@ -413,7 +433,7 @@ export default function CaptacionDetalle() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+          <section id="informes-vinculados" className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-wide text-club-black/50">Actividad relacionada</p>

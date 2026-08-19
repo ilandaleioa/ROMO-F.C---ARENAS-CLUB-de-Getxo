@@ -15,6 +15,7 @@ create table if not exists public.captacion_informes (
   visitante text not null default '',
   partido text not null default '',
   dorsal text not null default '',
+  tipologia text not null default '',
   lateralidad text not null default '',
   descripcion text not null default '',
   demarcacion_concreta text not null default '',
@@ -39,6 +40,7 @@ alter table public.captacion_informes add column if not exists local text not nu
 alter table public.captacion_informes add column if not exists visitante text not null default '';
 alter table public.captacion_informes add column if not exists partido text not null default '';
 alter table public.captacion_informes add column if not exists dorsal text not null default '';
+alter table public.captacion_informes add column if not exists tipologia text not null default '';
 alter table public.captacion_informes add column if not exists lateralidad text not null default '';
 alter table public.captacion_informes add column if not exists descripcion text not null default '';
 alter table public.captacion_informes add column if not exists demarcacion_concreta text not null default '';

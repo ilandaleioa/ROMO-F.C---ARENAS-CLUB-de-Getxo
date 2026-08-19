@@ -41,7 +41,8 @@ function claveClub(valor) {
 }
 
 function esClubMostrado(valor) {
-  return ['ROMO', 'ROMOFC', 'ARENAS', 'ARENASCLUB'].includes(claveClub(valor));
+  const clave = claveClub(valor);
+  return clave.includes('ROMO') || clave.includes('ARENAS');
 }
 
 export default function MisEquipos() {
@@ -49,7 +50,7 @@ export default function MisEquipos() {
   const listas = useListas();
   const listaEquipos = listas.find((lista) => lista.id === 'equipos') || null;
   const [equipoEnEdicion, setEquipoEnEdicion] = useState(null);
-  const [formularioEdicion, setFormularioEdicion] = useState({ nombre: '', nombre_federacion: '' });
+  const [formularioEdicion, setFormularioEdicion] = useState({ nombre: '', nombre_federacion: '', abreviatura: '' });
   const [errorEdicion, setErrorEdicion] = useState('');
   const [editorAbierto, setEditorAbierto] = useState(false);
 
@@ -90,6 +91,7 @@ export default function MisEquipos() {
     setFormularioEdicion({
       nombre: equipo.nombre || '',
       nombre_federacion: equipo.nombre_federacion || '',
+      abreviatura: equipo.abreviatura || '',
     });
     setErrorEdicion('');
     setEditorAbierto(true);
@@ -102,7 +104,7 @@ export default function MisEquipos() {
 
   const cancelarEdicion = () => {
     setEquipoEnEdicion(null);
-    setFormularioEdicion({ nombre: '', nombre_federacion: '' });
+    setFormularioEdicion({ nombre: '', nombre_federacion: '', abreviatura: '' });
     setErrorEdicion('');
     setEditorAbierto(false);
   };
@@ -111,6 +113,7 @@ export default function MisEquipos() {
     evento.preventDefault();
     const nombre = String(formularioEdicion.nombre || '').trim();
     const nombreFederacion = String(formularioEdicion.nombre_federacion || '').trim();
+    const abreviatura = String(formularioEdicion.abreviatura || '').trim();
 
     if (!nombre) {
       setErrorEdicion('El nombre del equipo es obligatorio.');
@@ -132,6 +135,7 @@ export default function MisEquipos() {
     actualizarFilaLista('equipos', equipo.id, {
       nombre,
       nombre_federacion: nombreFederacion,
+      abreviatura,
     });
     cancelarEdicion();
   };
@@ -248,7 +252,7 @@ export default function MisEquipos() {
                 </select>
               </label>
 
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-4 sm:grid-cols-3">
                 <label className="block text-xs font-bold uppercase tracking-wide text-club-black/70">
                   Nombre interno
                   <input
@@ -269,6 +273,18 @@ export default function MisEquipos() {
                     value={formularioEdicion.nombre_federacion}
                     onChange={(evento) => {
                       setFormularioEdicion((actual) => ({ ...actual, nombre_federacion: evento.target.value }));
+                      setErrorEdicion('');
+                    }}
+                    className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-normal normal-case tracking-normal text-club-black focus:border-club-red focus:outline-none focus:ring-1 focus:ring-club-red"
+                  />
+                </label>
+                <label className="block text-xs font-bold uppercase tracking-wide text-club-black/70">
+                  Abreviatura
+                  <input
+                    type="text"
+                    value={formularioEdicion.abreviatura}
+                    onChange={(evento) => {
+                      setFormularioEdicion((actual) => ({ ...actual, abreviatura: evento.target.value }));
                       setErrorEdicion('');
                     }}
                     className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-normal normal-case tracking-normal text-club-black focus:border-club-red focus:outline-none focus:ring-1 focus:ring-club-red"
