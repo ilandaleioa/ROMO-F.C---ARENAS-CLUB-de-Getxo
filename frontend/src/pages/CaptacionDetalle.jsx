@@ -161,6 +161,39 @@ function calcularPartidoInforme(informe) {
   return '';
 }
 
+function extraerEquiposDesdePartido(partido) {
+  const texto = String(partido || '').trim();
+  if (!texto) return { local: '', visitante: '' };
+
+  const porVs = texto.match(/^(.*?)\s+vs\s+(.*?)$/i);
+  if (porVs) {
+    return {
+      local: String(porVs[1] || '').trim(),
+      visitante: String(porVs[2] || '').trim(),
+    };
+  }
+
+  const porGuion = texto.match(/^(.*?)\s*-\s*(.*?)$/);
+  if (porGuion) {
+    return {
+      local: String(porGuion[1] || '').trim(),
+      visitante: String(porGuion[2] || '').trim(),
+    };
+  }
+
+  return { local: '', visitante: '' };
+}
+
+function obtenerValorInforme(informe, campo) {
+  const valor = String(informe?.[campo] || '').trim();
+  if (valor) return valor;
+
+  const { local, visitante } = extraerEquiposDesdePartido(informe?.partido);
+  if (campo === 'local') return local || '-';
+  if (campo === 'visitante') return visitante || '-';
+  return '-';
+}
+
 function formatearValorInforme(valor) {
   const texto = String(valor ?? '').trim();
   return texto || '-';
@@ -417,7 +450,7 @@ export default function CaptacionDetalle() {
                         {CAMPOS_INFORME.map((campo) => {
                           const valor = campo === 'partido'
                             ? formatearValorInforme(calcularPartidoInforme(informe) || informe.partido)
-                            : formatearValorInforme(informe[campo]);
+                            : formatearValorInforme(obtenerValorInforme(informe, campo));
 
                           return (
                             <div key={campo} className="rounded-lg border border-gray-200 bg-white p-3">

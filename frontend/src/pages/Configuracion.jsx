@@ -104,17 +104,19 @@ export default function Configuracion() {
       </div>
 
       <div className="mt-6 rounded-3xl border border-gray-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-2 border-b border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-club-black/40">Seccion activa</p>
-            <h2 className="mt-1 text-xl font-black uppercase tracking-[-0.03em] text-club-black">
-              {seccionActual?.label || 'Sin seccion'}
-            </h2>
+        {seccionActual?.key !== 'clubes_maestros' && (
+          <div className="flex flex-col gap-2 border-b border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-club-black/40">Seccion activa</p>
+              <h2 className="mt-1 text-xl font-black uppercase tracking-[-0.03em] text-club-black">
+                {seccionActual?.label || 'Sin seccion'}
+              </h2>
+            </div>
+            <p className="text-sm text-club-black/60">
+              {seccionActual?.descripcion || 'No hay contenido disponible para este apartado.'}
+            </p>
           </div>
-          <p className="text-sm text-club-black/60">
-            {seccionActual?.descripcion || 'No hay contenido disponible para este apartado.'}
-          </p>
-        </div>
+        )}
 
         <div className="bg-slate-50/40">
           {SeccionComponente ? (

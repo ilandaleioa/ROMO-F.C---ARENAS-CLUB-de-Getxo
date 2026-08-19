@@ -18,7 +18,10 @@ function textoLimpio(valor) {
 }
 
 function normalizarComparacion(valor) {
-  return textoLimpio(valor).toLocaleLowerCase('es');
+  return textoLimpio(valor)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase('es');
 }
 
 function normalizarClave(valor) {
@@ -78,7 +81,9 @@ function construirFila(lista, formulario) {
 }
 
 function camposObligatorios(lista) {
-  return lista.columnas.filter((columna) => columna.key !== 'id' && columna.tipo !== 'imagen');
+  return lista.columnas.filter(
+    (columna) => columna.key !== 'id' && columna.tipo !== 'imagen' && columna.obligatorio !== false
+  );
 }
 
 export function obtenerClubesDisponibles(listaClubes) {
@@ -120,14 +125,20 @@ function agruparEquiposPorClub(filas, clubesDisponibles) {
       grupos.set(club, []);
     }
 
-    grupos.get(club).push(equipo);
+    grupos.get(club).push({
+      id: fila?.id || equipo,
+      nombre: equipo,
+      nombreFederacion: textoLimpio(fila?.nombre_federacion),
+    });
   });
 
   return Array.from(grupos.entries())
     .map(([club, equipos]) => ({
       club,
       etiqueta: obtenerEtiquetaClub(club, clubesDisponibles),
-      equipos: [...new Set(equipos)].sort((a, b) => ordenarEquiposPersonalizado(club, a, b)),
+      equipos: Array.from(
+        new Map(equipos.map((equipo) => [normalizarComparacion(equipo.nombre), equipo])).values()
+      ).sort((a, b) => ordenarEquiposPersonalizado(club, a.nombre, b.nombre)),
     }))
     .sort((a, b) => compararConRomoPrimero(a.etiqueta, b.etiqueta));
 }
@@ -142,11 +153,20 @@ function agruparEquiposPorClubTabla(filas = []) {
 
     const clave = normalizarComparacion(club);
     if (!equiposPorClub.has(clave)) equiposPorClub.set(clave, []);
-    equiposPorClub.get(clave).push(equipo);
+    equiposPorClub.get(clave).push({
+      id: fila?.id || equipo,
+      nombre: equipo,
+      nombreFederacion: textoLimpio(fila?.nombre_federacion),
+    });
   });
 
   equiposPorClub.forEach((equipos, clave) => {
-    equiposPorClub.set(clave, Array.from(new Set(equipos)).sort((a, b) => ordenarEquiposPersonalizado(clave, a, b)));
+    equiposPorClub.set(
+      clave,
+      Array.from(new Map(equipos.map((equipo) => [normalizarComparacion(equipo.nombre), equipo])).values()).sort((a, b) =>
+        ordenarEquiposPersonalizado(clave, a.nombre, b.nombre)
+      )
+    );
   });
 
   return equiposPorClub;
@@ -158,6 +178,7 @@ export default function ListaEditable({
   filaAutoEdicion = null,
   autoEdicionKey = '',
   clubEnfocado = '',
+  filtroClub = '',
 }) {
   const { user } = useAuth();
   const listas = useListas();
@@ -171,12 +192,19 @@ export default function ListaEditable({
   const [editandoId, setEditandoId] = useState(null);
   const [filaOriginal, setFilaOriginal] = useState(null);
   const [error, setError] = useState('');
+  const [equipoEnEdicion, setEquipoEnEdicion] = useState(null);
+  const [nombreEquipoEditado, setNombreEquipoEditado] = useState('');
+  const [errorEquipo, setErrorEquipo] = useState('');
   const listaEquipos = useMemo(() => listas.find((item) => item.id === 'equipos') || null, [listas]);
   const formSectionRef = useRef(null);
 
   const filasOrdenadas = useMemo(() => {
     if (lista.id === 'clubes') {
-      return [...lista.filas].sort((a, b) =>
+      const filasFiltradas = filtroClub
+        ? lista.filas.filter((fila) => normalizarComparacion(fila?.nombre || fila?.valor).includes(filtroClub))
+        : lista.filas;
+
+      return [...filasFiltradas].sort((a, b) =>
         compararConRomoPrimero(textoLimpio(a?.nombre || a?.valor), textoLimpio(b?.nombre || b?.valor))
       );
     }
@@ -193,7 +221,7 @@ export default function ListaEditable({
       const equipoB = textoLimpio(b?.nombre);
       return ordenarEquiposPersonalizado(clubA, equipoA, equipoB);
     });
-  }, [clubesDisponibles, lista.filas, lista.id]);
+  }, [clubesDisponibles, filtroClub, lista.filas, lista.id]);
 
   const gruposEquipos = useMemo(
     () => (lista.id === 'equipos' ? agruparEquiposPorClub(filasOrdenadas, clubesDisponibles) : []),
@@ -262,6 +290,43 @@ export default function ListaEditable({
     };
     lector.onerror = () => setError('No se pudo leer la imagen.');
     lector.readAsDataURL(archivo);
+  };
+
+  const abrirEdicionEquipo = (club, equipo) => {
+    setEquipoEnEdicion({ club, id: equipo.id });
+    setNombreEquipoEditado(equipo.nombre);
+    setErrorEquipo('');
+  };
+
+  const cancelarEdicionEquipo = () => {
+    setEquipoEnEdicion(null);
+    setNombreEquipoEditado('');
+    setErrorEquipo('');
+  };
+
+  const guardarNombreEquipo = (evento, club, equipo) => {
+    evento.preventDefault();
+    const nombreNuevo = textoLimpio(nombreEquipoEditado);
+
+    if (!nombreNuevo) {
+      setErrorEquipo('Escribe un nombre para el equipo.');
+      return;
+    }
+
+    const existeOtroEquipo = (listaEquipos?.filas || []).some(
+      (fila) =>
+        fila.id !== equipo.id &&
+        normalizarComparacion(fila.club) === normalizarComparacion(club) &&
+        normalizarComparacion(fila.nombre) === normalizarComparacion(nombreNuevo)
+    );
+
+    if (existeOtroEquipo) {
+      setErrorEquipo('Ya existe otro equipo con ese nombre en este club.');
+      return;
+    }
+
+    actualizarFilaLista('equipos', equipo.id, { nombre: nombreNuevo });
+    cancelarEdicionEquipo();
   };
 
   const eliminar = (fila) => {
@@ -383,7 +448,7 @@ export default function ListaEditable({
               {formAbierto ? 'Cancelar' : '+ Crear'}
             </button>
             <span className="rounded-full bg-club-red/10 px-2.5 py-1 text-xs font-bold text-club-red">
-              {lista.filas.length}
+              {filtroClub ? `${filasOrdenadas.length}/${lista.filas.length}` : lista.filas.length}
             </span>
           </div>
         </div>
@@ -430,17 +495,62 @@ export default function ListaEditable({
                       <div className="flex flex-wrap gap-2">
                         {grupo.equipos.map((equipo) => (
                           <div
-                            key={`${grupo.club}-${equipo}`}
+                            key={`${grupo.club}-${equipo.id || equipo.nombre}`}
                             className="inline-flex items-center gap-2 rounded-full bg-club-red/10 px-3 py-1 text-xs font-semibold text-club-red"
                           >
-                            <span>{equipo}</span>
-                            <Link
-                              to={`/listas/equipos?club=${encodeURIComponent(grupo.club)}&equipo=${encodeURIComponent(equipo)}`}
-                              className="rounded-full border border-current px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide hover:bg-white/40"
-                              title={`Editar ${equipo}`}
-                            >
-                              Editar
-                            </Link>
+                            {equipoEnEdicion?.id === equipo.id ? (
+                              <form
+                                onSubmit={(evento) => guardarNombreEquipo(evento, grupo.club, equipo)}
+                                className="flex min-w-[230px] flex-wrap items-center gap-2"
+                              >
+                                <input
+                                  type="text"
+                                  value={nombreEquipoEditado}
+                                  onChange={(evento) => {
+                                    setNombreEquipoEditado(evento.target.value);
+                                    setErrorEquipo('');
+                                  }}
+                                  className="min-w-[150px] flex-1 rounded-md border border-club-red/30 bg-white px-2 py-1 text-xs font-medium text-club-black outline-none focus:border-club-red focus:ring-1 focus:ring-club-red"
+                                  aria-label={`Nuevo nombre de ${equipo.nombre}`}
+                                  autoFocus
+                                />
+                                <button
+                                  type="submit"
+                                  className="rounded-full bg-club-red px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white hover:bg-club-redDark"
+                                >
+                                  Guardar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={cancelarEdicionEquipo}
+                                  className="rounded-full border border-current px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide hover:bg-white/40"
+                                >
+                                  Cancelar
+                                </button>
+                                {errorEquipo && (
+                                  <span className="basis-full text-[10px] font-medium text-red-700">{errorEquipo}</span>
+                                )}
+                              </form>
+                            ) : (
+                              <>
+                                <span className="min-w-0">
+                                  <span className="block truncate">{equipo.nombre}</span>
+                                  {equipo.nombreFederacion && (
+                                    <span className="block max-w-[220px] truncate text-[10px] font-normal text-club-black/55">
+                                      Fed: {equipo.nombreFederacion}
+                                    </span>
+                                  )}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => abrirEdicionEquipo(grupo.club, equipo)}
+                                  className="rounded-full border border-current px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide hover:bg-white/40"
+                                  title={`Editar ${equipo.nombre}`}
+                                >
+                                  Editar
+                                </button>
+                              </>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -475,6 +585,11 @@ export default function ListaEditable({
               {editandoId ? 'Guardar cambios' : 'Guardar'}
             </button>
           </div>
+          {lista.id === 'equipos' && (
+            <p className="mb-3 rounded-md border border-club-red/15 bg-white px-3 py-2 text-xs text-club-black/60">
+              El nombre federación sirve para identificar el equipo en la competición. El equipo interno es el nombre que utiliza la aplicación.
+            </p>
+          )}
           {error ? <p className="mb-3 text-sm font-medium text-club-red">{error}</p> : null}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {(esAdministrador ? lista.columnas : lista.columnas.filter((columna) => columna.key !== 'id')).map((columna) => {
@@ -529,9 +644,11 @@ export default function ListaEditable({
               }
 
               const esId = columna.key === 'id';
+              const esOpcional = columna.obligatorio === false;
+              const etiquetaColumna = columna.key === 'nombre_federacion' ? 'Nombre FED' : columna.label;
               return (
                 <label key={columna.key} className="text-xs font-semibold uppercase tracking-wide text-club-black/70">
-                  {columna.label}
+                  {etiquetaColumna}{esOpcional ? ' (opcional)' : ''}
                   <input
                     type="text"
                     value={formulario[columna.key]}
@@ -541,6 +658,7 @@ export default function ListaEditable({
                     className={`mt-1 w-full rounded-md border px-3 py-2 text-sm font-normal normal-case tracking-normal text-club-black focus:outline-none focus:ring-2 focus:ring-club-red ${
                       esId ? 'border-gray-200 bg-gray-100 text-club-black/55' : 'border-gray-300 bg-white'
                     }`}
+                    placeholder={columna.key === 'nombre_federacion' ? 'Ej. ROMO F.C. JUVENIL A' : ''}
                     autoFocus={!esId && columna === lista.columnas.find((campo) => campo.key !== 'id')}
                   />
                 </label>
@@ -557,7 +675,7 @@ export default function ListaEditable({
               <th className="w-16 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">#</th>
               {columnasVisibles.map((columna) => (
                 <th key={columna.key} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">
-                  {columna.label}
+                  {columna.key === 'nombre_federacion' ? 'Nombre FED' : columna.label}
                 </th>
               ))}
               {lista.id === 'clubes' && (
@@ -567,7 +685,7 @@ export default function ListaEditable({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {filasOrdenadas.map((fila, indice) => (
+            {filasOrdenadas.length > 0 ? filasOrdenadas.map((fila, indice) => (
               <tr
                 key={`${lista.id}-${fila.id || fila.nombre || fila.club || 'fila'}-${indice}`}
                 className={`transition-colors hover:bg-red-50/40 ${
@@ -603,6 +721,8 @@ export default function ListaEditable({
                       <span className="inline-flex rounded-full bg-club-red/10 px-2.5 py-1 text-xs font-semibold text-club-red">
                         {obtenerEtiquetaClub(fila[columna.key], clubesDisponibles)}
                       </span>
+                    ) : lista.id === 'equipos' && columna.key === 'nombre_federacion' ? (
+                      fila[columna.key] || <span className="text-club-black/40">Sin asignar</span>
                     ) : columna.tipo === 'imagen' ? (
                       fila[columna.key] ? (
                         <img
@@ -636,16 +756,23 @@ export default function ListaEditable({
                           </summary>
                           <div className="mt-2 flex flex-wrap gap-2">
                             {equipos.map((equipo) => (
-                              <span
-                                key={`${fila.id}-${equipo}`}
+                              <Link
+                                key={`${fila.id}-${equipo.id || equipo.nombre}`}
+                                to={`/listas/equipos?club=${encodeURIComponent(fila.nombre)}&equipo=${encodeURIComponent(equipo.nombre)}`}
+                                title={`Editar ${equipo.nombre}`}
                                 className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
                                   esFilaRomo
                                     ? 'border border-club-red/20 bg-club-red text-white shadow-sm'
                                     : 'bg-club-red/10 text-club-red'
                                 }`}
                               >
-                                {equipo}
-                              </span>
+                                <span>
+                                  <span className="block">{equipo.nombre}</span>
+                                  {equipo.nombreFederacion && (
+                                    <span className="block text-[10px] font-normal opacity-75">Fed: {equipo.nombreFederacion}</span>
+                                  )}
+                                </span>
+                              </Link>
                             ))}
                           </div>
                         </details>
@@ -676,7 +803,17 @@ export default function ListaEditable({
                   </div>
                 </td>
               </tr>
-            ))}
+            )) : (
+              <tr>
+                <td colSpan={columnasVisibles.length + (lista.id === 'clubes' ? 3 : 2)} className="px-4 py-8 text-center text-sm text-club-black/55">
+                  {lista.id === 'clubes'
+                    ? filtroClub
+                      ? 'No se encontraron clubes con esa búsqueda.'
+                      : 'No hay clubes disponibles.'
+                    : 'No hay registros disponibles.'}
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </TableScroll>

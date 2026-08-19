@@ -470,6 +470,22 @@ export default function Plantillas({ soloGraficas = false }) {
     </svg>
   );
 
+  const renderIconoCerrar = () => (
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="w-4 h-4"
+      aria-hidden="true"
+    >
+      <path d="M5 5l10 10" />
+      <path d="M15 5 5 15" />
+    </svg>
+  );
+
   const renderFormularioJugador = () => {
     if (!mostrarFormularioJugador) return null;
 
@@ -598,11 +614,25 @@ export default function Plantillas({ soloGraficas = false }) {
     );
   };
 
-  const renderAccionesJugador = (jugador) => (
+  const renderAccionesJugador = (jugador, { mostrarCerrar = false, onCerrar } = {}) => (
     <div className="inline-flex items-center justify-start gap-1.5" onClick={(event) => event.stopPropagation()}>
       {renderBotonVer(jugador)}
       {renderBotonEditar(jugador)}
       {renderBotonBorrar(jugador)}
+      {mostrarCerrar && onCerrar && (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onCerrar();
+          }}
+          className="inline-flex items-center justify-center h-8 w-8 shrink-0 rounded-md border border-club-red/20 bg-white text-club-red hover:bg-red-50 hover:text-club-redDark transition-colors"
+          aria-label={`Cerrar acciones de ${nombreCompleto(jugador)}`}
+          title={`Cerrar acciones de ${nombreCompleto(jugador)}`}
+        >
+          {renderIconoCerrar()}
+        </button>
+      )}
     </div>
   );
 
@@ -896,7 +926,10 @@ export default function Plantillas({ soloGraficas = false }) {
             }`}
           >
             <div className="flex items-center justify-end gap-1.5 pt-1">
-              {renderAccionesJugador(j)}
+              {renderAccionesJugador(j, {
+                mostrarCerrar: true,
+                onCerrar: () => setTarjetaAccionesAbiertaId(null),
+              })}
             </div>
           </div>
         </div>

@@ -107,11 +107,14 @@ function normalizarFilaEquipo(fila, fallback = {}, indice = 0) {
     club,
     limpiarTextoLocal(fila?.nombre) || limpiarTextoLocal(fallback?.nombre)
   );
+  const nombreFederacion =
+    limpiarTextoLocal(fila?.nombre_federacion) || limpiarTextoLocal(fallback?.nombre_federacion);
 
   return {
     id: limpiarTextoLocal(fila?.id) || limpiarTextoLocal(fallback?.id) || `equipo-${String(indice + 1).padStart(3, '0')}`,
     club,
     nombre,
+    nombre_federacion: nombreFederacion,
   };
 }
 
@@ -174,19 +177,27 @@ function fusionarFilasClubes(filasBase, filasGuardadas) {
 function fusionarFilasEquipos(filasBase, filasGuardadas) {
   const baseNormalizadas = (filasBase || []).map((fila, indice) => normalizarFilaEquipo(fila, {}, indice));
   const guardadasNormalizadas = (filasGuardadas || []).map((fila, indice) => normalizarFilaEquipo(fila, {}, indice));
+  const guardadasPorId = new Map();
   const guardadasPorClave = new Map();
 
   guardadasNormalizadas.forEach((fila) => {
+    if (fila.id && !guardadasPorId.has(fila.id)) {
+      guardadasPorId.set(fila.id, fila);
+    }
+
     const clave = `${normalizarClaveClub(fila.club)}|${normalizarClaveEquipo(fila.nombre)}`;
     if (clave && !guardadasPorClave.has(clave)) {
       guardadasPorClave.set(clave, fila);
     }
   });
 
+  const filasGuardadasUsadas = new Set();
   const resultado = baseNormalizadas.map((baseFila) => {
     const clave = `${normalizarClaveClub(baseFila.club)}|${normalizarClaveEquipo(baseFila.nombre)}`;
-    const guardada = guardadasPorClave.get(clave);
+    const guardada = guardadasPorId.get(baseFila.id) || guardadasPorClave.get(clave);
     if (!guardada) return baseFila;
+
+    filasGuardadasUsadas.add(guardada);
 
     return {
       ...baseFila,
@@ -194,6 +205,7 @@ function fusionarFilasEquipos(filasBase, filasGuardadas) {
       id: guardada.id || baseFila.id,
       club: guardada.club || baseFila.club,
       nombre: guardada.nombre || baseFila.nombre,
+      nombre_federacion: guardada.nombre_federacion || baseFila.nombre_federacion,
     };
   });
 
@@ -202,7 +214,7 @@ function fusionarFilasEquipos(filasBase, filasGuardadas) {
   );
   guardadasNormalizadas.forEach((fila) => {
     const clave = `${normalizarClaveClub(fila.club)}|${normalizarClaveEquipo(fila.nombre)}`;
-    if (!clave || clavesBase.has(clave)) return;
+    if (filasGuardadasUsadas.has(fila) || (!clave || clavesBase.has(clave))) return;
     resultado.push(fila);
   });
 
@@ -224,11 +236,12 @@ export const LISTAS_INICIALES = [
   {
     id: 'equipos',
     titulo: 'EQUIPOS',
-    descripcion: 'Equipos asociados a cada club.',
+    descripcion: 'Asigna el nombre federativo y modifica el nombre interno de cada equipo.',
     columnas: [
       { key: 'id', label: 'ID', editable: false },
       { key: 'club', label: 'Club' },
-      { key: 'nombre', label: 'Equipo' },
+      { key: 'nombre_federacion', label: 'Nombre FED', obligatorio: false },
+      { key: 'nombre', label: 'Equipo interno' },
     ],
     filas: crearEquiposIniciales(),
   },

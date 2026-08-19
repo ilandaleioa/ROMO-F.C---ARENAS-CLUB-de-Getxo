@@ -2166,7 +2166,7 @@ export default function Captacion() {
                           onChange={manejarCambioFotoJugador}
                           className="block w-full text-sm text-club-black file:mr-4 file:rounded-md file:border-0 file:bg-club-red file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-club-redDark"
                         />
-                        <p className="text-xs text-club-black/50">JPG, PNG o WEBP. Se guardarÃ¡ como imagen privada.</p>
+                        <p className="text-xs text-club-black/50">JPG, PNG o WEBP. Se guardará como imagen privada.</p>
                         {fotoJugadorPreview ? (
                           <div className="flex items-center gap-3 rounded-md border border-gray-200 bg-gray-50 p-2">
                             <img
@@ -2178,11 +2178,11 @@ export default function Captacion() {
                               <p className="font-semibold text-club-black/80">
                                 {fotoJugadorFile ? 'Nueva imagen seleccionada' : 'Imagen actual'}
                               </p>
-                              <p>La foto se actualizarÃ¡ al guardar.</p>
+                              <p>La foto se actualizará al guardar.</p>
                             </div>
                           </div>
                         ) : (
-                          <p className="text-xs text-club-black/40">TodavÃ­a no hay foto cargada.</p>
+                          <p className="text-xs text-club-black/40">Todavía no hay foto cargada.</p>
                         )}
                       </div>
                     ) : campo.type === 'computed' ? (

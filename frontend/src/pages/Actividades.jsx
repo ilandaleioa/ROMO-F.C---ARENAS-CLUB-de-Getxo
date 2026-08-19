@@ -1,4 +1,4 @@
-import { createPortal } from 'react-dom';
+﻿import { createPortal } from 'react-dom';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { CLUBES_MAESTROS } from '../data/clubes';
 import { EQUIPOS_BASE_CLUB, obtenerEquiposPorClub } from '../data/equipos';
@@ -8,7 +8,7 @@ import { useClub } from '../context/ClubContext';
 import { api } from '../lib/api';
 import { useListas } from '../lib/listas';
 
-const DIAS_SEMANA = ['Lun', 'Mar', 'MiÃ©', 'Jue', 'Vie', 'SÃ¡b', 'Dom'];
+const DIAS_SEMANA = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 const MESES = [
   'enero',
   'febrero',
@@ -25,11 +25,22 @@ const MESES = [
 ];
 
 const INSTALACIONES_ROMO = ['GOBELA', 'GALEA', 'MULTIUSOS', 'GAZTELUETA'];
+const ESPACIOS_ACTIVIDAD = ['Entero', 'Medio'];
 const EQUIPOS_MAESTROS = EQUIPOS_MS.map((equipo) => `${equipo.club} - ${equipo.nombre}`);
 const EQUIPOS_ACTIVIDADES = ['Primer equipo', ...EQUIPOS_MAESTROS];
 const ACTIVIDADES_STORAGE_KEY = 'romofc.actividades';
 
-const ACTIVIDADES_MUESTRA = [];
+function etiquetaInstalacionActividad(actividad, fallback = '') {
+  const instalacion = String(actividad?.ubicacion || fallback || '').trim();
+  if (!instalacion) return '';
+  return actividad?.espacio === 'Medio' ? `${instalacion} 1/2` : instalacion;
+}
+
+const ACTIVIDADES_MUESTRA = [
+  ['19-08-2026', '17:30', '19:00', 'ROMO - CADETE A', 'sesion', 'ROMO - CADETE A', 'GOBELA'],
+  ['19-08-2026', '18:00', '19:30', 'ROMO - ITZU JUVENIL', 'sesion', 'ROMO - ITZU JUVENIL', 'GOBELA'],
+  ['19-08-2026', '19:15', '21:30', 'ROMO CADETE A', 'partido', 'ROMO CADETE A - BARAKALDO', 'GOBELA'],
+];
 
 function etiquetaEquipoSelector(equipo) {
   return String(equipo || '').trim();
@@ -52,6 +63,37 @@ function normalizarEquipoMaestro(valor) {
   });
 
   return equipoMaestro ? `${equipoMaestro.club} - ${equipoMaestro.nombre}` : texto;
+}
+
+function obtenerEquipoCanonico(valor, clubPreferido = '') {
+  const texto = String(valor || '').trim();
+  if (!texto) return '';
+
+  const clave = normalizarClaveEquipo(texto);
+  const clubClave = resolverClaveClubEquipo(clubPreferido);
+  const candidatos = clubClave ? EQUIPOS_MS.filter((equipo) => equipo.club === clubClave) : EQUIPOS_MS;
+
+  const coincidenciaExacta = candidatos.find((equipo) => {
+    const variantes = [
+      equipo.nombre,
+      equipo.abreviatura,
+      `${equipo.club} ${equipo.nombre}`,
+      `${equipo.club} - ${equipo.nombre}`,
+      `${equipo.club} FC ${equipo.nombre}`,
+      `${equipo.club} CLUB ${equipo.nombre}`,
+    ];
+
+    return variantes.some((variante) => normalizarClaveEquipo(variante) === clave);
+  });
+
+  if (coincidenciaExacta) {
+    return `${coincidenciaExacta.club} - ${coincidenciaExacta.nombre}`;
+  }
+
+  // No resolvemos por sufijo aquí. Los campos local/visitante también pueden
+  // contener un equipo de otro club (p. ej. "BARAKALDO C.F. · Cadete A") y
+  // hacerlo convertiría ese rival en el "CADETE A" del club activo.
+  return texto;
 }
 
 const SEPARADOR_CLUB_EQUIPO = ' \u00b7 ';
@@ -179,11 +221,18 @@ function normalizarTextoBusqueda(valor) {
     .trim();
 }
 
+function esLocalRomo(valor) {
+  const local = normalizarTextoBusqueda(valor);
+  return local === 'romo fc' || local.startsWith('romo fc ');
+}
+
 function esPartidoLocalRomo(actividad) {
   if (actividad?.tipo !== 'partido') return false;
+  return esLocalRomo(actividad.local);
+}
 
-  const local = normalizarTextoBusqueda(actividad.local);
-  return local === 'romo fc' || local.startsWith('romo fc ');
+function obtenerInstalacionPorDefecto(tipo, local) {
+  return tipo === 'partido' && esLocalRomo(local) ? 'GOBELA' : '';
 }
 
 function normalizarClaveEquipo(valor) {
@@ -258,6 +307,72 @@ function textoLimpio(valor) {
   return String(valor || '').trim().replace(/\s+/g, ' ');
 }
 
+function quitarPrefijoJornadaPartido(texto) {
+  return String(texto || '')
+    .trim()
+    .replace(/^Jornada\s+\d+\s*[·\-–—]\s*/i, '')
+    .trim();
+}
+
+function descomponerPartidoActividad(actividad) {
+  if (actividad?.tipo !== 'partido') {
+    return {
+      local: textoLimpio(actividad?.local),
+      visitante: textoLimpio(actividad?.visitante || actividad?.rival),
+      titulo: String(actividad?.titulo || '').trim(),
+    };
+  }
+
+  const equipo = textoLimpio(actividad?.equipo);
+  const localGuardado = textoLimpio(actividad?.local);
+  const visitanteGuardado = textoLimpio(actividad?.visitante || actividad?.rival);
+  const tituloOriginal = String(actividad?.titulo || '').trim();
+  const tituloLimpio = quitarPrefijoJornadaPartido(tituloOriginal);
+
+  let local = localGuardado || equipo;
+  let visitante = visitanteGuardado;
+
+  const tituloEmpiezaPorEquipo = Boolean(equipo && tituloLimpio.startsWith(equipo));
+  if ((!visitante || visitante === local || visitante === equipo) && tituloEmpiezaPorEquipo) {
+    const resto = tituloLimpio.slice(equipo.length).replace(/^\s*[-–—]\s*/, '').trim();
+    if (resto) visitante = resto;
+  }
+
+  if (!local && tituloLimpio) {
+    const partes = tituloLimpio.split(/\s+[-–—]\s+/);
+    if (partes.length >= 2) {
+      local = textoLimpio(partes[0]);
+      if (!visitante) visitante = textoLimpio(partes[partes.length - 1]);
+    }
+  }
+
+  if (visitante === local || visitante === equipo) {
+    visitante = '';
+  }
+
+  if (!visitante && tituloLimpio && tituloLimpio.includes(' vs ')) {
+    const partes = tituloLimpio.split(/\s+vs\s+/i);
+    if (partes.length >= 2) {
+      visitante = textoLimpio(partes[partes.length - 1]);
+    }
+  }
+
+  const titulo = local && visitante
+    ? `${local} - ${visitante}`
+    : tituloOriginal || [local, visitante].filter(Boolean).join(' - ');
+
+  return {
+    local,
+    visitante,
+    titulo: titulo || 'Partido',
+  };
+}
+
+function tituloPartidoActividad(actividad) {
+  if (actividad?.tipo !== 'partido') return String(actividad?.titulo || '').trim();
+  return descomponerPartidoActividad(actividad).titulo;
+}
+
 function crearMapaAbreviaturasEquipos() {
   const mapa = new Map();
   // Las opciones del formulario contienen equipos de ambos clubes, aunque
@@ -296,8 +411,8 @@ function etiquetaEquipoCalendario(valor, mapaAbreviaturas) {
   if (abreviaturaExacta) return abreviaturaExacta;
 
   // Algunas actividades guardadas incluyen el club delante del equipo
-  // (por ejemplo, "ROMO FC Â· CADETE"). En ese caso usamos la coincidencia
-  // mÃ¡s especÃ­fica para no confundir "ITZU CADETE" con "CADETE".
+  // (por ejemplo, "ROMO FC · CADETE"). En ese caso usamos la coincidencia
+  // más específica para no confundir "ITZU CADETE" con "CADETE".
   const abreviaturaConPrefijo = Array.from(mapaAbreviaturas.entries())
     .sort(([claveA], [claveB]) => claveB.length - claveA.length)
     .find(([nombreEquipo]) => clave.endsWith(nombreEquipo))?.[1];
@@ -305,12 +420,14 @@ function etiquetaEquipoCalendario(valor, mapaAbreviaturas) {
   return abreviaturaConPrefijo || compactarTextoCalendario(texto);
 }
 
-function nombreEquipoCalendario(valor) {
+function nombreEquipoCalendario(valor, clubPreferido = '') {
   const texto = String(valor || '').trim();
   if (!texto) return 'Equipo pendiente';
 
   const clave = normalizarClaveEquipo(texto);
-  const equipoMaestro = EQUIPOS_MS.find((equipo) => {
+  const clubClave = resolverClaveClubEquipo(clubPreferido);
+  const candidatos = clubClave ? EQUIPOS_MS.filter((equipo) => equipo.club === clubClave) : EQUIPOS_MS;
+  const equipoMaestro = candidatos.find((equipo) => {
     const variantes = [
       equipo.nombre,
       equipo.abreviatura,
@@ -320,8 +437,7 @@ function nombreEquipoCalendario(valor) {
       `${equipo.club} CLUB ${equipo.nombre}`,
     ];
 
-    return variantes.some((variante) => normalizarClaveEquipo(variante) === clave)
-      || clave.endsWith(normalizarClaveEquipo(equipo.nombre));
+    return variantes.some((variante) => normalizarClaveEquipo(variante) === clave);
   });
 
   return equipoMaestro
@@ -329,8 +445,8 @@ function nombreEquipoCalendario(valor) {
     : texto;
 }
 
-function nombreEquipoLegible(valor) {
-  const texto = nombreEquipoCalendario(valor);
+function nombreEquipoLegible(valor, clubPreferido = '') {
+  const texto = nombreEquipoCalendario(valor, clubPreferido);
   if (!texto) return 'Equipo pendiente';
 
   const limpio = texto
@@ -346,6 +462,91 @@ function nombreEquipoLegible(valor) {
     .filter(Boolean)
     .map((palabra) => palabra.charAt(0).toUpperCase() + palabra.slice(1).toLowerCase())
     .join(' ');
+}
+
+function buscarEquipoMaestroCalendario(valor, clubPreferido = '') {
+  const clave = normalizarClaveEquipo(valor);
+  const clubClave = resolverClaveClubEquipo(clubPreferido);
+  const candidatos = clubClave ? EQUIPOS_MS.filter((equipo) => equipo.club === clubClave) : EQUIPOS_MS;
+
+  const coincide = (equipo) => [
+    equipo.nombre,
+    equipo.abreviatura,
+    `${equipo.club} ${equipo.nombre}`,
+    `${equipo.club} - ${equipo.nombre}`,
+    `${equipo.club} FC ${equipo.nombre}`,
+    `${equipo.club} CLUB ${equipo.nombre}`,
+  ].some((variante) => normalizarClaveEquipo(variante) === clave);
+
+  // Primero respetamos el club de la actividad. Si el dato guardado trae
+  // otro club delante, hacemos una segunda búsqueda global.
+  return candidatos.find(coincide) || EQUIPOS_MS.find(coincide);
+}
+
+function nombreEquipoCalendarioConAbreviatura(valor, clubPreferido = '') {
+  const nombre = nombreEquipoLegible(valor, clubPreferido);
+  const abreviatura = abreviaturaEquipoCalendario(valor, clubPreferido);
+
+  if (!abreviatura) return nombre;
+
+  return `${abreviatura} ${nombre}`;
+}
+
+function abreviaturaEquipoCalendario(valor, clubPreferido = '') {
+  const equipo = buscarEquipoMaestroCalendario(valor, clubPreferido);
+
+  if (!equipo?.abreviatura) return '';
+
+  // En la vista del calendario se usa la abreviatura solicitada para Arenas
+  // Juvenil A: "AJ Arenas Juvenil A".
+  return equipo.club === 'ARENAS' && equipo.nombre === 'JUVENIL A'
+    ? 'AJ'
+    : equipo.abreviatura;
+}
+
+function nombreClubLegible(valor, clubPreferido = '') {
+  const texto = nombreEquipoCalendario(valor, clubPreferido);
+  if (!texto) return 'Club pendiente';
+
+  const limpio = texto
+    .replace(/\b(F\.?C\.?|C\.?F\.?|C\.?D\.?|S\.?D\.?|K\.?E\.?)\b/gi, '')
+    .replace(/\s*[-·|]\s*/g, ' ')
+    .replace(/\b(JUVENIL|CADETE|INFANTIL|ALEVIN|BENJAMIN|PREBENJAMIN|SENIOR|FEM(?:ENINO)?|MASCULINO)\b/gi, '')
+    .replace(/\b[ABCD]\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!limpio) return 'Club pendiente';
+
+  return limpio
+    .split(' ')
+    .filter(Boolean)
+    .map((palabra) => palabra.charAt(0).toUpperCase() + palabra.slice(1).toLowerCase())
+    .join(' ');
+}
+
+function rivalJuegaComoLocal(actividad, local) {
+  const clubRival = normalizarTextoBusqueda(nombreClubLegible(actividad?.rival));
+  const clubLocal = normalizarTextoBusqueda(nombreClubLegible(local));
+  return Boolean(clubRival && clubLocal && clubRival === clubLocal);
+}
+
+function esEquipoPropioPartido(actividad, nombre, clubPreferido = '') {
+  const equipoPropio = normalizarTextoBusqueda(nombreEquipoCalendario(actividad?.equipo, clubPreferido));
+  const candidato = normalizarTextoBusqueda(nombre);
+  if (!equipoPropio || !candidato) return false;
+
+  if (equipoPropio === candidato || equipoPropio.includes(candidato) || candidato.includes(equipoPropio)) {
+    return true;
+  }
+
+  return normalizarTextoBusqueda(nombreClubLegible(actividad?.equipo, clubPreferido)) === normalizarTextoBusqueda(nombreClubLegible(nombre, clubPreferido));
+}
+
+function nombrePartidoCalendario(actividad, nombre, clubPreferido = '') {
+  return esEquipoPropioPartido(actividad, nombre, clubPreferido)
+    ? nombreEquipoCalendarioConAbreviatura(actividad?.equipo || nombre, clubPreferido)
+    : nombreClubLegible(nombre, clubPreferido);
 }
 
 function fechaClave(fecha) {
@@ -564,7 +765,7 @@ function IconoUbicacion() {
 
 function IconoMas() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" className="h-4 w-4" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="h-3.5 w-3.5" aria-hidden="true">
       <path d="M12 5v14M5 12h14" strokeLinecap="round" />
     </svg>
   );
@@ -693,21 +894,22 @@ const JORNADAS_ROMO = [
 ];
 
 function actividadesRomo() {
-  const sesionesMuestra = ACTIVIDADES_MUESTRA.map(([fechaTexto, hora, equipo, tipo, titulo, instalacion], indice) => ({
+  const sesionesMuestra = ACTIVIDADES_MUESTRA.map(([fechaTexto, hora, horaFin, equipo, tipo, titulo, instalacion], indice) => ({
     id: `muestra-${indice + 1}`,
     tipo,
-    evento: tipo === 'partido' ? 'Partido' : 'SesiÃ³n',
+    evento: tipo === 'partido' ? 'Partido' : 'Sesión',
     competicion: tipo === 'partido' ? 'Pretemporada' : 'Entrenamiento',
     titulo,
     equipo,
-    local: tipo === 'partido' ? titulo.split(' vs ')[0] : '',
-    visitante: tipo === 'partido' ? titulo.split(' vs ')[1] : '',
-    rival: tipo === 'partido' ? titulo.split(' vs ')[1] : '',
+    local: tipo === 'partido' ? titulo.split(/\s+(?:vs|-)\s+/i)[0] : '',
+    visitante: tipo === 'partido' ? titulo.split(/\s+(?:vs|-)\s+/i)[1] : '',
+    rival: tipo === 'partido' ? titulo.split(/\s+(?:vs|-)\s+/i)[1] : '',
     ubicacion: instalacion,
     fecha: crearFechaCalendario(fechaTexto),
     hora,
+    horaFin: horaFin || '',
     jornada: '',
-    duracion: '90 min',
+    duracion: horaFin ? `${hora} - ${horaFin}` : '90 min',
   }));
 
   const jornadas = JORNADAS_ROMO.map(([fechaTexto, local, visitante], indice) => {
@@ -719,7 +921,7 @@ function actividadesRomo() {
       tipo: 'partido',
       evento: 'Partido',
       competicion: 'Liga Nacional Juvenil',
-      titulo: `Jornada ${indice + 1} Â· ${local} - ${visitante}`,
+      titulo: `Jornada ${indice + 1} · ${local} - ${visitante}`,
       equipo: 'ROMO F.C.',
       local,
       visitante,
@@ -728,7 +930,7 @@ function actividadesRomo() {
       ubicacion: esLocal ? 'GOBELA' : 'Pendiente de confirmar',
       fecha: crearFechaCalendario(fechaTexto),
       hora: null,
-      duracion: `Jornada ${indice + 1} Â· horario pendiente`,
+      duracion: `Jornada ${indice + 1} · horario pendiente`,
     };
   });
 
@@ -753,15 +955,44 @@ function normalizarActividadGuardada(actividad) {
   const fechaGuardada = String(actividad.fecha || '').trim();
   const fechaTexto = fechaGuardada.slice(0, 10);
   const fecha = crearFechaActividad(fechaTexto, actividad.hora);
+  const club = textoLimpio(actividad.club) || resolverClaveClubEquipo(actividad.equipo || actividad.local || actividad.visitante || '');
 
   if (Number.isNaN(fecha.getTime())) return null;
 
   return {
     ...actividad,
+    club,
+    equipo: obtenerEquipoCanonico(actividad.equipo || '', club),
+    local: actividad.local ? obtenerEquipoCanonico(actividad.local, club) : '',
+    visitante: actividad.visitante ? obtenerEquipoCanonico(actividad.visitante, club) : '',
+    rival: actividad.rival ? obtenerEquipoCanonico(actividad.rival, club) : '',
     ...(esPartidoLocalRomo(actividad) ? { ubicacion: 'GOBELA' } : {}),
     fecha,
     hora: actividad.hora || '',
+    horaFin: actividad.horaFin || actividad.hora_fin || '',
   };
+}
+
+function serializarActividadPersistible(actividad) {
+  return {
+    ...actividad,
+    club: textoLimpio(actividad.club) || resolverClaveClubEquipo(actividad.equipo || actividad.local || actividad.visitante || ''),
+    fecha: fechaClave(actividad.fecha),
+    hora: actividad.hora || '',
+    horaFin: actividad.horaFin || '',
+  };
+}
+
+function fusionarActividades(remotas = [], locales = []) {
+  const mapa = new Map();
+
+  [...remotas, ...locales].forEach((actividad) => {
+    const normalizada = normalizarActividadGuardada(actividad);
+    if (!normalizada?.id || mapa.has(normalizada.id)) return;
+    mapa.set(normalizada.id, normalizada);
+  });
+
+  return Array.from(mapa.values()).sort(ordenarActividades);
 }
 
 function cargarActividadesIniciales() {
@@ -794,13 +1025,14 @@ function claseActividad(tipo) {
         texto: 'text-emerald-700',
         fondo: 'bg-emerald-50 hover:bg-emerald-100',
         borde: 'border-emerald-200',
-        etiqueta: 'SesiÃ³n',
+        etiqueta: 'Sesión',
       };
 }
 
 function ActividadFila({ actividad, compacta = false }) {
   const estilo = claseActividad(actividad.tipo);
-  const colorEquipo = obtenerColorEquipo(actividad.equipo);
+  const equipoCanonico = obtenerEquipoCanonico(actividad.equipo, actividad.club);
+  const colorEquipo = obtenerColorEquipo(equipoCanonico);
 
   return (
     <div
@@ -810,15 +1042,15 @@ function ActividadFila({ actividad, compacta = false }) {
       <div className="flex items-start gap-2.5">
         <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: colorEquipo.acento }} />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-bold">{actividad.titulo}</p>
-          <p className="mt-0.5 truncate text-xs font-semibold text-club-black/65">{actividad.equipo}</p>
+          <p className="truncate text-sm font-bold">{actividad.tipo === 'partido' ? tituloPartidoActividad(actividad) : actividad.titulo}</p>
+          <p className="mt-0.5 truncate text-xs font-semibold text-club-black/65">{equipoCanonico}</p>
           <div className={`mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] font-medium text-club-black/55 ${compacta ? 'leading-tight' : ''}`}>
             <span>{formatearHora(actividad.fecha, actividad.hora, actividad.horaFin)}</span>
-            {!compacta && actividad.rival && <span>vs {actividad.rival}</span>}
+            {!compacta && (actividad.rival || actividad.visitante) && <span>vs {actividad.rival || actividad.visitante}</span>}
             {!compacta && (
               <span className="inline-flex items-center gap-1">
                 <IconoUbicacion />
-                {actividad.ubicacion}
+                {etiquetaInstalacionActividad(actividad)}
               </span>
             )}
           </div>
@@ -829,7 +1061,7 @@ function ActividadFila({ actividad, compacta = false }) {
 }
 
 // Escudos publicados por Euskadifutbol para la competiciÃ³n 24057860.
-// Se mantienen aquÃ­ asociados al nombre oficial que devuelve la jornada para
+// Se mantienen aquí asociados al nombre oficial que devuelve la jornada para
 // que los partidos sigan mostrando el escudo correcto aunque cambie el rival.
 const ESCUDOS_CLUBES = {
   'ATHLETIC CLUB "B"': 'https://fvf.filesnovanet.es/pnfg/pimg/MigracionPV/escudosFVF/1001_grande.png',
@@ -906,7 +1138,7 @@ function nombreCortoEquipo(nombre) {
     .replace(' C.D. ', ' ')
     .replace(' K.E.', '')
     .replace(' S.D. ', ' ')
-    .replace('DEPORTIVO ALAVES', 'AlavÃ©s')
+    .replace('DEPORTIVO ALAVES', 'Alavés')
     .replace('CULTURAL DPVA. DURANGO', 'Durango')
     .replace('LAUDIO F. SAN ROKEZAR,', 'Laudio')
     .replace('ANTIGUOKO KIROL ELKARTEA', 'Antiguoko')
@@ -915,12 +1147,12 @@ function nombreCortoEquipo(nombre) {
     .trim();
 }
 
-function EquipoPartido({ nombre, nombreMostrado, alineacion, compacta = false, detalle = false, color }) {
+function EquipoPartido({ nombre, nombreMostrado, alineacion, compacta = false, detalle = false, tarjeta = false, color }) {
   const nombreVisible = nombreMostrado || compactarTextoCalendario(nombreCortoEquipo(nombre));
 
   return (
     <div
-      className={`flex min-w-0 items-center gap-2 ${
+      className={`flex min-w-0 items-center gap-1.5 ${
         alineacion === 'derecha' ? 'flex-row-reverse justify-start text-right' : 'text-left'
       }`}
     >
@@ -940,22 +1172,26 @@ function EquipoPartido({ nombre, nombreMostrado, alineacion, compacta = false, d
         />
       </div>
 
-      <p className={`min-w-0 font-black text-pink-900 ${compacta ? 'truncate text-[9px]' : detalle ? 'line-clamp-2 overflow-hidden text-xs leading-tight sm:text-sm' : 'truncate text-sm'}`} style={color ? { color } : undefined} title={nombre}>
+      <p className={`min-w-0 font-black text-pink-900 ${compacta ? 'truncate text-[9px]' : tarjeta ? 'line-clamp-2 overflow-hidden text-[10px] leading-tight sm:text-xs' : detalle ? 'line-clamp-2 overflow-hidden text-[10px] leading-tight sm:text-xs md:text-sm' : 'truncate text-sm'}`} style={color ? { color } : undefined} title={nombre}>
         {nombreVisible}
       </p>
     </div>
   );
 }
 
-function AccionesActividad({ actividad, abierta, onVer, onEditar, onEliminar }) {
+function AccionesActividad({ actividad, abierta, cerrada, onVer, onEditar, onEliminar, onCerrar }) {
   if (!onVer && !onEditar && !onEliminar) return null;
 
   return (
     <div
-      className={`actividades-acciones-actividad absolute right-2 top-2 z-10 flex items-center gap-1 rounded-full border border-white/70 bg-white/90 p-1 shadow-lg shadow-slate-900/10 backdrop-blur-sm transition-all duration-150 ${
-        abierta ? 'translate-y-0 opacity-100' : 'pointer-events-none -translate-y-1 opacity-0'
+      className={`actividades-acciones-actividad absolute right-2 top-2 z-20 flex items-center gap-1 rounded-full border border-white/70 bg-white/90 p-1 shadow-lg shadow-slate-900/10 backdrop-blur-sm transition-all duration-150 ${
+        abierta
+          ? 'opacity-100 ring-2 ring-club-red/15'
+          : cerrada
+            ? 'pointer-events-none translate-y-1 opacity-0'
+            : 'pointer-events-none translate-y-1 opacity-0 group-hover/card:pointer-events-auto group-hover/card:translate-y-0 group-hover/card:opacity-100 group-focus-within/card:pointer-events-auto group-focus-within/card:translate-y-0 group-focus-within/card:opacity-100'
       }`}
-      aria-hidden={!abierta}
+      aria-hidden={!abierta || cerrada}
     >
       {onVer && (
         <button
@@ -964,7 +1200,7 @@ function AccionesActividad({ actividad, abierta, onVer, onEditar, onEliminar }) 
             event.stopPropagation();
             onVer(actividad);
           }}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-club-black/5 text-club-black/70 transition hover:bg-club-black hover:text-white"
+          className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-club-black/5 text-club-black/70 transition hover:bg-club-black hover:text-white"
           aria-label="Ver actividad"
           title="Ver actividad"
         >
@@ -978,7 +1214,7 @@ function AccionesActividad({ actividad, abierta, onVer, onEditar, onEliminar }) 
             event.stopPropagation();
             onEditar(actividad);
           }}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-club-red shadow-sm transition hover:bg-club-red hover:text-white"
+          className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white text-club-red shadow-sm transition hover:bg-club-red hover:text-white"
           aria-label="Editar actividad"
           title="Editar actividad"
         >
@@ -992,25 +1228,50 @@ function AccionesActividad({ actividad, abierta, onVer, onEditar, onEliminar }) 
             event.stopPropagation();
             onEliminar(actividad);
           }}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-rose-500 shadow-sm transition hover:bg-rose-500 hover:text-white"
+          className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white text-rose-500 shadow-sm transition hover:bg-rose-500 hover:text-white"
           aria-label="Eliminar actividad"
           title="Eliminar actividad"
         >
           <IconoBorrar />
         </button>
       )}
+      {onCerrar && (
+        <button
+          type="button"
+          onPointerDown={(event) => {
+            // Cerramos al iniciar la pulsación para que el hover no pueda
+            // volver a mostrar el panel antes de que termine el click.
+            event.preventDefault();
+            event.stopPropagation();
+            onCerrar();
+          }}
+          onClick={(event) => {
+            event.stopPropagation();
+          }}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-slate-500 shadow-sm transition hover:bg-slate-700 hover:text-white"
+          aria-label="Cerrar acciones"
+          title="Cerrar acciones"
+        >
+          <IconoCerrar />
+        </button>
+      )}
     </div>
   );
 }
 
-function ActividadCalendario({ actividad, abierta, onVer, onEditar, onEliminar, onSeleccionar, equipoVisible, onToggleAcciones, mapaAbreviaturasEquipos, compacta = false }) {
+function ActividadCalendario({ actividad, abierta, accionesCerradas, onVer, onEditar, onEliminar, onSeleccionar, equipoVisible, onToggleAcciones, onCerrarAcciones, onReactivarAcciones, mapaAbreviaturasEquipos, compacta = false }) {
+  const { club: clubContexto } = useClub();
+  const clubPreferido = actividad.club || clubContexto;
+  const equipoCanonico = obtenerEquipoCanonico(actividad.equipo, clubPreferido);
+
   if (actividad.tipo === 'partido') {
-    const local = actividad.local || actividad.equipo;
-    const visitante = actividad.visitante || actividad.rival;
-    const localVisible = nombreEquipoLegible(local);
-    const visitanteVisible = nombreEquipoLegible(visitante);
-    const tituloVisible = [localVisible, visitanteVisible].filter(Boolean).join(' - ') || actividad.titulo || 'Partido';
-    const colorEquipo = obtenerColorEquipo(actividad.equipo);
+    const partido = descomponerPartidoActividad(actividad);
+    const localNombre = partido.local || actividad.local || equipoCanonico;
+    const visitanteNombre = partido.visitante || actividad.visitante || actividad.rival;
+    const localVisible = nombrePartidoCalendario(actividad, localNombre, clubPreferido);
+    const visitanteVisible = nombrePartidoCalendario(actividad, visitanteNombre, clubPreferido);
+    const tituloVisible = partido.titulo || actividad.titulo || 'Partido';
+    const colorEquipo = obtenerColorEquipo(equipoCanonico);
 
     return (
       <div
@@ -1019,22 +1280,29 @@ function ActividadCalendario({ actividad, abierta, onVer, onEditar, onEliminar, 
         onClick={(event) => {
           event.stopPropagation();
           onSeleccionar?.();
-          onToggleAcciones?.(actividad);
         }}
+        onMouseEnter={() => onReactivarAcciones?.(actividad)}
         onKeyDown={(event) => {
           if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
             onSeleccionar?.();
-            onToggleAcciones?.(actividad);
           }
         }}
         aria-expanded={abierta}
-        className={`actividades-calendario-item relative cursor-pointer rounded-xl border-2 shadow-sm transition hover:brightness-[0.99] hover:shadow-md ${
-          compacta ? 'min-h-[64px] p-2' : 'p-2 sm:p-2.5'
+        className={`actividades-calendario-item group/card relative cursor-pointer rounded-xl border-2 shadow-sm transition hover:brightness-[0.99] hover:shadow-md ${
+          compacta ? 'min-h-[64px] p-2 pr-16' : 'p-2 pr-16 sm:p-2.5'
         }`}
         style={{ backgroundColor: colorEquipo.fondo, borderColor: colorEquipo.borde, color: colorEquipo.texto }}
       >
-        <AccionesActividad actividad={actividad} abierta={abierta} onVer={onVer} onEditar={onEditar} onEliminar={onEliminar} />
+        <AccionesActividad
+          actividad={actividad}
+          abierta={abierta}
+          cerrada={accionesCerradas}
+          onVer={onVer}
+          onEditar={onEditar}
+          onEliminar={onEliminar}
+          onCerrar={() => onCerrarAcciones?.(actividad)}
+        />
         {compacta ? (
           <div className="grid min-w-0 gap-1">
             <div className="flex min-w-0 items-center gap-1.5">
@@ -1044,8 +1312,8 @@ function ActividadCalendario({ actividad, abierta, onVer, onEditar, onEliminar, 
                 </span>
                 <span>{formatearHora(actividad.fecha, actividad.hora, actividad.horaFin)}</span>
               </div>
-              <span className="shrink-0 rounded-md bg-white/75 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide" title={actividad.ubicacion || 'GOBELA'}>
-                {actividad.ubicacion || 'GOBELA'}
+              <span className="shrink-0 rounded-md bg-white/75 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide" title={etiquetaInstalacionActividad(actividad, 'GOBELA')}>
+                {etiquetaInstalacionActividad(actividad, 'GOBELA')}
               </span>
             </div>
             <p className="min-w-0 text-[9px] font-black uppercase tracking-wide leading-tight line-clamp-2" title={tituloVisible}>
@@ -1060,16 +1328,16 @@ function ActividadCalendario({ actividad, abierta, onVer, onEditar, onEliminar, 
                 <span>{formatearHora(actividad.fecha, actividad.hora, actividad.horaFin)}</span>
               </div>
               <span className="inline-flex shrink-0 items-center rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide">
-                {actividad.ubicacion || 'GOBELA'}
+                {etiquetaInstalacionActividad(actividad, 'GOBELA')}
               </span>
             </div>
 
-            <div className="mt-1.5 grid items-center grid-cols-[minmax(0,1fr)_36px_minmax(0,1fr)] gap-1.5">
-              <EquipoPartido nombre={local} nombreMostrado={nombreCortoEquipo(local)} detalle color={colorEquipo.texto} />
-              <span className="flex h-7 w-7 items-center justify-center rounded-full px-1 text-[9px] font-black text-white shadow-sm" style={{ backgroundColor: colorEquipo.acento }}>
+            <div className="mt-1.5 grid items-center grid-cols-[minmax(0,1fr)_32px_minmax(0,1fr)] gap-1.5">
+              <EquipoPartido nombre={localNombre} nombreMostrado={localVisible} detalle color={colorEquipo.texto} />
+              <span className="flex h-7 w-7 items-center justify-center rounded-full px-1 text-[8px] font-black text-white shadow-sm" style={{ backgroundColor: colorEquipo.acento }}>
                 VS
               </span>
-              <EquipoPartido nombre={visitante} nombreMostrado={nombreCortoEquipo(visitante)} alineacion="derecha" detalle color={colorEquipo.texto} />
+              <EquipoPartido nombre={visitanteNombre} nombreMostrado={visitanteVisible} alineacion="derecha" detalle color={colorEquipo.texto} />
             </div>
 
 
@@ -1079,8 +1347,9 @@ function ActividadCalendario({ actividad, abierta, onVer, onEditar, onEliminar, 
     );
   }
 
-  const colorEquipo = obtenerColorEquipo(actividad.equipo);
-  const nombreEquipoVisible = nombreEquipoCalendario(actividad.equipo);
+  const colorEquipo = obtenerColorEquipo(equipoCanonico);
+  const abreviaturaEquipoVisible = abreviaturaEquipoCalendario(equipoCanonico, clubPreferido) || equipoVisible;
+  const nombreEquipoVisible = nombreEquipoLegible(equipoCanonico, clubPreferido);
 
   return (
     <div
@@ -1089,45 +1358,65 @@ function ActividadCalendario({ actividad, abierta, onVer, onEditar, onEliminar, 
       onClick={(event) => {
         event.stopPropagation();
         onSeleccionar?.();
-        onToggleAcciones?.(actividad);
       }}
+      onMouseEnter={() => onReactivarAcciones?.(actividad)}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
           onSeleccionar?.();
-          onToggleAcciones?.(actividad);
         }
       }}
       aria-expanded={abierta}
-      className={`actividades-calendario-item relative flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border-2 transition hover:brightness-[0.99] hover:shadow-md ${compacta ? 'px-2 py-1.5' : 'px-2.5 py-2'}`}
+      className={`actividades-calendario-item group/card relative flex min-w-0 min-h-11 cursor-pointer items-center gap-2 rounded-xl border-2 transition hover:brightness-[0.99] hover:shadow-md ${compacta ? 'px-2 py-1.5 pr-16' : 'px-2.5 py-2 pr-16'}`}
       style={{ backgroundColor: colorEquipo.fondo, borderColor: colorEquipo.borde, color: colorEquipo.texto }}
     >
-      <AccionesActividad actividad={actividad} abierta={abierta} onVer={onVer} onEditar={onEditar} onEliminar={onEliminar} />
+      <AccionesActividad
+        actividad={actividad}
+        abierta={abierta}
+        cerrada={accionesCerradas}
+        onVer={onVer}
+        onEditar={onEditar}
+        onEliminar={onEliminar}
+        onCerrar={() => onCerrarAcciones?.(actividad)}
+      />
       <span className={`flex shrink-0 items-center justify-center rounded-md font-black shadow-sm ${compacta ? 'h-5 w-5 text-[10px]' : 'h-6 w-6 text-[11px]'}`} style={{ backgroundColor: colorEquipo.fondoAcento }}>
         <IconoSesion />
       </span>
       {compacta ? (
-        <div className="flex min-w-0 flex-1 items-center gap-1.5">
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-white/75 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide">
+        <div className="grid min-w-0 flex-1 gap-1">
+          <div className="flex min-w-0 items-center gap-1">
+            <span className="inline-flex min-w-0 shrink items-center gap-1 rounded-md bg-white/75 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide">
             <IconoReloj />
             <span>{formatearHora(actividad.fecha, actividad.hora, actividad.horaFin)}</span>
-          </span>
-          <p className="min-w-0 flex-1 truncate text-[9px] font-bold opacity-80" title={nombreEquipoVisible}>
-            {nombreEquipoVisible}
-          </p>
+            </span>
+            <span className="min-w-0 truncate rounded-md bg-white/75 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide" title={etiquetaInstalacionActividad(actividad, 'Pendiente')}>
+              {etiquetaInstalacionActividad(actividad, 'Pendiente')}
+            </span>
+          </div>
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span className="shrink-0 rounded-md bg-white/75 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide" title={abreviaturaEquipoVisible}>
+              {abreviaturaEquipoVisible}
+            </span>
+            <p className="min-w-0 truncate text-[9px] font-bold opacity-80" title={nombreEquipoVisible}>
+              {nombreEquipoVisible}
+            </p>
+          </div>
         </div>
       ) : (
         <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-            <p className="truncate text-sm font-black sm:text-base" title={actividad.equipo || equipoVisible}>
+          <div className="flex min-w-0 items-center gap-x-1.5">
+            <p className="min-w-0 flex-1 truncate text-xs font-black leading-tight sm:text-sm" title={equipoCanonico || equipoVisible}>
               {formatearHora(actividad.fecha, actividad.hora, actividad.horaFin)}
             </p>
-            <span className="shrink-0 rounded-full bg-white/75 px-2 py-0.5 text-[11px] font-black uppercase tracking-wide">
-              {actividad.ubicacion || 'Pendiente'}
+            <span className="shrink-0 rounded-full bg-white/75 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wide">
+              {etiquetaInstalacionActividad(actividad, 'Pendiente')}
             </span>
           </div>
-          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5 text-xs">
-            <span className="shrink-0 rounded-full bg-white/75 px-2 py-1 font-black uppercase tracking-wide">
+          <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[11px] sm:text-xs">
+            <span className="shrink-0 rounded-full bg-white/75 px-2 py-0.5 font-black uppercase tracking-wide" title={abreviaturaEquipoVisible}>
+              {abreviaturaEquipoVisible}
+            </span>
+            <span className="min-w-0 truncate font-black uppercase tracking-wide" title={nombreEquipoVisible}>
               {nombreEquipoVisible}
             </span>
           </div>
@@ -1162,9 +1451,9 @@ function ModalDetalleActividad({ actividad, onClose, onEditar, onEliminar }) {
       >
         <div className={`flex items-start justify-between gap-3 px-5 py-4 text-white ${esPartido ? 'bg-pink-600' : 'bg-emerald-600'}`}>
           <div className="min-w-0">
-            <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-white/75">Vista rapida</p>
+            <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-white/75">Vista rápida</p>
             <h2 id="actividad-detalle-titulo" className="mt-1 truncate text-lg font-black">
-              {actividad.titulo}
+              {actividad.tipo === 'partido' ? tituloPartidoActividad(actividad) : actividad.titulo}
             </h2>
           </div>
           <button
@@ -1192,18 +1481,22 @@ function ModalDetalleActividad({ actividad, onClose, onEditar, onEliminar }) {
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
               <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-slate-400">Equipo</p>
-              <p className="mt-1 font-bold text-club-black">{actividad.equipo || 'Equipo pendiente'}</p>
+              <p className="mt-1 font-bold text-club-black">{obtenerEquipoCanonico(actividad.equipo, actividad.club) || 'Equipo pendiente'}</p>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
               <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-slate-400">Lugar</p>
-              <p className="mt-1 font-bold text-club-black">{actividad.ubicacion || 'InstalaciÃ³n pendiente'}</p>
+              <p className="mt-1 font-bold text-club-black">{etiquetaInstalacionActividad(actividad, 'Instalación pendiente')}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-slate-400">Espacio</p>
+              <p className="mt-1 font-bold text-club-black">{actividad.espacio || '-'}</p>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
               <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-slate-400">Tipo</p>
-              <p className="mt-1 font-bold text-club-black">{esPartido ? 'Partido' : 'SesiÃ³n'}</p>
+              <p className="mt-1 font-bold text-club-black">{esPartido ? 'Partido' : 'Sesión'}</p>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-              <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-slate-400">CompeticiÃ³n</p>
+              <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-slate-400">Competición</p>
               <p className="mt-1 font-bold text-club-black">{actividad.competicion || '-'}</p>
             </div>
           </div>
@@ -1223,8 +1516,8 @@ function ModalDetalleActividad({ actividad, onClose, onEditar, onEliminar }) {
                 <div className="min-w-0 text-right">
                   <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-pink-500">Visitante</p>
                   <EquipoPartido
-                    nombre={actividad.visitante || actividad.rival || 'Equipo visitante'}
-                    nombreMostrado={actividad.visitante || actividad.rival || 'Equipo visitante'}
+                    nombre={descomponerPartidoActividad(actividad).visitante || actividad.visitante || actividad.rival || 'Equipo visitante'}
+                    nombreMostrado={descomponerPartidoActividad(actividad).visitante || actividad.visitante || actividad.rival || 'Equipo visitante'}
                     alineacion="derecha"
                     detalle
                   />
@@ -1234,7 +1527,7 @@ function ModalDetalleActividad({ actividad, onClose, onEditar, onEliminar }) {
           ) : (
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3">
               <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-emerald-500">Actividad</p>
-              <p className="mt-1 font-black text-emerald-900">{actividad.titulo || 'SesiÃ³n'}</p>
+              <p className="mt-1 font-black text-emerald-900">{actividad.titulo || 'Sesión'}</p>
             </div>
           )}
 
@@ -1270,22 +1563,31 @@ function ModalDetalleActividad({ actividad, onClose, onEditar, onEliminar }) {
   );
 }
 
-function ActividadSemana({ actividad, abierta, onToggleAcciones, onEditar, onEliminar }) {
+function ActividadSemana({ actividad, abierta, accionesCerradas, onToggleAcciones, onCerrarAcciones, onReactivarAcciones, onEditar, onEliminar }) {
   const esPartido = actividad.tipo === 'partido';
-  const local = actividad.local || actividad.equipo || 'Pendiente';
-  const visitante = actividad.visitante || actividad.rival || 'Pendiente';
-  const equipoSesion = actividad.equipo || actividad.titulo || 'SesiÃ³n';
+  const partido = descomponerPartidoActividad(actividad);
+  const local = partido.local || actividad.local || actividad.equipo || 'Pendiente';
+  const visitante = partido.visitante || actividad.visitante || actividad.rival || 'Pendiente';
+  const equipoSesion = actividad.equipo || actividad.titulo || 'Sesión';
 
   return (
     <article
       onClick={() => onToggleAcciones?.(actividad)}
-      className={`group relative cursor-pointer overflow-hidden rounded-3xl border-2 p-3 shadow-[0_10px_30px_rgba(15,23,42,0.05)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_38px_rgba(15,23,42,0.08)] ${
+      onMouseEnter={() => onReactivarAcciones?.(actividad)}
+      className={`group/card relative cursor-pointer overflow-hidden rounded-3xl border-2 p-3 shadow-[0_10px_30px_rgba(15,23,42,0.05)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_38px_rgba(15,23,42,0.08)] ${
         esPartido
           ? 'border-pink-300 bg-gradient-to-br from-pink-50 via-white to-pink-50'
           : 'border-emerald-300 bg-gradient-to-br from-emerald-50 via-white to-emerald-50'
       }`}
     >
-      <AccionesActividad actividad={actividad} abierta={abierta} onEditar={onEditar} onEliminar={onEliminar} />
+      <AccionesActividad
+        actividad={actividad}
+        abierta={abierta}
+        cerrada={accionesCerradas}
+        onEditar={onEditar}
+        onEliminar={onEliminar}
+        onCerrar={() => onCerrarAcciones?.(actividad)}
+      />
       <div className="flex items-start gap-3 pr-16">
         <div className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-[11px] font-black uppercase tracking-wide ${esPartido ? 'bg-club-red text-white' : 'bg-emerald-500 text-white'}`}>
           <IconoReloj />
@@ -1318,7 +1620,10 @@ function SemanaView({
   onHoy,
   modo = 'detalle',
   actividadAccionesAbiertasId,
+  actividadAccionesCerradasId,
   onToggleAccionesActividad,
+  onCerrarAccionesActividad,
+  onReactivarAccionesActividad,
   onVer,
   onEditar,
   onEliminar,
@@ -1365,19 +1670,18 @@ function SemanaView({
         <div className="actividades-calendario-body overflow-x-auto bg-slate-50/70">
           <div className="actividades-calendario-grid grid min-w-[1050px] grid-cols-7 gap-3 p-3 sm:gap-4 sm:p-4">
             {actividadesSemana.map(({ dia, clave, actividades: actividadesDia }) => {
-              const tieneContenido = actividadesDia.length > 0;
               const esHoy = clave === fechaClave(new Date());
 
               return (
                 <div
                   key={clave}
-                className={`actividades-calendario-day group relative overflow-hidden rounded-2xl border p-2.5 text-left transition sm:p-3 ${tieneContenido ? 'min-h-0' : 'h-[76px] min-h-0'} ${esHoy ? 'border-club-red/30 bg-club-red/5' : 'border-slate-200 bg-white'}`}
+                  className={`actividades-calendario-day group relative overflow-hidden rounded-2xl border p-2.5 text-left transition sm:p-3 min-h-[176px] ${esHoy ? 'border-club-red/30 bg-club-red/5' : 'border-slate-200 bg-white'}`}
                 >
                   <button
                     type="button"
                     onClick={() => setFechaMenuCreacion((actual) => (actual === clave ? null : clave))}
-                    className="actividades-calendario-add absolute left-2 top-2 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-club-red text-white shadow-lg shadow-club-red/20 transition hover:scale-105 hover:bg-club-redDark focus:outline-none focus:ring-4 focus:ring-club-red/20"
-                    aria-label={`AÃ±adir actividad el ${dia.getDate()} de ${MESES[dia.getMonth()]}`}
+                    className="actividades-calendario-add absolute left-2 top-2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-club-red text-white shadow-md shadow-club-red/15 transition hover:bg-club-redDark focus:outline-none focus:ring-4 focus:ring-club-red/15"
+                    aria-label={`Añadir actividad el ${dia.getDate()} de ${MESES[dia.getMonth()]}`}
                   >
                     <IconoMas />
                   </button>
@@ -1408,18 +1712,24 @@ function SemanaView({
                   <span className={`actividades-calendario-day-number absolute right-3 top-3 text-sm font-black ${esHoy ? 'text-club-red' : 'text-club-black/70'}`}>
                     {dia.getDate()}
                   </span>
-                  <div className={`actividades-calendario-day-content flex flex-col justify-start gap-1 pt-12 ${tieneContenido ? 'min-h-0' : 'min-h-0'}`}>
+                  <div className="actividades-calendario-day-content flex flex-col justify-start gap-1 pt-12 min-h-0">
                     <div className="space-y-1">
                       {actividadesDia.map((actividad) => (
                         <ActividadCalendario
                           key={actividad.id}
                           actividad={actividad}
                           abierta={actividadAccionesAbiertasId === actividad.id}
+                          accionesCerradas={actividadAccionesCerradasId === actividad.id}
                           onVer={onVer}
                           onEditar={onEditar}
                           onEliminar={onEliminar}
-                          onSeleccionar={() => setFechaMenuCreacion(null)}
+                          onSeleccionar={() => {
+                            setFechaMenuCreacion(null);
+                            onToggleAccionesActividad?.(actividad);
+                          }}
                           onToggleAcciones={onToggleAccionesActividad}
+                          onCerrarAcciones={onCerrarAccionesActividad}
+                          onReactivarAcciones={onReactivarAccionesActividad}
                           mapaAbreviaturasEquipos={mapaAbreviaturasEquipos}
                           equipoVisible={etiquetaEquipoCalendario(actividad.equipo, mapaAbreviaturasEquipos)}
                         />
@@ -1432,7 +1742,7 @@ function SemanaView({
           </div>
         </div>
         <div className="actividades-calendario-leyenda flex flex-wrap items-center gap-4 border-t border-gray-100 px-4 py-3 text-xs font-semibold text-club-black/55 sm:px-5">
-          <span className="inline-flex items-center gap-2"><i className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> SesiÃ³n</span>
+          <span className="inline-flex items-center gap-2"><i className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> Sesión</span>
           <span className="inline-flex items-center gap-2"><i className="h-2.5 w-2.5 rounded-full bg-club-red" /> Partido</span>
           <span className="text-club-black/35">Selecciona una actividad para ver el detalle</span>
         </div>
@@ -1466,12 +1776,12 @@ function SemanaView({
                   esHoy ? 'border-club-red/30 bg-club-red/5' : 'border-slate-200 bg-white'
                 }`}
               >
-                <header className={`flex items-start justify-between gap-3 rounded-2xl bg-slate-50 ${esMinimal ? 'px-3 py-3' : 'px-4 py-4'}`}>
-                  <div>
+                <header className={`flex items-center justify-between gap-3 rounded-2xl bg-slate-50 ${esMinimal ? 'px-3 py-2' : 'px-4 py-4'}`}>
+                  <div className={esMinimal ? 'flex items-baseline gap-2' : ''}>
                     <p className={`text-[9px] font-extrabold uppercase tracking-[0.14em] ${esHoy ? 'text-club-red' : 'text-slate-400'}`}>
                       {dia.toLocaleDateString('es-ES', { weekday: 'long' })}
                     </p>
-                    <h3 className={`${esMinimal ? 'mt-1 text-lg' : 'mt-1 text-xl sm:text-2xl'} font-black capitalize leading-none text-club-black`}>
+                    <h3 className={`${esMinimal ? 'text-lg' : 'mt-1 text-xl sm:text-2xl'} font-black capitalize leading-none text-club-black`}>
                       {dia.getDate()} {MESES[dia.getMonth()]}
                     </h3>
                   </div>
@@ -1522,11 +1832,14 @@ function SemanaView({
                           key={actividad.id}
                           actividad={actividad}
                           abierta={actividadAccionesAbiertasId === actividad.id}
+                          accionesCerradas={actividadAccionesCerradasId === actividad.id}
                           onVer={onVer}
                           onEditar={onEditar}
                           onEliminar={onEliminar}
                           onSeleccionar={() => setFechaMenuCreacion(null)}
                           onToggleAcciones={onToggleAccionesActividad}
+                          onCerrarAcciones={onCerrarAccionesActividad}
+                          onReactivarAcciones={onReactivarAccionesActividad}
                           mapaAbreviaturasEquipos={mapaAbreviaturasEquipos}
                           compacta
                         />
@@ -1535,7 +1848,10 @@ function SemanaView({
                           key={actividad.id}
                           actividad={actividad}
                           abierta={actividadAccionesAbiertasId === actividad.id}
+                          accionesCerradas={actividadAccionesCerradasId === actividad.id}
                           onToggleAcciones={onToggleAccionesActividad}
+                          onCerrarAcciones={onCerrarAccionesActividad}
+                          onReactivarAcciones={onReactivarAccionesActividad}
                           onEditar={onEditar}
                           onEliminar={onEliminar}
                         />
@@ -1932,7 +2248,7 @@ function ModalCrearActividad({ tipo, formulario, onChange, onClose, onSubmit, mo
               {esPartido ? <IconoBalon /> : <IconoSesion />}
             </span>
             <h2 id="titulo-actividad" className="text-2xl font-black uppercase tracking-tight sm:text-3xl">
-              {esEdicion ? 'Editar' : esPartido ? 'Nuevo' : 'Nueva'} {esPartido ? 'partido' : 'sesiÃ³n'}
+              {esEdicion ? 'Editar' : esPartido ? 'Nuevo' : 'Nueva'} {esPartido ? 'partido' : 'sesión'}
             </h2>
           </div>
           <button type="button" onClick={onClose} className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-club-black" aria-label="Cerrar">
@@ -1954,35 +2270,40 @@ function ModalCrearActividad({ tipo, formulario, onChange, onClose, onSubmit, mo
 
             {esPartido ? (
               <>
-                <CampoFormulario etiqueta="CompeticiÃ³n">
+                <CampoFormulario etiqueta="Competición" className="sm:col-span-2">
                   <SelectorFormulario
                     value={formulario.competicion}
                     onChange={(value) => onChange('competicion', value)}
                     opciones={competicionOpciones}
-                    placeholder="Selecciona una competiciÃ³n"
+                    placeholder="Selecciona una competición"
                     required
                   />
                 </CampoFormulario>
-                <CampoFormulario etiqueta="Mi equipo" className="sm:col-span-2">
+                <CampoFormulario etiqueta="Mi equipo">
                   <SelectorFormulario value={formulario.equipo} onChange={(value) => onChange('equipo', value)} opciones={equipoOpciones} placeholder="Selecciona un equipo" formatearOpcion={etiquetaEquipoSelector} required />
                 </CampoFormulario>
-                <CampoFormulario etiqueta="Local">
-                  <SelectorBuscadorClubEquipo value={formulario.local} onChange={(value) => onChange('local', value)} placeholder="Busca y selecciona local" opciones={catalogoLocalVisitante} alineacion="left" />
-                </CampoFormulario>
-                <CampoFormulario etiqueta="Visitante">
-                  <SelectorBuscadorClubEquipo value={formulario.visitante} onChange={(value) => onChange('visitante', value)} placeholder="Busca y selecciona visitante" opciones={catalogoLocalVisitante} alineacion="right" />
-                </CampoFormulario>
+                <div className="grid gap-4 sm:col-span-3 sm:grid-cols-2">
+                  <CampoFormulario etiqueta="Local">
+                    <SelectorBuscadorClubEquipo value={formulario.local} onChange={(value) => onChange('local', value)} placeholder="Busca y selecciona local" opciones={catalogoLocalVisitante} alineacion="left" />
+                  </CampoFormulario>
+                  <CampoFormulario etiqueta="Visitante">
+                    <SelectorBuscadorClubEquipo value={formulario.visitante} onChange={(value) => onChange('visitante', value)} placeholder="Busca y selecciona visitante" opciones={catalogoLocalVisitante} alineacion="right" />
+                  </CampoFormulario>
+                </div>
               </>
             ) : (
               <>
-                <CampoFormulario etiqueta="Mi equipo" className="sm:col-span-2">
+                <CampoFormulario etiqueta="Mi equipo">
                   <SelectorFormulario value={formulario.equipo} onChange={(value) => onChange('equipo', value)} opciones={equipoOpciones} placeholder="Selecciona un equipo" formatearOpcion={etiquetaEquipoSelector} required />
                 </CampoFormulario>
               </>
             )}
 
-            <CampoFormulario etiqueta="InstalaciÃ³n" className="sm:col-span-2">
-              <SelectorFormulario value={formulario.instalacion} onChange={(value) => onChange('instalacion', value)} opciones={INSTALACIONES_ROMO} placeholder="Selecciona instalaciÃ³n" required />
+            <CampoFormulario etiqueta="Instalación" className="sm:col-span-2">
+              <SelectorFormulario value={formulario.instalacion} onChange={(value) => onChange('instalacion', value)} opciones={INSTALACIONES_ROMO} placeholder="Selecciona instalación" required />
+            </CampoFormulario>
+            <CampoFormulario etiqueta="Espacio">
+              <SelectorFormulario value={formulario.espacio} onChange={(value) => onChange('espacio', value)} opciones={ESPACIOS_ACTIVIDAD} placeholder="Selecciona espacio" />
             </CampoFormulario>
           </div>
 
@@ -2135,12 +2456,12 @@ function TablaActividades({ actividades, onEditar, onEliminar }) {
       <div className="overflow-x-auto">
         <table className="min-w-[860px] w-full border-collapse text-left">
           <thead className="bg-slate-100/90 text-[11px] uppercase tracking-[0.12em] text-slate-500">
-            <tr><th className="px-5 py-4">Fecha</th><th className="px-5 py-4">Horario</th><th className="px-5 py-4">Equipo</th><th className="px-5 py-4">Tipo</th><th className="px-5 py-4">Actividad</th><th className="px-5 py-4">Lugar</th><th className="actividades-tabla-acciones px-5 py-4 text-right">Acciones</th></tr>
+    <tr><th className="px-5 py-4">Fecha</th><th className="px-5 py-4">Horario</th><th className="px-5 py-4">Equipo</th><th className="px-5 py-4">Tipo</th><th className="px-5 py-4">Actividad</th><th className="px-5 py-4">Lugar</th><th className="actividades-tabla-acciones px-5 py-4 text-right">Acciones</th></tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {actividades.length > 0 ? actividades.slice().sort((a, b) => a.fecha - b.fecha || String(a.hora || '').localeCompare(String(b.hora || ''))).map((actividad) => {
               const estilo = claseActividad(actividad.tipo);
-              return <tr key={actividad.id} className="transition hover:bg-slate-50"><td className="whitespace-nowrap px-5 py-4 text-sm font-black text-club-black">{formatearFechaTabla(actividad.fecha)}</td><td className="whitespace-nowrap px-5 py-4 text-sm font-bold text-slate-500">{formatearHora(actividad.fecha, actividad.hora, actividad.horaFin)}</td><td className="whitespace-nowrap px-5 py-4 text-sm font-bold text-slate-600"><span className={`mr-2 inline-block h-2.5 w-2.5 rounded-full ${estilo.punto}`} />{actividad.equipo}</td><td className="px-5 py-4"><span className={`inline-flex rounded-md border px-3 py-1 text-[11px] font-extrabold uppercase tracking-wide ${actividad.tipo === 'partido' ? 'border-red-200 bg-red-50 text-red-600' : 'border-slate-200 bg-slate-100 text-slate-600'}`}>{estilo.etiqueta}</span></td><td className="min-w-[260px] px-5 py-4 text-sm font-bold text-slate-700">{actividad.titulo}</td><td className="whitespace-nowrap px-5 py-4 text-sm font-semibold text-slate-500">{actividad.ubicacion}</td><td className="actividades-tabla-acciones whitespace-nowrap px-5 py-4 text-right"><div className="flex justify-end gap-2"><button type="button" onClick={() => onEditar?.(actividad)} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold uppercase tracking-wide text-slate-600 transition hover:border-club-red/30 hover:text-club-red"><IconoEditar /> Editar</button><button type="button" onClick={() => onEliminar?.(actividad)} className="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-extrabold uppercase tracking-wide text-rose-600 transition hover:border-rose-300 hover:bg-rose-50"><IconoBorrar /> Eliminar</button></div></td></tr>;
+              return <tr key={actividad.id} className="transition hover:bg-slate-50"><td className="whitespace-nowrap px-5 py-4 text-sm font-black text-club-black">{formatearFechaTabla(actividad.fecha)}</td><td className="whitespace-nowrap px-5 py-4 text-sm font-bold text-slate-500">{formatearHora(actividad.fecha, actividad.hora, actividad.horaFin)}</td><td className="whitespace-nowrap px-5 py-4 text-sm font-bold text-slate-600"><span className={`mr-2 inline-block h-2.5 w-2.5 rounded-full ${estilo.punto}`} />{obtenerEquipoCanonico(actividad.equipo, actividad.club)}</td><td className="px-5 py-4"><span className={`inline-flex rounded-md border px-3 py-1 text-[11px] font-extrabold uppercase tracking-wide ${actividad.tipo === 'partido' ? 'border-red-200 bg-red-50 text-red-600' : 'border-slate-200 bg-slate-100 text-slate-600'}`}>{estilo.etiqueta}</span></td><td className="min-w-[260px] px-5 py-4 text-sm font-bold text-slate-700">{actividad.tipo === 'partido' ? tituloPartidoActividad(actividad) : actividad.titulo}</td><td className="whitespace-nowrap px-5 py-4 text-sm font-semibold text-slate-500">{actividad.ubicacion}</td><td className="actividades-tabla-acciones whitespace-nowrap px-5 py-4 text-right"><div className="flex justify-end gap-2"><button type="button" onClick={() => onEditar?.(actividad)} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold uppercase tracking-wide text-slate-600 transition hover:border-club-red/30 hover:text-club-red"><IconoEditar /> Editar</button><button type="button" onClick={() => onEliminar?.(actividad)} className="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-extrabold uppercase tracking-wide text-rose-600 transition hover:border-rose-300 hover:bg-rose-50"><IconoBorrar /> Eliminar</button></div></td></tr>;
             }) : <tr><td colSpan="7" className="px-5 py-14 text-center text-sm font-semibold text-slate-400">No hay actividades para los filtros seleccionados.</td></tr>}
           </tbody>
         </table>
@@ -2152,21 +2473,35 @@ function TablaActividades({ actividades, onEditar, onEliminar }) {
 function EquiposView({ actividades, semana, onChange, onHoy }) {
   const dias = diasDeSemana(semana);
   const equipos = useMemo(() => {
-    const equiposBase = Array.from(new Set([...EQUIPOS_ACTIVIDADES, ...actividades.map((actividad) => actividad.equipo)]));
+    const equiposBase = Array.from(new Set([...EQUIPOS_ACTIVIDADES, ...actividades.map((actividad) => obtenerEquipoCanonico(actividad.equipo, actividad.club))]));
     const clavesSemana = new Set(dias.map((dia) => fechaClave(dia)));
 
     return equiposBase.filter((equipo) =>
-      actividades.some((actividad) => actividad.equipo === equipo && clavesSemana.has(fechaClave(actividad.fecha)))
+      actividades.some((actividad) => obtenerEquipoCanonico(actividad.equipo, actividad.club) === equipo && clavesSemana.has(fechaClave(actividad.fecha)))
     );
   }, [actividades, dias]);
 
   return <div className="actividades-equipos overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><NavegacionSemana semana={semana} onChange={onChange} onHoy={onHoy} /><div className="overflow-x-auto"><div className="min-w-[930px]">
     <div className="grid grid-cols-[190px_repeat(7,minmax(105px,1fr))] border-b border-slate-200 bg-slate-100/90 text-center text-[11px] font-extrabold uppercase tracking-[0.12em] text-slate-400"><div className="flex items-end px-5 py-4 text-left">Equipo</div>{dias.map((dia) => <div key={fechaClave(dia)} className={`border-l border-slate-200 px-2 py-3 ${fechaClave(dia) === fechaClave(new Date()) ? 'text-club-red' : ''}`}><div>{formatearDiaSemana(dia).split(' ')[0]}</div><strong className="mt-1 block text-lg tracking-normal text-club-black">{dia.getDate()}</strong></div>)}</div>
-    {equipos.length > 0 ? equipos.map((equipo) => <div key={equipo} className="grid min-h-[92px] grid-cols-[190px_repeat(7,minmax(105px,1fr))] border-b border-slate-200 last:border-b-0"><div className="flex items-center gap-3 px-5 text-sm font-black text-slate-700"><span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: obtenerColorEquipo(equipo).acento }} />{equipo}</div>{dias.map((dia) => { const delDia = actividades.filter((actividad) => actividad.equipo === equipo && fechaClave(actividad.fecha) === fechaClave(dia)); return <div key={fechaClave(dia)} className="border-l border-slate-200 p-2">{delDia.map((actividad) => { const colorEquipo = obtenerColorEquipo(actividad.equipo); return <div key={actividad.id} className="mb-1 rounded-lg border px-2 py-2 text-[11px] font-bold leading-tight" style={{ backgroundColor: colorEquipo.fondo, borderColor: colorEquipo.borde, color: colorEquipo.texto }}><span className="block">{formatearHora(actividad.fecha, actividad.hora, actividad.horaFin)}</span><span className="mt-0.5 block line-clamp-2">{actividad.titulo}</span></div>; })}</div>;})}</div>) : <div className="px-5 py-14 text-center text-sm font-semibold text-slate-400">No hay equipos con contenido en la semana seleccionada.</div>}
+    {equipos.length > 0 ? equipos.map((equipo) => <div key={equipo} className="grid min-h-[92px] grid-cols-[190px_repeat(7,minmax(105px,1fr))] border-b border-slate-200 last:border-b-0"><div className="flex items-center gap-3 px-5 text-sm font-black text-slate-700"><span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: obtenerColorEquipo(equipo).acento }} />{equipo}</div>{dias.map((dia) => { const delDia = actividades.filter((actividad) => obtenerEquipoCanonico(actividad.equipo, actividad.club) === equipo && fechaClave(actividad.fecha) === fechaClave(dia)); return <div key={fechaClave(dia)} className="border-l border-slate-200 p-2">{delDia.map((actividad) => { const equipoCanonico = obtenerEquipoCanonico(actividad.equipo, actividad.club); const colorEquipo = obtenerColorEquipo(equipoCanonico); return <div key={actividad.id} className="mb-1 rounded-lg border px-2 py-2 text-[11px] font-bold leading-tight" style={{ backgroundColor: colorEquipo.fondo, borderColor: colorEquipo.borde, color: colorEquipo.texto }}><span className="block">{formatearHora(actividad.fecha, actividad.hora, actividad.horaFin)}</span><span className="mt-0.5 block line-clamp-2">{actividad.tipo === 'partido' ? tituloPartidoActividad(actividad) : actividad.titulo}</span></div>; })}</div>;})}</div>) : <div className="px-5 py-14 text-center text-sm font-semibold text-slate-400">No hay equipos con contenido en la semana seleccionada.</div>}
   </div></div></div>;
 }
 
-function HorasView({ actividades, semana, onChange, onHoy, modo = 'minimal' }) {
+function HorasView({
+  actividades,
+  semana,
+  onChange,
+  onHoy,
+  modo = 'minimal',
+  actividadAccionesAbiertasId,
+  actividadAccionesCerradasId,
+  onToggleAccionesActividad,
+  onCerrarAccionesActividad,
+  onReactivarAccionesActividad,
+  onVer,
+  onEditar,
+  onEliminar,
+}) {
   const dias = diasDeSemana(semana);
   const rangoVista = useMemo(() => calcularRangoVistaHoras(actividades), [actividades]);
   const horasVista = useMemo(
@@ -2291,21 +2626,44 @@ function HorasView({ actividades, semana, onChange, onHoy, modo = 'minimal' }) {
                             .map((actividad) => (
                               <div
                                 key={actividad.id}
-                                className={`absolute left-0 right-0 overflow-hidden rounded-lg border text-[10px] font-bold leading-tight shadow-sm ${modo === 'detalle' ? 'px-2.5 py-2' : 'px-2 py-1.5'}`}
+                                role="button"
+                                tabIndex={0}
+                                aria-expanded={actividadAccionesAbiertasId === actividad.id}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  onToggleAccionesActividad?.(actividad);
+                                }}
+                                onMouseEnter={() => onReactivarAccionesActividad?.(actividad)}
+                                onKeyDown={(event) => {
+                                  if (event.key === 'Enter' || event.key === ' ') {
+                                    event.preventDefault();
+                                    onToggleAccionesActividad?.(actividad);
+                                  }
+                                }}
+                                className={`actividades-horas-evento group/card absolute left-0 right-0 rounded-lg border text-[10px] font-bold leading-tight shadow-sm transition hover:shadow-md ${actividadAccionesAbiertasId === actividad.id ? 'z-20 overflow-visible ring-2 ring-club-red/20' : 'z-10 overflow-hidden'} ${modo === 'detalle' ? 'px-2.5 py-2' : 'px-2 py-1.5'}`}
                                 style={{
                                   top: `${actividad.top - grupo.top}px`,
                                   height: `${actividad.height}px`,
-                                  backgroundColor: obtenerColorEquipo(actividad.equipo).fondo,
-                                  borderColor: obtenerColorEquipo(actividad.equipo).borde,
-                                  color: obtenerColorEquipo(actividad.equipo).texto,
+                                  backgroundColor: obtenerColorEquipo(obtenerEquipoCanonico(actividad.equipo, actividad.club)).fondo,
+                                  borderColor: obtenerColorEquipo(obtenerEquipoCanonico(actividad.equipo, actividad.club)).borde,
+                                  color: obtenerColorEquipo(obtenerEquipoCanonico(actividad.equipo, actividad.club)).texto,
                                 }}
                               >
+                                <AccionesActividad
+                                  actividad={actividad}
+                                  abierta={actividadAccionesAbiertasId === actividad.id}
+                                  cerrada={actividadAccionesCerradasId === actividad.id}
+                                  onVer={onVer}
+                                  onEditar={onEditar}
+                                  onEliminar={onEliminar}
+                                  onCerrar={() => onCerrarAccionesActividad?.(actividad)}
+                                />
                                 <span className="block font-black">{formatearHora(actividad.fecha, actividad.hora, actividad.horaFin)}</span>
-                                <span className="mt-0.5 block line-clamp-2">{actividad.titulo}</span>
-                                <span className={`${modo === 'detalle' ? 'mt-1' : 'mt-0.5'} block truncate font-semibold opacity-70`}>{actividad.equipo}</span>
+                                <span className="mt-0.5 block line-clamp-2">{actividad.tipo === 'partido' ? tituloPartidoActividad(actividad) : actividad.titulo}</span>
+                                <span className={`${modo === 'detalle' ? 'mt-1' : 'mt-0.5'} block truncate font-semibold opacity-70`}>{obtenerEquipoCanonico(actividad.equipo, actividad.club)}</span>
                                 {modo === 'detalle' && (
                                   <span className="mt-1 block truncate text-[9px] font-semibold opacity-60">
-                                    {[actividad.ubicacion, actividad.competicion].filter(Boolean).join(' Â· ') || 'Sin informaciÃ³n adicional'}
+                                    {[etiquetaInstalacionActividad(actividad), actividad.competicion].filter(Boolean).join(' · ') || 'Sin información adicional'}
                                   </span>
                                 )}
                               </div>
@@ -2328,7 +2686,9 @@ export default function Actividades() {
   const { user } = useAuth();
   const { club } = useClub();
   const listas = useListas();
+  const clubActivo = resolverClaveClubEquipo(club || user?.club || 'ROMO');
   const hoy = useMemo(() => new Date(), []);
+  const puedeEscribirRemoto = ['administrador', 'director'].includes(String(user?.rol || '').toLowerCase());
   const calendarioRef = useRef(null);
   const [mesVisible, setMesVisible] = useState(() => new Date(hoy.getFullYear(), hoy.getMonth(), 1));
   const [vista, setVista] = useState('semana');
@@ -2350,10 +2710,13 @@ export default function Actividades() {
   const [modoFormulario, setModoFormulario] = useState('crear');
   const [actividadEditandoId, setActividadEditandoId] = useState(null);
   const [actividadAccionesAbiertasId, setActividadAccionesAbiertasId] = useState(null);
+  const [actividadAccionesCerradasId, setActividadAccionesCerradasId] = useState(null);
   const [actividadVista, setActividadVista] = useState(null);
   const [formulario, setFormulario] = useState({});
   const [fechaMenuCreacion, setFechaMenuCreacion] = useState(null);
   const [calendarioPantallaCompleta, setCalendarioPantallaCompleta] = useState(false);
+  const [sincronizacionRemotaLista, setSincronizacionRemotaLista] = useState(false);
+  const [sincronizacionRemotaActiva, setSincronizacionRemotaActiva] = useState(false);
   const catalogoLocalVisitante = useMemo(() => {
     const listaClubes = listas.find((lista) => lista.id === 'clubes');
     const listaEquipos = listas.find((lista) => lista.id === 'equipos');
@@ -2376,7 +2739,10 @@ export default function Actividades() {
     }),
     [abreviaturasEquipos]
   );
-  const opcionesEquipo = useMemo(() => Array.from(new Set(actividades.map((actividad) => actividad.equipo))).sort(), [actividades]);
+  const opcionesEquipo = useMemo(
+    () => Array.from(new Set(actividades.map((actividad) => obtenerEquipoCanonico(actividad.equipo, actividad.club || clubActivo)).filter(Boolean))).sort(),
+    [actividades, clubActivo]
+  );
   const opcionesEvento = useMemo(() => Array.from(new Set(actividades.map((actividad) => actividad.evento))).sort(), [actividades]);
   const opcionesCompeticion = useMemo(() => Array.from(new Set(actividades.map((actividad) => actividad.competicion))).sort(), [actividades]);
   const opcionesInstalacion = useMemo(
@@ -2455,6 +2821,43 @@ export default function Actividades() {
     };
   }, [club, user?.club]);
 
+  useEffect(() => {
+    let cancelado = false;
+
+    const cargarActividadesRemotas = async () => {
+      const locales = cargarActividadesIniciales();
+
+      try {
+        const respuesta = await api.get('/actividades');
+        if (cancelado) return;
+
+        const remotas = Array.isArray(respuesta.actividades) ? respuesta.actividades : [];
+        const actividadesNormalizadas = remotas.map(normalizarActividadGuardada).filter(Boolean).sort(ordenarActividades);
+        const actividadesIniciales = puedeEscribirRemoto
+          ? fusionarActividades(actividadesNormalizadas, locales)
+          : actividadesNormalizadas;
+
+        setActividades(actividadesIniciales.length > 0 ? actividadesIniciales : locales);
+        setSincronizacionRemotaActiva(puedeEscribirRemoto);
+      } catch (_) {
+        if (!cancelado) {
+          setActividades(locales);
+          setSincronizacionRemotaActiva(false);
+        }
+      } finally {
+        if (!cancelado) {
+          setSincronizacionRemotaLista(true);
+        }
+      }
+    };
+
+    cargarActividadesRemotas();
+
+    return () => {
+      cancelado = true;
+    };
+  }, [puedeEscribirRemoto]);
+
   const opcionesCompeticionModal = useMemo(() => {
     const base = competicionesSelector.length > 0 ? competicionesSelector : opcionesCompeticion;
     if (formulario.competicion && !base.includes(formulario.competicion)) {
@@ -2464,33 +2867,55 @@ export default function Actividades() {
   }, [competicionesSelector, formulario.competicion, opcionesCompeticion]);
 
   const opcionesEquipoModal = useMemo(() => {
-    const equiposDetectados = equiposSelector.map((equipo) => normalizarEquipoMaestro(equipo));
+    const equiposDetectados = equiposSelector.map((equipo) => obtenerEquipoCanonico(equipo, clubActivo));
     const extras = [
       ...equiposDetectados,
       formulario.equipo,
       formulario.local,
       formulario.visitante,
     ]
-      .map((valor) => normalizarEquipoMaestro(valor))
+      .map((valor) => obtenerEquipoCanonico(valor, clubActivo))
       .filter(Boolean);
 
     return [...new Set([...EQUIPOS_MAESTROS, ...extras])];
-  }, [equiposSelector, formulario.equipo, formulario.local, formulario.visitante]);
+  }, [clubActivo, equiposSelector, formulario.equipo, formulario.local, formulario.visitante]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
     try {
-      const serializadas = actividades.map((actividad) => ({
-        ...actividad,
-        fecha: fechaClave(actividad.fecha),
-        hora: actividad.hora || '',
-      }));
+      if (!sincronizacionRemotaLista) return;
+
+      const serializadas = actividades.map(serializarActividadPersistible);
       window.localStorage.setItem(ACTIVIDADES_STORAGE_KEY, JSON.stringify(serializadas));
     } catch (_) {
       // Si localStorage no esta disponible, seguimos sin persistencia.
     }
-  }, [actividades]);
+  }, [actividades, sincronizacionRemotaLista]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!sincronizacionRemotaLista || !puedeEscribirRemoto || !sincronizacionRemotaActiva) return;
+
+    let cancelado = false;
+    const serializadas = actividades.map(serializarActividadPersistible);
+
+    const guardarActividadesRemotas = async () => {
+      try {
+        await api.put('/actividades', { actividades: serializadas });
+      } catch (_) {
+        if (!cancelado) {
+          setSincronizacionRemotaActiva(false);
+        }
+      }
+    };
+
+    guardarActividadesRemotas();
+
+    return () => {
+      cancelado = true;
+    };
+  }, [actividades, sincronizacionRemotaLista, puedeEscribirRemoto, sincronizacionRemotaActiva]);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -2516,8 +2941,8 @@ export default function Actividades() {
     () =>
       actividades.filter(
         (actividad) =>
-          (filtros.club === 'todos' || resolverClaveClubEquipo(actividad.club || actividad.equipo) === filtros.club) &&
-          (filtros.equipo === 'todos' || actividad.equipo === filtros.equipo) &&
+          (filtros.club === 'todos' || resolverClaveClubEquipo(actividad.club || obtenerEquipoCanonico(actividad.equipo, actividad.club)) === filtros.club) &&
+          (filtros.equipo === 'todos' || obtenerEquipoCanonico(actividad.equipo, actividad.club) === filtros.equipo) &&
           (filtros.evento === 'todos' || actividad.evento === filtros.evento) &&
           (filtros.competicion === 'todos' || actividad.competicion === filtros.competicion) &&
           (filtros.instalacion === 'todos' || textoLimpio(actividad.ubicacion) === filtros.instalacion) &&
@@ -2613,7 +3038,8 @@ export default function Actividades() {
       hora: tipo === 'partido' ? '' : '18:00',
       horaFin: '',
       equipo: '',
-      instalacion: '',
+      instalacion: obtenerInstalacionPorDefecto(tipo, ''),
+      espacio: '',
       competicion: '',
       local: '',
       visitante: '',
@@ -2630,8 +3056,9 @@ export default function Actividades() {
       fecha: fechaClave(actividad.fecha),
       hora: actividad.hora || '',
       horaFin: actividad.horaFin || '',
-      equipo: normalizarEquipoMaestro(actividad.equipo || ''),
-      instalacion: actividad.ubicacion || '',
+      equipo: obtenerEquipoCanonico(actividad.equipo || '', actividad.club || clubActivo),
+      instalacion: actividad.ubicacion || obtenerInstalacionPorDefecto(actividad.tipo, actividad.local || ''),
+      espacio: actividad.espacio || '',
       competicion: actividad.competicion || '',
       local: actividad.local || '',
       visitante: actividad.visitante || actividad.rival || '',
@@ -2642,6 +3069,7 @@ export default function Actividades() {
     if (!actividad) return;
     setActividadVista(actividad);
     setActividadAccionesAbiertasId(null);
+    setActividadAccionesCerradasId(null);
   };
 
   const cerrarVistaActividad = () => {
@@ -2650,13 +3078,25 @@ export default function Actividades() {
 
   const alternarAccionesActividad = (actividad) => {
     if (!actividad) return;
+    setActividadAccionesCerradasId(null);
     setActividadAccionesAbiertasId((actual) => (actual === actividad.id ? null : actividad.id));
+  };
+
+  const cerrarAccionesActividad = (actividad) => {
+    if (!actividad) return;
+    setActividadAccionesAbiertasId(null);
+    setActividadAccionesCerradasId(actividad.id);
+  };
+
+  const reactivarAccionesActividad = (actividad) => {
+    if (!actividad) return;
+    setActividadAccionesCerradasId((actual) => (actual === actividad.id ? null : actual));
   };
 
   const eliminarActividad = (actividad) => {
     if (!actividad) return;
 
-    const confirmado = window.confirm(`Â¿Quieres eliminar la actividad "${actividad.titulo}"? Esta accion no se puede deshacer.`);
+    const confirmado = window.confirm(`¿Quieres eliminar la actividad "${actividad.titulo}"? Esta accion no se puede deshacer.`);
     if (!confirmado) return false;
 
     setActividades((actuales) => actuales.filter((item) => item.id !== actividad.id));
@@ -2681,7 +3121,18 @@ export default function Actividades() {
   };
 
   const cambiarFormulario = (campo, valor) => {
-    setFormulario((actual) => ({ ...actual, [campo]: valor }));
+    setFormulario((actual) => {
+      const siguiente = { ...actual, [campo]: valor };
+
+      if (campo === 'local' && tipoNuevo === 'partido') {
+        const instalacionDefecto = obtenerInstalacionPorDefecto('partido', valor);
+        if (instalacionDefecto) {
+          siguiente.instalacion = instalacionDefecto;
+        }
+      }
+
+      return siguiente;
+    });
   };
 
   const guardarActividad = (event) => {
@@ -2692,14 +3143,20 @@ export default function Actividades() {
     const local = textoLimpio(formulario.local);
     const visitante = textoLimpio(formulario.visitante);
     const instalacion = textoLimpio(formulario.instalacion);
+    const espacioTexto = textoLimpio(formulario.espacio);
+    const espacio = ESPACIOS_ACTIVIDAD.includes(espacioTexto) ? espacioTexto : '';
+    const instalacionDefecto = obtenerInstalacionPorDefecto(tipoNuevo, local);
+    const instalacionFinal = instalacion || instalacionDefecto;
     const competicion = textoLimpio(formulario.competicion);
     const esPartido = tipoNuevo === 'partido';
+    const clubActividad = resolverClaveClubEquipo(clubActivo || user?.club || equipo || local || visitante || 'ROMO');
+    const equipoCanonico = obtenerEquipoCanonico(equipo || local || visitante, clubActividad);
     const camposIncompletos = esPartido
-      ? !equipo || !local || !visitante || !competicion || !instalacion
+      ? !equipo || !local || !visitante || !competicion || !instalacionFinal
       : !equipo || !instalacion;
 
     if (camposIncompletos) {
-      setFormError(esPartido ? 'Completa equipo, competiciÃ³n, local, visitante e instalaciÃ³n.' : 'Completa equipo e instalaciÃ³n.');
+      setFormError(esPartido ? 'Completa equipo, competición, local, visitante e instalación.' : 'Completa equipo e instalación.');
       return;
     }
 
@@ -2707,19 +3164,21 @@ export default function Actividades() {
     const nuevaActividad = {
       id: actividadEditandoId || `${tipoNuevo}-${Date.now()}`,
       tipo: tipoNuevo,
-      evento: esPartido ? 'Partido' : 'SesiÃ³n',
+      evento: esPartido ? 'Partido' : 'Sesión',
       competicion: esPartido ? competicion : 'Entrenamiento',
       titulo: esPartido ? `${local} - ${visitante}` : 'Entrenamiento',
-      equipo,
+      club: clubActividad,
+      equipo: equipoCanonico,
       local: esPartido ? local : '',
       visitante: esPartido ? visitante : '',
       rival: esPartido ? visitante : '',
-      ubicacion: instalacion,
+      ubicacion: esPartido ? instalacionFinal : instalacion,
+      espacio,
       fecha,
       hora: formulario.hora || '',
       horaFin: formulario.horaFin || '',
       duracion: esPartido
-        ? `${formulario.hora || 'Hora pendiente'}${formulario.horaFin ? ` - ${formulario.horaFin}` : ''} Â· ${formulario.competicion}`
+        ? `${formulario.hora || 'Hora pendiente'}${formulario.horaFin ? ` - ${formulario.horaFin}` : ''} · ${formulario.competicion}`
         : formulario.horaFin
           ? `${formulario.hora} - ${formulario.horaFin}`
           : formulario.hora || 'Hora pendiente',
@@ -2773,13 +3232,13 @@ export default function Actividades() {
             onChange={(valor) => setFiltros((actuales) => ({ ...actuales, evento: valor }))}
           />
           <FiltroSelect
-            etiqueta="CompeticiÃ³n"
+            etiqueta="Competición"
             valor={filtros.competicion}
             opciones={opcionesCompeticion}
             onChange={(valor) => setFiltros((actuales) => ({ ...actuales, competicion: valor }))}
           />
           <FiltroSelect
-            etiqueta="InstalaciÃ³n"
+            etiqueta="Instalación"
             valor={filtros.instalacion}
             opciones={opcionesInstalacion}
             onChange={(valor) => setFiltros((actuales) => ({ ...actuales, instalacion: valor }))}
@@ -2835,7 +3294,10 @@ export default function Actividades() {
                 onHoy={() => setSemanaVisible(obtenerInicioSemana(hoy))}
                 modo={modoCalendario}
                 actividadAccionesAbiertasId={actividadAccionesAbiertasId}
+                actividadAccionesCerradasId={actividadAccionesCerradasId}
                 onToggleAccionesActividad={alternarAccionesActividad}
+                onCerrarAccionesActividad={cerrarAccionesActividad}
+                onReactivarAccionesActividad={reactivarAccionesActividad}
                 onVer={abrirVistaActividad}
                 onEditar={abrirEditar}
                 onEliminar={eliminarActividad}
@@ -2845,7 +3307,23 @@ export default function Actividades() {
             )}
             {vista === 'tabla' && <TablaActividades actividades={actividadesFiltradas} onEditar={abrirEditar} onEliminar={eliminarActividad} />}
             {vista === 'equipos' && <EquiposView actividades={actividadesFiltradas} semana={semanaVisible} onChange={cambiarSemana} onHoy={() => setSemanaVisible(obtenerInicioSemana(hoy))} />}
-            {vista === 'horas' && <HorasView actividades={actividadesFiltradas} semana={semanaVisible} onChange={cambiarSemana} onHoy={() => setSemanaVisible(obtenerInicioSemana(hoy))} modo={modoCalendario} />}
+            {vista === 'horas' && (
+              <HorasView
+                actividades={actividadesFiltradas}
+                semana={semanaVisible}
+                onChange={cambiarSemana}
+                onHoy={() => setSemanaVisible(obtenerInicioSemana(hoy))}
+                modo={modoCalendario}
+                actividadAccionesAbiertasId={actividadAccionesAbiertasId}
+                actividadAccionesCerradasId={actividadAccionesCerradasId}
+                onToggleAccionesActividad={alternarAccionesActividad}
+                onCerrarAccionesActividad={cerrarAccionesActividad}
+                onReactivarAccionesActividad={reactivarAccionesActividad}
+                onVer={abrirVistaActividad}
+                onEditar={abrirEditar}
+                onEliminar={eliminarActividad}
+              />
+            )}
 
             <div className={vista === 'calendario' ? '' : 'hidden'}>
               <div
@@ -2864,7 +3342,7 @@ export default function Actividades() {
                   <div className="actividades-calendario-actions flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                     <button type="button" onClick={() => abrirCrear('sesion')} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-extrabold uppercase tracking-wide text-emerald-700 transition hover:bg-emerald-100">
                       <IconoMas />
-                      SesiÃ³n
+                      Sesión
                     </button>
                     <button type="button" onClick={() => abrirCrear('partido')} className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-club-red px-3 py-2 text-xs font-extrabold uppercase tracking-wide text-white transition hover:bg-club-redDark">
                       <IconoMas />
@@ -2883,10 +3361,12 @@ export default function Actividades() {
                 </div>
                 <div className={`actividades-calendario-body overflow-x-auto bg-slate-50/70 ${calendarioPantallaCompleta ? 'flex-1 min-h-0' : ''}`}>
                   <div className="actividades-calendario-grid grid min-w-[1050px] grid-cols-7 gap-3 p-3 sm:gap-4 sm:p-4">
-                    {celdas.map((fecha) => {
+                    {celdas.map((fecha, indice) => {
                       const clave = fechaClave(fecha);
                       const actividadesDelDia = (actividadesPorDia.get(clave) || []).slice().sort(ordenarActividades);
-                      const tieneContenido = actividadesDelDia.length > 0;
+                      const semanaSinEventos = celdas
+                        .slice(Math.floor(indice / 7) * 7, Math.floor(indice / 7) * 7 + 7)
+                        .every((celda) => (actividadesPorDia.get(fechaClave(celda)) || []).length === 0);
                       const esMesActual = fecha.getMonth() === mesVisible.getMonth();
                       const esHoy = clave === fechaClave(hoy);
                       const seleccionada = clave === fechaSeleccionada;
@@ -2908,7 +3388,7 @@ export default function Actividades() {
                               setActividadAccionesAbiertasId(null);
                             }
                           }}
-                          className={`actividades-calendario-day group relative overflow-hidden rounded-2xl border p-2.5 text-left transition sm:p-3 ${modoCalendario === 'detalle' ? (tieneContenido ? 'min-h-0' : 'h-[76px] min-h-0') : 'min-h-[176px]'} ${
+                          className={`actividades-calendario-day group relative overflow-hidden rounded-2xl border p-2.5 text-left transition sm:p-3 ${semanaSinEventos ? 'h-[112px] min-h-0' : 'min-h-[176px]'} ${
                             !esMesActual ? 'border-slate-200/70 bg-slate-100/70 text-club-black/30' : 'border-slate-200 bg-white'
                           } ${seleccionada ? 'ring-2 ring-inset ring-club-red/55' : 'hover:border-club-red/30 hover:shadow-sm'}`}
                         >
@@ -2919,8 +3399,8 @@ export default function Actividades() {
                               setFechaSeleccionada(clave);
                               setFechaMenuCreacion((actual) => (actual === clave ? null : clave));
                             }}
-                            className="actividades-calendario-add absolute left-2 top-2 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-club-red text-white shadow-lg shadow-club-red/20 transition hover:scale-105 hover:bg-club-redDark focus:outline-none focus:ring-4 focus:ring-club-red/20"
-                            aria-label={`AÃ±adir actividad el ${fecha.getDate()} de ${MESES[fecha.getMonth()]}`}
+                            className="actividades-calendario-add absolute left-2 top-2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-club-red text-white shadow-md shadow-club-red/15 transition hover:bg-club-redDark focus:outline-none focus:ring-4 focus:ring-club-red/15"
+                            aria-label={`Añadir actividad el ${fecha.getDate()} de ${MESES[fecha.getMonth()]}`}
                           >
                             <IconoMas />
                           </button>
@@ -2934,7 +3414,7 @@ export default function Actividades() {
                                 onClick={() => abrirCrear('sesion', clave)}
                                 className="rounded-lg bg-emerald-50 px-3 py-2 text-left text-[11px] font-extrabold uppercase tracking-wide text-emerald-700 transition hover:bg-emerald-100"
                               >
-                        SESIÓN
+                          SESIÓN
                               </button>
                               <button
                                 type="button"
@@ -2948,21 +3428,25 @@ export default function Actividades() {
                           <span className={`actividades-calendario-day-number absolute right-3 top-3 text-sm font-black ${esHoy ? 'text-club-red' : esMesActual ? 'text-club-black/70' : 'text-club-black/25'}`}>
                             {fecha.getDate()}
                           </span>
-                          <div className={`actividades-calendario-day-content flex flex-col justify-start gap-1 pt-12 ${modoCalendario === 'detalle' ? (tieneContenido ? 'min-h-0' : 'min-h-0') : 'min-h-[148px]'}`}>
+                          <div className={`actividades-calendario-day-content flex flex-col justify-start gap-1 ${semanaSinEventos ? 'pt-10' : 'pt-12'} ${semanaSinEventos ? 'min-h-0' : 'min-h-[148px]'}`}>
                             <div className="space-y-1">
                               {actividadesDelDia.map((actividad) => (
                                 <ActividadCalendario
                                   key={actividad.id}
                                   actividad={actividad}
                                   abierta={actividadAccionesAbiertasId === actividad.id}
+                                  accionesCerradas={actividadAccionesCerradasId === actividad.id}
                                   onVer={abrirVistaActividad}
                                   onEditar={abrirEditar}
                                   onEliminar={eliminarActividad}
                                   onSeleccionar={() => {
                                     setFechaSeleccionada(clave);
                                     setFechaMenuCreacion(null);
+                                    alternarAccionesActividad(actividad);
                                   }}
                                   onToggleAcciones={alternarAccionesActividad}
+                                  onCerrarAcciones={cerrarAccionesActividad}
+                                  onReactivarAcciones={reactivarAccionesActividad}
                                   mapaAbreviaturasEquipos={mapaAbreviaturasEquipos}
                                   equipoVisible={etiquetaEquipoCalendario(actividad.equipo, mapaAbreviaturasEquipos)}
                                   compacta={modoCalendario === 'minimal'}
@@ -2977,8 +3461,8 @@ export default function Actividades() {
                 </div>
                 <div className="actividades-calendario-leyenda flex flex-wrap items-center gap-4 border-t border-gray-100 px-4 py-3 text-xs font-semibold text-club-black/55 sm:px-5">
                   <span className="inline-flex items-center gap-2"><i className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: '#2563eb' }} /> Color del equipo</span>
-                  <span className="text-club-black/55">El icono distingue sesiÃ³n y partido</span>
-                  <span className="text-club-black/35">Selecciona un dÃ­a para ver el detalle</span>
+                  <span className="text-club-black/55">El icono distingue sesión y partido</span>
+                  <span className="text-club-black/35">Selecciona un día para ver el detalle</span>
                 </div>
               </div>
             </div>
@@ -2992,7 +3476,7 @@ export default function Actividades() {
                   <p className="mt-1 text-sm font-semibold text-slate-500">Cada equipo conserva este color en sus sesiones y partidos.</p>
                 </div>
                 <span className="inline-flex w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">
-                  {abreviaturasEquipos.length} cÃ³digos
+                  {abreviaturasEquipos.length} códigos
                 </span>
               </div>
               <div className="mt-3 flex flex-col gap-2">
@@ -3069,7 +3553,7 @@ export default function Actividades() {
                     </button>
                     <button type="button" onClick={() => abrirCrear('sesion')} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-extrabold uppercase tracking-wide text-emerald-700 transition hover:bg-emerald-100">
                       <IconoMas />
-                      SesiÃ³n
+                      Sesión
                     </button>
                     <button type="button" onClick={() => abrirCrear('partido')} className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-club-red px-3 py-2 text-xs font-extrabold uppercase tracking-wide text-white transition hover:bg-club-redDark">
                       <IconoMas />
@@ -3088,10 +3572,12 @@ export default function Actividades() {
                 </div>
                 <div className={`actividades-calendario-body overflow-x-auto bg-slate-50/70 ${calendarioPantallaCompleta ? 'flex-1 min-h-0' : ''}`}>
                   <div className="actividades-calendario-grid grid min-w-[1050px] grid-cols-7 gap-3 p-3 sm:gap-4 sm:p-4">
-                    {celdas.map((fecha) => {
+                    {celdas.map((fecha, indice) => {
                       const clave = fechaClave(fecha);
                       const actividadesDelDia = (actividadesPorDia.get(clave) || []).slice().sort(ordenarActividades);
-                      const tieneContenido = actividadesDelDia.length > 0;
+                      const semanaSinEventos = celdas
+                        .slice(Math.floor(indice / 7) * 7, Math.floor(indice / 7) * 7 + 7)
+                        .every((celda) => (actividadesPorDia.get(fechaClave(celda)) || []).length === 0);
                       const esMesActual = fecha.getMonth() === mesVisible.getMonth();
                       const esHoy = clave === fechaClave(hoy);
                       const seleccionada = clave === fechaSeleccionada;
@@ -3113,7 +3599,7 @@ export default function Actividades() {
                               setActividadAccionesAbiertasId(null);
                             }
                           }}
-                          className={`actividades-calendario-day group relative overflow-hidden rounded-2xl border p-2.5 text-left transition sm:p-3 ${modoCalendario === 'detalle' ? (tieneContenido ? 'min-h-0' : 'h-[76px] min-h-0') : 'min-h-[176px]'} ${
+                          className={`actividades-calendario-day group relative overflow-hidden rounded-2xl border p-2.5 text-left transition sm:p-3 ${semanaSinEventos ? 'h-[112px] min-h-0' : 'min-h-[176px]'} ${
                             !esMesActual ? 'border-slate-200/70 bg-slate-100/70 text-club-black/30' : 'border-slate-200 bg-white'
                           } ${seleccionada ? 'ring-2 ring-inset ring-club-red/55' : 'hover:border-club-red/30 hover:shadow-sm'}`}
                         >
@@ -3124,8 +3610,8 @@ export default function Actividades() {
                               setFechaSeleccionada(clave);
                               setFechaMenuCreacion((actual) => (actual === clave ? null : clave));
                             }}
-                            className="actividades-calendario-add absolute left-2 top-2 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-club-red text-white shadow-lg shadow-club-red/20 transition hover:scale-105 hover:bg-club-redDark focus:outline-none focus:ring-4 focus:ring-club-red/20"
-                            aria-label={`AÃ±adir actividad el ${fecha.getDate()} de ${MESES[fecha.getMonth()]}`}
+                            className="actividades-calendario-add absolute left-2 top-2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-club-red text-white shadow-md shadow-club-red/15 transition hover:bg-club-redDark focus:outline-none focus:ring-4 focus:ring-club-red/15"
+                            aria-label={`Añadir actividad el ${fecha.getDate()} de ${MESES[fecha.getMonth()]}`}
                           >
                             <IconoMas />
                           </button>
@@ -3152,13 +3638,15 @@ export default function Actividades() {
                           )}
                           <span className={`actividades-calendario-day-number absolute right-3 top-3 text-sm font-black ${esHoy ? 'text-club-red' : esMesActual ? 'text-club-black/70' : 'text-club-black/25'}`}>
                             {fecha.getDate()}
-                          </span>                          <div className={`actividades-calendario-day-content flex flex-col justify-start gap-1 pt-12 ${modoCalendario === 'detalle' ? (tieneContenido ? 'min-h-0' : 'min-h-0') : 'min-h-[148px]'}`}>
+                          </span>
+                          <div className={`actividades-calendario-day-content flex flex-col justify-start gap-1 ${semanaSinEventos ? 'pt-10' : 'pt-12'} ${semanaSinEventos ? 'min-h-0' : 'min-h-[148px]'}`}>
                             <div className="space-y-1">
                               {actividadesDelDia.map((actividad) => (
                                 <ActividadCalendario
                                   key={actividad.id}
                                   actividad={actividad}
                                   abierta={actividadAccionesAbiertasId === actividad.id}
+                                  accionesCerradas={actividadAccionesCerradasId === actividad.id}
                                   onVer={abrirVistaActividad}
                                   onEditar={abrirEditar}
                                   onEliminar={eliminarActividad}
@@ -3167,6 +3655,8 @@ export default function Actividades() {
                                     setFechaMenuCreacion(null);
                                   }}
                                   onToggleAcciones={alternarAccionesActividad}
+                                  onCerrarAcciones={cerrarAccionesActividad}
+                                  onReactivarAcciones={reactivarAccionesActividad}
                                   mapaAbreviaturasEquipos={mapaAbreviaturasEquipos}
                                   equipoVisible={etiquetaEquipoCalendario(actividad.equipo, mapaAbreviaturasEquipos)}
                                   compacta={modoCalendario === 'minimal'}
@@ -3180,9 +3670,9 @@ export default function Actividades() {
                   </div>
                 </div>
                 <div className="actividades-calendario-leyenda flex flex-wrap items-center gap-4 border-t border-gray-100 px-4 py-3 text-xs font-semibold text-club-black/55 sm:px-5">
-                  <span className="inline-flex items-center gap-2"><i className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> SesiÃ³n</span>
+                  <span className="inline-flex items-center gap-2"><i className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> Sesión</span>
                   <span className="inline-flex items-center gap-2"><i className="h-2.5 w-2.5 rounded-full bg-club-red" /> Partido</span>
-                  <span className="text-club-black/35">Selecciona un dÃ­a para ver el detalle</span>
+                  <span className="text-club-black/35">Selecciona un día para ver el detalle</span>
                 </div>
               </div>
             </div>
@@ -3193,7 +3683,7 @@ export default function Actividades() {
             <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-club-red">Detalle del dÃ­a</p>
+                  <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-club-red">Detalle del día</p>
                   <h2 className="mt-1 text-lg font-black capitalize text-club-black">{fechaSeleccionadaTexto}</h2>
                 </div>
                 <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-club-black/50">{actividadesSeleccionadas.length}</span>
@@ -3203,7 +3693,7 @@ export default function Actividades() {
                   actividadesSeleccionadas.map((actividad) => <ActividadFila key={actividad.id} actividad={actividad} />)
                 ) : (
                   <div className="rounded-xl border border-dashed border-gray-200 bg-slate-50 p-5 text-center">
-                    <p className="text-sm font-bold text-club-black/55">DÃ­a libre</p>
+                    <p className="text-sm font-bold text-club-black/55">Día libre</p>
                     <p className="mt-1 text-xs text-club-black/40">No hay actividades programadas.</p>
                   </div>
                 )}
@@ -3212,7 +3702,7 @@ export default function Actividades() {
 
             <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-black text-club-black">PrÃ³ximas actividades</h2>
+                <h2 className="text-lg font-black text-club-black">Próximas actividades</h2>
                 <span className="text-xs font-bold text-club-black/40">{proximas.length}</span>
               </div>
               <div className="mt-4 space-y-2.5">
@@ -3223,8 +3713,8 @@ export default function Actividades() {
                       <span className="text-base font-black leading-none">{actividad.fecha.getDate()}</span>
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-bold text-club-black">{actividad.tipo === 'partido' ? `${actividad.equipo} vs ${actividad.rival}` : actividad.titulo}</p>
-                      <p className="mt-0.5 truncate text-xs font-medium text-club-black/50">{formatearFechaCorta(actividad.fecha)} Â· {formatearHora(actividad.fecha, actividad.hora, actividad.horaFin)}</p>
+                      <p className="truncate text-sm font-bold text-club-black">{actividad.tipo === 'partido' ? tituloPartidoActividad(actividad) : actividad.titulo}</p>
+                      <p className="mt-0.5 truncate text-xs font-medium text-club-black/50">{formatearFechaCorta(actividad.fecha)} · {formatearHora(actividad.fecha, actividad.hora, actividad.horaFin)}</p>
                     </div>
                     <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${claseActividad(actividad.tipo).punto}`} />
                   </div>
@@ -3261,5 +3751,3 @@ export default function Actividades() {
     </section>
   );
 }
-
-

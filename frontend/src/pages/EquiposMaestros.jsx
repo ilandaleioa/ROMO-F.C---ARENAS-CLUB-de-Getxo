@@ -29,7 +29,9 @@ export default function EquiposMaestros() {
       <div className="mb-6">
         <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-club-black/50">Configuracion</p>
         <h2 className="text-2xl font-bold text-club-black">EQUIPOS</h2>
-        <p className="mt-1 text-sm text-club-black/60">Gestiona los equipos por separado del resto de listas maestras.</p>
+        <p className="mt-1 text-sm text-club-black/60">
+          Asigna el nombre de federación y modifica el nombre interno de los equipos de cualquier club.
+        </p>
       </div>
 
       {listaEquipos ? (
