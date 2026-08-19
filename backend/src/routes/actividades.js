@@ -21,6 +21,42 @@ function espacioCanonico(valor) {
   return '';
 }
 
+function normalizarTextoBusqueda(valor) {
+  return texto(valor)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/gi, ' ')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function esLocalRomo(valor) {
+  return /^(?:romo fc|romo f c|romo juvenil a)(?:\s|$)/.test(normalizarTextoBusqueda(valor));
+}
+
+const NOMBRE_INTERNO_ROMO_JUVENIL = 'ROMO JUVENIL A';
+
+function reemplazarNombreRomoJuvenil(valor) {
+  return texto(valor).replace(/ROMO\s+F[.,]?\s*C[.,]?/gi, NOMBRE_INTERNO_ROMO_JUVENIL);
+}
+
+function esPartidoLigaRomoJuvenil(actividad) {
+  if (texto(actividad?.tipo).toLowerCase() !== 'partido') return false;
+
+  const competicion = normalizarTextoBusqueda(actividad?.competicion);
+  const datosPartido = normalizarTextoBusqueda([
+    actividad?.equipo,
+    actividad?.local,
+    actividad?.visitante,
+    actividad?.rival,
+    actividad?.titulo,
+  ].filter(Boolean).join(' '));
+  const esLigaJuvenil = competicion.includes('juvenil') || datosPartido.includes('juvenil');
+
+  return competicion.includes('liga') && esLigaJuvenil && datosPartido.includes('romo');
+}
+
 function normalizarActividad(actividad, club) {
   if (!actividad || typeof actividad !== 'object') return null;
 
@@ -29,6 +65,14 @@ function normalizarActividad(actividad, club) {
   const id = texto(actividad.id);
 
   if (!id || !fecha || !tipo) return null;
+
+  const esLigaRomoJuvenil = esPartidoLigaRomoJuvenil(actividad);
+  const equipo = esLigaRomoJuvenil ? NOMBRE_INTERNO_ROMO_JUVENIL : texto(actividad.equipo);
+  const local = esLigaRomoJuvenil ? reemplazarNombreRomoJuvenil(actividad.local) : texto(actividad.local);
+  const visitante = esLigaRomoJuvenil ? reemplazarNombreRomoJuvenil(actividad.visitante) : texto(actividad.visitante);
+  const rival = esLigaRomoJuvenil ? reemplazarNombreRomoJuvenil(actividad.rival) : texto(actividad.rival);
+  const titulo = esLigaRomoJuvenil ? reemplazarNombreRomoJuvenil(actividad.titulo) : texto(actividad.titulo);
+  const ubicacion = texto(actividad.ubicacion) || (tipo === 'partido' && esLocalRomo(local) ? 'GOBELA' : '');
 
   return {
     ...actividad,
@@ -40,12 +84,12 @@ function normalizarActividad(actividad, club) {
     horaFin: texto(actividad.horaFin),
     evento: texto(actividad.evento),
     competicion: texto(actividad.competicion),
-    titulo: texto(actividad.titulo),
-    equipo: texto(actividad.equipo),
-    local: texto(actividad.local),
-    visitante: texto(actividad.visitante),
-    rival: texto(actividad.rival),
-    ubicacion: texto(actividad.ubicacion),
+    titulo,
+    equipo,
+    local,
+    visitante,
+    rival,
+    ubicacion,
     espacio: espacioCanonico(actividad.espacio),
     jornada: Number.isFinite(Number(actividad.jornada)) ? Number(actividad.jornada) : 0,
     duracion: texto(actividad.duracion),

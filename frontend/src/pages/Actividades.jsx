@@ -1,5 +1,7 @@
 ﻿import { createPortal } from 'react-dom';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 import { CLUBES_MAESTROS } from '../data/clubes';
 import { EQUIPOS_BASE_CLUB, obtenerEquiposPorClub } from '../data/equipos';
 import { EQUIPOS_MS, obtenerMsEquiposPorClub } from '../data/msEquipos';
@@ -29,6 +31,7 @@ const ESPACIOS_ACTIVIDAD = ['Entero', 'Medio'];
 const EQUIPOS_MAESTROS = EQUIPOS_MS.map((equipo) => `${equipo.club} - ${equipo.nombre}`);
 const EQUIPOS_ACTIVIDADES = ['Primer equipo', ...EQUIPOS_MAESTROS];
 const ACTIVIDADES_STORAGE_KEY = 'romofc.actividades';
+const OPCIONES_EVENTO = ['Sesión', 'Partido'];
 
 function etiquetaInstalacionActividad(actividad, fallback = '') {
   const instalacion = String(actividad?.ubicacion || fallback || '').trim();
@@ -223,16 +226,11 @@ function normalizarTextoBusqueda(valor) {
 
 function esLocalRomo(valor) {
   const local = normalizarTextoBusqueda(valor);
-  return local === 'romo fc' || local.startsWith('romo fc ');
-}
-
-function esPartidoLocalRomo(actividad) {
-  if (actividad?.tipo !== 'partido') return false;
-  return esLocalRomo(actividad.local);
+  return /^(?:romo fc|romo f c|romo juvenil a)(?:\s|$)/.test(local);
 }
 
 function obtenerInstalacionPorDefecto(tipo, local) {
-  return tipo === 'partido' && esLocalRomo(local) ? 'GOBELA' : '';
+  return String(tipo || '').trim().toLowerCase() === 'partido' && esLocalRomo(local) ? 'GOBELA' : '';
 }
 
 function normalizarClaveEquipo(valor) {
@@ -312,6 +310,28 @@ function quitarPrefijoJornadaPartido(texto) {
     .trim()
     .replace(/^Jornada\s+\d+\s*[·\-–—]\s*/i, '')
     .trim();
+}
+
+const NOMBRE_INTERNO_ROMO_JUVENIL = 'ROMO JUVENIL A';
+
+function reemplazarNombreRomoJuvenil(valor) {
+  return textoLimpio(valor).replace(/ROMO\s+F[.,]?\s*C[.,]?/gi, NOMBRE_INTERNO_ROMO_JUVENIL);
+}
+
+function esPartidoLigaRomoJuvenil(actividad) {
+  if (String(actividad?.tipo || '').trim().toLowerCase() !== 'partido') return false;
+
+  const competicion = normalizarTextoBusqueda(actividad?.competicion);
+  const datosPartido = normalizarTextoBusqueda([
+    actividad?.equipo,
+    actividad?.local,
+    actividad?.visitante,
+    actividad?.rival,
+    actividad?.titulo,
+  ].filter(Boolean).join(' '));
+
+  const esLigaJuvenil = competicion.includes('juvenil') || datosPartido.includes('juvenil');
+  return competicion.includes('liga') && esLigaJuvenil && datosPartido.includes('romo');
 }
 
 function descomponerPartidoActividad(actividad) {
@@ -913,18 +933,20 @@ function actividadesRomo() {
   }));
 
   const jornadas = JORNADAS_ROMO.map(([fechaTexto, local, visitante], indice) => {
-    const esLocal = local === 'ROMO F.C.';
-    const rival = esLocal ? visitante : local;
+    const localInterno = reemplazarNombreRomoJuvenil(local);
+    const visitanteInterno = reemplazarNombreRomoJuvenil(visitante);
+    const esLocal = esLocalRomo(localInterno);
+    const rival = esLocal ? visitanteInterno : localInterno;
 
     return {
       id: `romo-jornada-${indice + 1}`,
       tipo: 'partido',
       evento: 'Partido',
       competicion: 'Liga Nacional Juvenil',
-      titulo: `Jornada ${indice + 1} · ${local} - ${visitante}`,
-      equipo: 'ROMO F.C.',
-      local,
-      visitante,
+      titulo: `Jornada ${indice + 1} · ${localInterno} - ${visitanteInterno}`,
+      equipo: NOMBRE_INTERNO_ROMO_JUVENIL,
+      local: localInterno,
+      visitante: visitanteInterno,
       rival,
       jornada: indice + 1,
       ubicacion: esLocal ? 'GOBELA' : 'Pendiente de confirmar',
@@ -956,17 +978,34 @@ function normalizarActividadGuardada(actividad) {
   const fechaTexto = fechaGuardada.slice(0, 10);
   const fecha = crearFechaActividad(fechaTexto, actividad.hora);
   const club = textoLimpio(actividad.club) || resolverClaveClubEquipo(actividad.equipo || actividad.local || actividad.visitante || '');
+  const tipo = textoLimpio(actividad.tipo).toLowerCase();
+  const esLigaRomoJuvenil = esPartidoLigaRomoJuvenil(actividad);
+  const equipo = esLigaRomoJuvenil
+    ? NOMBRE_INTERNO_ROMO_JUVENIL
+    : obtenerEquipoCanonico(actividad.equipo || '', club);
+  const local = actividad.local
+    ? esLigaRomoJuvenil ? reemplazarNombreRomoJuvenil(actividad.local) : obtenerEquipoCanonico(actividad.local, club)
+    : '';
+  const visitante = actividad.visitante
+    ? esLigaRomoJuvenil ? reemplazarNombreRomoJuvenil(actividad.visitante) : obtenerEquipoCanonico(actividad.visitante, club)
+    : '';
+  const rival = actividad.rival
+    ? esLigaRomoJuvenil ? reemplazarNombreRomoJuvenil(actividad.rival) : obtenerEquipoCanonico(actividad.rival, club)
+    : '';
+  const ubicacion = textoLimpio(actividad.ubicacion) || obtenerInstalacionPorDefecto(tipo, local);
 
   if (Number.isNaN(fecha.getTime())) return null;
 
   return {
     ...actividad,
+    tipo,
     club,
-    equipo: obtenerEquipoCanonico(actividad.equipo || '', club),
-    local: actividad.local ? obtenerEquipoCanonico(actividad.local, club) : '',
-    visitante: actividad.visitante ? obtenerEquipoCanonico(actividad.visitante, club) : '',
-    rival: actividad.rival ? obtenerEquipoCanonico(actividad.rival, club) : '',
-    ...(esPartidoLocalRomo(actividad) ? { ubicacion: 'GOBELA' } : {}),
+    equipo,
+    local,
+    visitante,
+    rival,
+    titulo: esLigaRomoJuvenil ? reemplazarNombreRomoJuvenil(actividad.titulo) : actividad.titulo,
+    ubicacion,
     fecha,
     hora: actividad.hora || '',
     horaFin: actividad.horaFin || actividad.hora_fin || '',
@@ -974,9 +1013,13 @@ function normalizarActividadGuardada(actividad) {
 }
 
 function serializarActividadPersistible(actividad) {
+  const tipo = textoLimpio(actividad.tipo).toLowerCase();
+  const ubicacion = textoLimpio(actividad.ubicacion) || obtenerInstalacionPorDefecto(tipo, actividad.local);
+
   return {
     ...actividad,
     club: textoLimpio(actividad.club) || resolverClaveClubEquipo(actividad.equipo || actividad.local || actividad.visitante || ''),
+    ubicacion,
     fecha: fechaClave(actividad.fecha),
     hora: actividad.hora || '',
     horaFin: actividad.horaFin || '',
@@ -2743,7 +2786,7 @@ export default function Actividades() {
     () => Array.from(new Set(actividades.map((actividad) => obtenerEquipoCanonico(actividad.equipo, actividad.club || clubActivo)).filter(Boolean))).sort(),
     [actividades, clubActivo]
   );
-  const opcionesEvento = useMemo(() => Array.from(new Set(actividades.map((actividad) => actividad.evento))).sort(), [actividades]);
+  const opcionesEvento = OPCIONES_EVENTO;
   const opcionesCompeticion = useMemo(() => Array.from(new Set(actividades.map((actividad) => actividad.competicion))).sort(), [actividades]);
   const opcionesInstalacion = useMemo(
     () =>
@@ -2988,8 +3031,82 @@ export default function Actividades() {
     month: 'long',
   });
 
-  const exportarPDF = () => {
-    window.print();
+  const exportarPDF = async () => {
+    const selectoresPorVista = {
+      semana: '.actividades-semana',
+      calendario: '.actividades-calendario',
+      equipos: '.actividades-equipos',
+      horas: '.actividades-horas',
+      tabla: '.actividades-tabla',
+    };
+    const objetivo = calendarioRef.current?.querySelector(selectoresPorVista[vista]);
+
+    if (!objetivo) {
+      window.print();
+      return;
+    }
+
+    const ancho = Math.max(objetivo.scrollWidth, Math.ceil(objetivo.getBoundingClientRect().width));
+    const contenedor = document.createElement('div');
+    const copia = objetivo.cloneNode(true);
+
+    contenedor.className = 'pdf-export-clone';
+    contenedor.style.cssText = `position: fixed; left: -100000px; top: 0; width: ${ancho}px; padding: 0; background: #ffffff; z-index: -1;`;
+    copia.style.width = `${ancho}px`;
+    copia.style.minWidth = `${ancho}px`;
+    copia.style.maxWidth = 'none';
+    copia.style.height = 'auto';
+    copia.style.overflow = 'visible';
+
+    copia.querySelectorAll('.overflow-x-auto, .overflow-y-auto').forEach((nodo) => {
+      nodo.style.overflow = 'visible';
+      nodo.style.maxWidth = 'none';
+    });
+    copia.querySelectorAll('button, .no-print, .actividades-acciones-actividad, .actividades-calendario-add, .actividades-calendario-menu, .actividades-calendario-leyenda, .actividades-calendario-actions').forEach((nodo) => {
+      nodo.style.display = 'none';
+    });
+
+    contenedor.appendChild(copia);
+    document.body.appendChild(contenedor);
+
+    try {
+      if (document.fonts?.ready) await document.fonts.ready;
+
+      const canvas = await html2canvas(copia, {
+        backgroundColor: '#ffffff',
+        imageTimeout: 0,
+        logging: false,
+        scale: 2,
+        useCORS: true,
+        width: ancho,
+        height: copia.scrollHeight,
+        windowWidth: ancho,
+        windowHeight: Math.max(copia.scrollHeight, 900),
+      });
+      const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4', compress: true });
+      const margen = 6;
+      const anchoPagina = 297 - margen * 2;
+      const altoPagina = 210 - margen * 2;
+      const altoImagen = (canvas.height * anchoPagina) / canvas.width;
+      const imagen = canvas.toDataURL('image/png');
+      let desplazamiento = 0;
+      let pagina = 0;
+
+      while (desplazamiento < altoImagen - 0.5) {
+        if (pagina > 0) pdf.addPage();
+        pdf.addImage(imagen, 'PNG', margen, margen - desplazamiento, anchoPagina, altoImagen, undefined, 'FAST');
+        desplazamiento += altoPagina;
+        pagina += 1;
+      }
+
+      const desde = semanaVisible.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }).replaceAll('/', '-');
+      pdf.save(`actividades_${vista}_${desde}.pdf`);
+    } catch (error) {
+      console.error('No se pudo generar el PDF de actividades', error);
+      window.print();
+    } finally {
+      contenedor.remove();
+    }
   };
 
   const alternarPantallaCompletaCalendario = async () => {
@@ -3126,9 +3243,7 @@ export default function Actividades() {
 
       if (campo === 'local' && tipoNuevo === 'partido') {
         const instalacionDefecto = obtenerInstalacionPorDefecto('partido', valor);
-        if (instalacionDefecto) {
-          siguiente.instalacion = instalacionDefecto;
-        }
+        siguiente.instalacion = instalacionDefecto || (siguiente.instalacion === 'GOBELA' ? '' : siguiente.instalacion);
       }
 
       return siguiente;
@@ -3342,11 +3457,11 @@ export default function Actividades() {
                   <div className="actividades-calendario-actions flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                     <button type="button" onClick={() => abrirCrear('sesion')} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-extrabold uppercase tracking-wide text-emerald-700 transition hover:bg-emerald-100">
                       <IconoMas />
-                      Sesión
+                      SESIÓN
                     </button>
                     <button type="button" onClick={() => abrirCrear('partido')} className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-club-red px-3 py-2 text-xs font-extrabold uppercase tracking-wide text-white transition hover:bg-club-redDark">
                       <IconoMas />
-                      Partido
+                      PARTIDO
                     </button>
                   </div>
                 </div>
