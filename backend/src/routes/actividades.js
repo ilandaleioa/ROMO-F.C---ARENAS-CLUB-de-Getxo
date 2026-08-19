@@ -14,7 +14,12 @@ function texto(valor) {
   return String(valor ?? '').trim();
 }
 
-const ESPACIOS_PERMITIDOS = new Set(['Entero', 'Medio']);
+function espacioCanonico(valor) {
+  const espacio = texto(valor).toLowerCase();
+  if (espacio === 'entero') return 'Entero';
+  if (espacio === 'medio') return 'Medio';
+  return '';
+}
 
 function normalizarActividad(actividad, club) {
   if (!actividad || typeof actividad !== 'object') return null;
@@ -41,7 +46,7 @@ function normalizarActividad(actividad, club) {
     visitante: texto(actividad.visitante),
     rival: texto(actividad.rival),
     ubicacion: texto(actividad.ubicacion),
-    espacio: ESPACIOS_PERMITIDOS.has(texto(actividad.espacio)) ? texto(actividad.espacio) : '',
+    espacio: espacioCanonico(actividad.espacio),
     jornada: Number.isFinite(Number(actividad.jornada)) ? Number(actividad.jornada) : 0,
     duracion: texto(actividad.duracion),
   };

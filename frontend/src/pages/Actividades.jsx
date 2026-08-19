@@ -33,7 +33,7 @@ const ACTIVIDADES_STORAGE_KEY = 'romofc.actividades';
 function etiquetaInstalacionActividad(actividad, fallback = '') {
   const instalacion = String(actividad?.ubicacion || fallback || '').trim();
   if (!instalacion) return '';
-  return actividad?.espacio === 'Medio' ? `${instalacion} 1/2` : instalacion;
+  return String(actividad?.espacio || '').trim().toLowerCase() === 'medio' ? `${instalacion} 1/2` : instalacion;
 }
 
 const ACTIVIDADES_MUESTRA = [
@@ -2299,10 +2299,10 @@ function ModalCrearActividad({ tipo, formulario, onChange, onClose, onSubmit, mo
               </>
             )}
 
-            <CampoFormulario etiqueta="Instalación" className="sm:col-span-2">
+            <CampoFormulario etiqueta="Instalación" className="sm:col-span-3">
               <SelectorFormulario value={formulario.instalacion} onChange={(value) => onChange('instalacion', value)} opciones={INSTALACIONES_ROMO} placeholder="Selecciona instalación" required />
             </CampoFormulario>
-            <CampoFormulario etiqueta="Espacio">
+            <CampoFormulario etiqueta="Espacio" className="sm:col-span-3">
               <SelectorFormulario value={formulario.espacio} onChange={(value) => onChange('espacio', value)} opciones={ESPACIOS_ACTIVIDAD} placeholder="Selecciona espacio" />
             </CampoFormulario>
           </div>
