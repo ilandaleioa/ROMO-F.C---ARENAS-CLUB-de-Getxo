@@ -8,6 +8,7 @@ const { ROLES } = require('../config/roles');
 const { CARGOS_PERSONAL } = require('../config/personal');
 const { parseEquiposAsignados, filtrarEquiposPermitidos } = require('../lib/equiposAsignados');
 const { construirSelect, esColumnaInexistente } = require('../lib/usuarioColumns');
+const { ordenarEquipos } = require('../lib/equiposOrden');
 const {
   obtenerEquiposPersonalPorClub,
   parseEquiposPersonal,
@@ -247,6 +248,7 @@ router.get('/', async (req, res) => {
   try {
     const { rol, equipo_asignado } = req.user;
     const search = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    const cargoFiltro = typeof req.query.cargo === 'string' ? req.query.cargo.trim() : '';
     const equiposAsignados = parseEquiposAsignados(equipo_asignado);
 
     if (rol === ROLES.TECNICO && !equipo_asignado) {
@@ -265,6 +267,10 @@ router.get('/', async (req, res) => {
         query = query.or(
           `nombre.ilike.%${search}%,primer_apellido.ilike.%${search}%,segundo_apellido.ilike.%${search}%,telefono.ilike.%${search}%,email.ilike.%${search}%,cargo.ilike.%${search}%,equipo.ilike.%${search}%`
         );
+      }
+
+      if (cargoFiltro) {
+        query = query.eq('cargo', cargoFiltro);
       }
 
       return query.order('primer_apellido', { ascending: true }).order('nombre', { ascending: true });
@@ -305,12 +311,7 @@ router.get('/equipos', async (req, res) => {
     }
 
     const equiposBase = obtenerEquiposPersonalPorClub(req.club);
-    const equipos = filtrarEquiposPermitidos(
-      equiposBase,
-      req.user
-    ).sort((a, b) =>
-      String(a).localeCompare(String(b), 'es', { sensitivity: 'base' })
-    );
+    const equipos = ordenarEquipos(filtrarEquiposPermitidos(equiposBase, req.user));
 
     res.json({ equipos });
   } catch (err) {

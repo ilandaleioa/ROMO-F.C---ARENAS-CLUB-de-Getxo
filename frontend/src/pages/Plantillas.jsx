@@ -7,6 +7,8 @@ import { useVistaPlantillas } from '../context/VistaPlantillasContext';
 import { api } from '../lib/api';
 import { useListaValores } from '../lib/listas';
 import { equiposAsignadosLabel, parseEquiposAsignados, usuarioLimitadoAUnEquipo } from '../lib/equiposAsignados';
+import { usuarioPuedeVerApartado } from '../lib/apartados';
+import TableScroll from '../components/TableScroll';
 
 const COLORES_MUNICIPIOS = [
   '#2a78d6',
@@ -83,7 +85,7 @@ function crearJugadorVacio(equipo = '') {
   };
 }
 
-export default function Plantillas() {
+export default function Plantillas({ soloGraficas = false }) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { club } = useClub();
@@ -91,10 +93,10 @@ export default function Plantillas() {
   const demarcaciones = useListaValores('demarcacion');
   const equiposAsignadosUsuario = useMemo(() => parseEquiposAsignados(user.equipo_asignado), [user.equipo_asignado]);
   const limitadoAUnEquipo = usuarioLimitadoAUnEquipo(user);
-  const puedeSincronizar = user.rol === 'administrador' || user.rol === 'director';
-  const puedeAnadirJugadores = puedeSincronizar;
-  const puedeBorrarJugadores = user.rol === 'administrador' || user.rol === 'director';
-  const puedeEditarJugadores = ['administrador', 'director', 'responsable', 'tecnico'].includes(user.rol);
+  const puedeSincronizar = !soloGraficas && (user.rol === 'administrador' || user.rol === 'director');
+  const puedeAnadirJugadores = !soloGraficas && puedeSincronizar;
+  const puedeBorrarJugadores = !soloGraficas && (user.rol === 'administrador' || user.rol === 'director');
+  const puedeEditarJugadores = !soloGraficas && ['administrador', 'director', 'responsable', 'tecnico'].includes(user.rol);
   const { equiposDisponibles, equiposSeleccionados, seleccionarEquipoUnico, limpiarSeleccion, recargarEquipos } =
     useFiltroEquipos();
 
@@ -114,7 +116,7 @@ export default function Plantillas() {
   const [mensajeSync, setMensajeSync] = useState('');
   const [filtroEquiposAbierto, setFiltroEquiposAbierto] = useState(false);
   const [filtroDeportivoAbierto, setFiltroDeportivoAbierto] = useState(null);
-  const { vista } = useVistaPlantillas();
+  const { vista, setVista } = useVistaPlantillas();
   const [esMovil, setEsMovil] = useState(detectarMovil);
 
   useEffect(() => {
@@ -144,7 +146,7 @@ export default function Plantillas() {
     };
   }, []);
 
-  const vistaVisible = esMovil ? 'tabla' : vista;
+  const vistaVisible = soloGraficas ? 'graficas' : esMovil ? 'tabla' : vista;
 
   const cargarJugadores = useCallback(async () => {
     setError('');
@@ -479,6 +481,22 @@ export default function Plantillas() {
           <h3 className="font-bold text-club-black">Nuevo jugador</h3>
           <p className="text-xs text-club-black/60">Completa los datos básicos del jugador.</p>
         </div>
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:justify-center sm:items-center">
+          <button
+            type="submit"
+            disabled={guardandoJugador}
+            className="w-full sm:w-auto rounded-md bg-club-red px-4 py-2 text-sm font-semibold text-white hover:bg-club-redDark disabled:opacity-60"
+          >
+            {guardandoJugador ? 'Guardando...' : 'Crear jugador'}
+          </button>
+          <button
+            type="button"
+            onClick={cerrarFormularioJugador}
+            className="w-full sm:w-auto rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold text-club-black hover:bg-gray-50"
+          >
+            Cancelar
+          </button>
+        </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {camposTexto.map(([campo, etiqueta, tipo, requerido]) => (
             <label key={campo} className="text-xs font-semibold text-club-black/70">
@@ -516,22 +534,6 @@ export default function Plantillas() {
               {demarcaciones.map((opcion) => <option key={opcion} value={opcion}>{opcion}</option>)}
             </select>
           </label>
-        </div>
-        <div className="mt-4 flex flex-wrap gap-3">
-          <button
-            type="submit"
-            disabled={guardandoJugador}
-            className="rounded-md bg-club-red px-4 py-2 text-sm font-semibold text-white hover:bg-club-redDark disabled:opacity-60"
-          >
-            {guardandoJugador ? 'Guardando...' : 'Crear jugador'}
-          </button>
-          <button
-            type="button"
-            onClick={cerrarFormularioJugador}
-            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold text-club-black hover:bg-gray-50"
-          >
-            Cancelar
-          </button>
         </div>
       </form>
     );
@@ -742,7 +744,7 @@ export default function Plantillas() {
   };
 
   const renderTablaJugadores = (lista) => (
-    <div className="overflow-x-auto overflow-y-auto max-h-[70vh] rounded-lg border border-gray-200">
+    <TableScroll className="overflow-x-auto overflow-y-auto max-h-[70vh] rounded-lg border border-gray-200">
       <table className="w-full divide-y divide-gray-200 bg-white text-sm sm:text-base">
         <thead className="bg-club-black text-white sticky top-0 z-10">
           <tr>
@@ -829,7 +831,7 @@ export default function Plantillas() {
           ))}
         </tbody>
       </table>
-    </div>
+    </TableScroll>
   );
 
   const renderTarjetasJugadores = (lista) => (
@@ -1047,7 +1049,7 @@ export default function Plantillas() {
   return (
     <div className="w-full px-4 sm:px-6 py-6">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
-        <h2 className="text-2xl font-bold text-club-black">Plantillas</h2>
+        <h2 className="text-2xl font-bold text-club-black">{soloGraficas ? 'Gráficas de plantillas' : 'Plantillas'}</h2>
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full lg:w-auto">
           <div className="hidden md:block w-full lg:w-auto">
             {renderFiltrosDeportivos()}
@@ -1072,6 +1074,50 @@ export default function Plantillas() {
           </div>
         </div>
       </div>
+
+      {!soloGraficas && (
+        <div className="flex flex-wrap gap-3 mb-6" aria-label="Vistas de plantillas">
+          {[
+            { valor: 'tabla', label: 'Vista tabla' },
+            { valor: 'tarjetas', label: 'Vista tarjetas' },
+          ].map((opcion) => {
+            const activo = vista === opcion.valor;
+
+            return (
+              <button
+                key={opcion.valor}
+                type="button"
+                onClick={() => setVista(opcion.valor)}
+                className={`rounded-md px-5 py-3 text-sm font-semibold transition-colors ${
+                  activo
+                    ? 'bg-club-red text-white'
+                    : 'border border-gray-300 bg-white text-club-black/80 hover:bg-club-red/10 hover:text-club-black'
+                }`}
+              >
+                {opcion.label}
+              </button>
+            );
+          })}
+          {usuarioPuedeVerApartado(user, 'graficas') && (
+            <button
+              type="button"
+              onClick={() => navigate('/graficas')}
+              className="rounded-md border border-gray-300 bg-white px-5 py-3 text-sm font-semibold text-club-black/80 transition-colors hover:bg-club-red/10 hover:text-club-black"
+            >
+              GRÁFICAS
+            </button>
+          )}
+          {usuarioPuedeVerApartado(user, 'campogramas') && (
+            <button
+              type="button"
+              onClick={() => navigate('/campogramas')}
+              className="rounded-md border border-gray-300 bg-white px-5 py-3 text-sm font-semibold text-club-black/80 transition-colors hover:bg-club-red/10 hover:text-club-black"
+            >
+              Campogramas
+            </button>
+          )}
+        </div>
+      )}
 
       {mensajeSync && (
         <p className="text-sm text-club-black bg-gray-100 border border-gray-200 rounded-md px-3 py-2 mb-4">

@@ -29,6 +29,8 @@ Columnas sensibles (nunca llegan al frontend si el rol es Tecnico): `dni_jugador
 - La tabla `personal` necesita al menos: `id`, `club`, `nombre`, `primer_apellido`, `segundo_apellido`, `telefono`, `email`, `cargo`, `equipo`, `foto_path`
 - `creado_en` y `actualizado_en` son opcionales; si existen en tu tabla, se seguirán guardando, pero el backend ya no depende de ellos para crear o listar personal.
 
+La tabla `competiciones` se crea ejecutando `backend/scripts/crear-tabla-competiciones.sql` en el editor SQL de Supabase. Contiene los datos de la competición (`nombre`, `tipo`, `partes`, `minutos_por_parte`, `total_minutos`, `equipos_anadidos`), los datos federativos (`equipo_interno`, `equipo_fed`, `etapa`, `categoria`, `url`) y el campo técnico `club` para separar ROMO y ARENAS. El apartado **Competiciones** queda disponible para administradores y directores.
+
 ## Backend
 
 ### Variables de entorno (`backend/.env`)
@@ -87,7 +89,7 @@ node scripts/crear-usuario.js <username> <password> tecnico "NOMBRE EXACTO DEL E
 
 La contrasena se guarda siempre hasheada con bcrypt, nunca en texto plano.
 
-El campo `apartados_visibles` usa el mismo formato que `equipo_asignado`: guarda `Todos` para dar acceso completo o una lista separada por `||` con apartados como `inicio`, `campogramas`, `captacion`, `personal`, `usuarios`, `listas` y `hojas_calculo`.
+El campo `apartados_visibles` usa el mismo formato que `equipo_asignado`: guarda `Todos` para dar acceso completo o una lista separada por `||` con apartados como `inicio`, `graficas`, `campogramas`, `captacion`, `personal`, `usuarios`, `listas`, `clubes_maestros` y `hojas_calculo`.
 
 ### Crear el bucket de fotos del personal
 

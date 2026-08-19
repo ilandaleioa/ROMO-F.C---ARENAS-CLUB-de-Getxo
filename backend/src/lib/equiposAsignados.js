@@ -1,3 +1,5 @@
+const { ordenarEquipos } = require('./equiposOrden');
+
 const TODOS_EQUIPOS = 'Todos';
 const EQUIPOS_SEPARATOR = '||';
 
@@ -48,10 +50,10 @@ function usuarioTieneEquiposLimitados(user) {
 function filtrarEquiposPermitidos(equipos, user) {
   const permitidos = parseEquiposAsignados(user?.equipo_asignado);
   const equiposLimpios = uniqueEquipos(equipos);
-  if (permitidos.length === 0) return equiposLimpios;
+  if (permitidos.length === 0) return ordenarEquipos(equiposLimpios);
 
   const permitidosSet = new Set(permitidos);
-  return equiposLimpios.filter((equipo) => permitidosSet.has(equipo));
+  return ordenarEquipos(equiposLimpios.filter((equipo) => permitidosSet.has(equipo)));
 }
 
 function puedeVerEquipo(user, equipo) {

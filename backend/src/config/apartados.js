@@ -2,12 +2,16 @@ const TODOS_APARTADOS = 'Todos';
 
 const APARTADOS_PERMITIDOS = [
   'inicio',
+  'actividades',
+  'graficas',
   'campogramas',
   'captacion',
   'personal',
   'usuarios',
   'listas',
+  'clubes_maestros',
   'hojas_calculo',
+  'competiciones',
 ];
 
 function limpiarApartado(valor) {

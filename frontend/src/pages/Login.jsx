@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { getRutaPorDefecto } from '../lib/apartados';
 
 export default function Login() {
   const { user, login } = useAuth();
@@ -12,7 +13,7 @@ export default function Login() {
   const [submitting, setSubmitting] = useState(false);
 
   if (user) {
-    const dest = location.state?.from?.pathname || '/';
+    const dest = location.state?.from?.pathname || getRutaPorDefecto(user);
     return <Navigate to={dest} replace />;
   }
 
@@ -22,7 +23,7 @@ export default function Login() {
     setSubmitting(true);
     try {
       await login(username, password);
-      navigate('/', { replace: true });
+      navigate(location.state?.from?.pathname || '/actividades', { replace: true });
     } catch (err) {
       setError(err.message || 'No se pudo iniciar sesion.');
     } finally {
@@ -31,7 +32,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-club-black px-4 py-6">
+    <div className="min-h-[100dvh] flex items-center justify-center bg-club-black px-4 py-6">
       <div className="w-full max-w-sm sm:max-w-md bg-white rounded-xl shadow-2xl overflow-hidden">
         <div className="bg-club-black py-8 sm:py-10 px-4 flex flex-col items-center gap-2">
           <h1 className="text-white text-lg sm:text-xl font-bold text-center leading-tight">

@@ -4,18 +4,23 @@ const supabaseAdmin = require('../config/supabaseClient');
 const { createSessionToken, setSessionCookie, clearSessionCookie } = require('../lib/session');
 const requireAuth = require('../middleware/requireAuth');
 const { ALL_ROLES } = require('../config/roles');
+const { construirSelect, ejecutarConFallback } = require('../lib/usuarioColumns');
 
 const router = express.Router();
 const RETRY_DELAY_MS = 250;
+const CAMPOS_LOGIN_BASE = ['id', 'username', 'password_hash', 'rol', 'equipo_asignado', 'club', 'activo'];
+const CAMPOS_LOGIN_OPCIONALES = ['apartados_visibles'];
 
 async function consultarUsuarioLogin(username) {
   // El login solo necesita los campos imprescindibles. `apartados_visibles`
   // es opcional en algunas bases ya desplegadas y no debe bloquear la entrada.
-  return supabaseAdmin
-    .from('usuarios')
-    .select('id, username, password_hash, rol, equipo_asignado, club, activo')
-    .eq('username', username)
-    .maybeSingle();
+  return ejecutarConFallback(CAMPOS_LOGIN_OPCIONALES, (omitidas) =>
+    supabaseAdmin
+      .from('usuarios')
+      .select(construirSelect(CAMPOS_LOGIN_BASE, CAMPOS_LOGIN_OPCIONALES, omitidas))
+      .eq('username', username)
+      .maybeSingle(),
+  );
 }
 
 function esErrorDeConexion(err) {
@@ -114,11 +119,12 @@ router.post('/login', async (req, res) => {
 
   return res.json({
     user: {
+      id: data.id,
       username: data.username,
       rol: data.rol,
       equipo_asignado: data.equipo_asignado || null,
       club: data.club || null,
-      apartados_visibles: null,
+      apartados_visibles: data.apartados_visibles || null,
     },
   });
 });
@@ -131,6 +137,7 @@ router.post('/logout', (req, res) => {
 router.get('/me', requireAuth, (req, res) => {
   res.json({
     user: {
+      id: req.user.id,
       username: req.user.username,
       rol: req.user.rol,
       equipo_asignado: req.user.equipo_asignado || null,

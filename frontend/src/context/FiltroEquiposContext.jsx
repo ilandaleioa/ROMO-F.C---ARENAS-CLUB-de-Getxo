@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, useCallback, useMemo } 
 import { useAuth } from './AuthContext';
 import { useClub } from './ClubContext';
 import { api } from '../lib/api';
+import { ordenarEquipos } from '../lib/equiposOrden';
 
 const FiltroEquiposContext = createContext(null);
 
@@ -16,7 +17,7 @@ export function FiltroEquiposProvider({ children }) {
     setLoading(true);
     try {
       const { equipos } = await api.get('/jugadores/equipos');
-      setEquiposDisponibles(equipos);
+      setEquiposDisponibles(ordenarEquipos(equipos));
     } catch (_) {
       setEquiposDisponibles([]);
     } finally {

@@ -32,8 +32,9 @@ function omitirCampos(basePayload, optionalFields, omitidas) {
   return payload;
 }
 
-async function ejecutarConFallback(optionalFields, ejecutar) {
+async function ejecutarConFallback(optionalFields, ejecutar, { camposObligatorios = [] } = {}) {
   const omitidas = new Set();
+  const obligatorias = new Set(camposObligatorios);
 
   while (true) {
     const respuesta = await ejecutar(omitidas);
@@ -43,6 +44,13 @@ async function ejecutarConFallback(optionalFields, ejecutar) {
 
     const faltante = optionalFields.find((campo) => !omitidas.has(campo) && esColumnaInexistente(respuesta.error, campo));
     if (!faltante) {
+      return respuesta;
+    }
+
+    // Algunas columnas son compatibles hacia atras para las lecturas, pero no
+    // se deben omitir en una mutacion: hacerlo haria creer al usuario que se
+    // guardo un valor que en realidad se perderia.
+    if (obligatorias.has(faltante)) {
       return respuesta;
     }
 

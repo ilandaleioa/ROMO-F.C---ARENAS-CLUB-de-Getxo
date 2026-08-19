@@ -9,6 +9,7 @@ const { columnsForRole, sanitizeRow, FULL_COLUMNS } = require('../config/jugador
 const { LATERALIDAD_VALUES, DEMARCACION_VALUES } = require('../config/datosDeportivos');
 const sheetsSync = require('../config/googleSheetsSync');
 const { parseEquiposAsignados, filtrarEquiposPermitidos, puedeVerEquipo } = require('../lib/equiposAsignados');
+const { ordenarEquipos: ordenarEquiposGlobal } = require('../lib/equiposOrden');
 
 const router = express.Router();
 const sincronizacionesEnCurso = new Set();
@@ -236,20 +237,18 @@ const ORDEN_EQUIPOS_POR_CLUB = {
     'Benjamín 18',
   ],
   ROMO: [
-    'ROMO JUVENIL',
-    'ITZU JUVENIL',
-    'ROMO CADETE',
-    'ITZU CADETE',
-    'ROMO INFANTIL 2013',
-    'ROMO INFANTIL 2014',
-    'ROMO ALEVIN 2015 Gobela',
-    'ROMO ALEVIN 2015 Ibaiondo',
-    'ROMO ALEVIN 2016',
-    'ROMO BENJAMIN 2017 Gobela',
-    'ROMO BENJAMIN 2017 Ibaiondo',
-    'ROMO BENJAMIN 2018',
-    'ROMO PREBENJAMIN 2019',
-    'ROMO PREBENJAMIN 2020',
+    'Juvenil A',
+    'Juvenil B',
+    'Cadete A',
+    'Cadete B',
+    'Infantil 13',
+    'Infantil 14',
+    'Alevín 15A',
+    'Alevín 15B',
+    'Alevín 16A',
+    'Alevín 16B',
+    'Benjamín 17',
+    'Benjamín 18',
   ],
 };
 
@@ -273,10 +272,7 @@ router.get('/equipos', async (req, res) => {
     return res.status(503).json({ error: 'No se pudo consultar la base de datos de jugadores.' });
   }
 
-  const equipos = ordenarEquipos(
-    filtrarEquiposPermitidos((data || []).map((r) => r.equipo).filter(Boolean), req.user),
-    req.club
-  );
+  const equipos = ordenarEquiposGlobal(filtrarEquiposPermitidos((data || []).map((r) => r.equipo).filter(Boolean), req.user));
   res.json({ equipos });
 });
 

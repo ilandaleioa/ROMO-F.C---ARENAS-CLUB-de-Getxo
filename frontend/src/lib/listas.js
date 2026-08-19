@@ -1,6 +1,6 @@
 import { useMemo, useSyncExternalStore } from 'react';
 import { CLUBES_MAESTROS } from '../data/clubes';
-import { EQUIPOS_POR_CLUB } from '../data/equipos';
+import { obtenerEquiposPorClub } from '../data/equipos';
 
 const STORAGE_KEY = 'listas_maestras_v2';
 const STORAGE_KEY_LEGACY = 'listas_maestras_v1';
@@ -59,7 +59,8 @@ function crearEquiposIniciales(clubes = crearClubesIniciales()) {
     if (!clubNombre) return [];
 
     const clubClave = normalizarClaveClub(club?.valor || clubNombre);
-    return EQUIPOS_POR_CLUB.map((equipoNombre, indiceEquipo) =>
+    const equiposClub = obtenerEquiposPorClub(clubNombre);
+    return equiposClub.map((equipoNombre, indiceEquipo) =>
       normalizarFilaEquipo(
         {
           id: `equipo-${clubClave}-${normalizarClaveEquipo(equipoNombre)}`,
@@ -67,7 +68,7 @@ function crearEquiposIniciales(clubes = crearClubesIniciales()) {
           nombre: equipoNombre,
         },
         {},
-        indiceClub * EQUIPOS_POR_CLUB.length + indiceEquipo
+        indiceClub * equiposClub.length + indiceEquipo
       )
     );
   });

@@ -1,5 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { api } from '../lib/api';
+import TableScroll from '../components/TableScroll';
+import { useAuth } from '../context/AuthContext';
 import { useFiltroEquipos } from '../context/FiltroEquiposContext';
 import { TODOS_EQUIPOS, equiposAsignadosLabel, parseEquiposAsignados } from '../lib/equiposAsignados';
 import {
@@ -33,6 +35,7 @@ const FORM_VACIO = {
 };
 
 export default function Usuarios() {
+  const { user, refreshMe } = useAuth();
   const { equiposDisponibles } = useFiltroEquipos();
   const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -161,17 +164,15 @@ export default function Usuarios() {
         club: form.club,
         activo: form.activo,
       };
-      // Las instalaciones antiguas pueden no tener esta columna. En ese caso
-      // permitimos editar el resto del usuario sin provocar un 503 en el PUT.
-      if (!editandoId || apartadosVisiblesDisponibles) {
-        payload.apartados_visibles = form.apartados_visibles;
-      }
       if (form.password) payload.password = form.password;
 
       if (editandoId) {
         await api.put(`/usuarios/${editandoId}`, payload);
       } else {
         await api.post('/usuarios', payload);
+      }
+      if (user && String(user.id) === String(editandoId)) {
+        await refreshMe();
       }
       cancelarEdicion();
       await cargarUsuarios();
@@ -216,6 +217,28 @@ export default function Usuarios() {
         <h3 className="font-bold text-club-black">
           {editandoId ? 'Editar usuario' : 'Nuevo usuario'}
         </h3>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-center">
+          <button
+            type="submit"
+            disabled={guardando}
+            className="w-full sm:w-auto bg-club-red hover:bg-club-redDark disabled:opacity-60 text-white font-semibold px-5 py-2 rounded-md transition-colors"
+          >
+            {guardando ? 'Guardando...' : editandoId ? 'Guardar cambios' : 'Crear usuario'}
+          </button>
+          <button
+            type="button"
+            onClick={cancelarEdicion}
+            className="w-full sm:w-auto px-5 py-2 rounded-md font-semibold text-club-black border border-gray-300 hover:bg-gray-50"
+          >
+            Cancelar
+          </button>
+        </div>
+
+        {formError && (
+          <p className="text-sm text-club-red font-medium bg-red-50 border border-club-red/30 rounded-md px-3 py-2">
+            {formError}
+          </p>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
@@ -381,29 +404,6 @@ export default function Usuarios() {
             </label>
           </div>
         </div>
-
-        {formError && (
-          <p className="text-sm text-club-red font-medium bg-red-50 border border-club-red/30 rounded-md px-3 py-2">
-            {formError}
-          </p>
-        )}
-
-        <div className="flex flex-col sm:flex-row gap-3">
-          <button
-            type="submit"
-            disabled={guardando}
-            className="w-full sm:w-auto bg-club-red hover:bg-club-redDark disabled:opacity-60 text-white font-semibold px-5 py-2 rounded-md transition-colors"
-          >
-            {guardando ? 'Guardando...' : editandoId ? 'Guardar cambios' : 'Crear usuario'}
-          </button>
-          <button
-            type="button"
-            onClick={cancelarEdicion}
-            className="w-full sm:w-auto px-5 py-2 rounded-md font-semibold text-club-black border border-gray-300 hover:bg-gray-50"
-          >
-            Cancelar
-          </button>
-        </div>
       </form>
       )}
 
@@ -416,7 +416,7 @@ export default function Usuarios() {
       {loading ? (
         <p className="text-club-black/60">Cargando usuarios...</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-gray-200">
+        <TableScroll className="overflow-x-auto rounded-lg border border-gray-200">
           <table className="min-w-[540px] sm:min-w-full divide-y divide-gray-200 bg-white">
             <thead className="bg-club-black text-white">
               <tr>
@@ -470,7 +470,7 @@ export default function Usuarios() {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableScroll>
       )}
     </div>
   );

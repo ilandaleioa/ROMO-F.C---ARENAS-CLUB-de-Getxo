@@ -33,6 +33,17 @@ create table if not exists public."Captación_ Base de datos" (
   updated_at timestamptz not null default now()
 );
 
+-- La tabla puede existir desde una version anterior del sistema. En ese caso,
+-- CREATE TABLE IF NOT EXISTS no agrega columnas nuevas.
+alter table public."Captación_ Base de datos"
+  add column if not exists otra_demarcacion text not null default '';
+
+alter table public."Captación_ Base de datos"
+  add column if not exists demarcacion_concreta text not null default '';
+
+alter table public."Captación_ Base de datos"
+  add column if not exists etapa text not null default '';
+
 create index if not exists captacion_fecha_alta_idx
   on public."Captación_ Base de datos" (fecha_alta desc);
 

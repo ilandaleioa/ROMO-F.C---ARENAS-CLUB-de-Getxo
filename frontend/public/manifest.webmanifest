@@ -1,0 +1,27 @@
+{
+  "name": "ROMO F.C. - Arenas Club de Getxo",
+  "short_name": "Romo · Arenas",
+  "description": "Gestión deportiva de plantillas, captación y personal.",
+  "lang": "es-ES",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f9fafb",
+  "theme_color": "#c8102e",
+  "icons": [
+    {
+      "src": "/assets/escudo-arenas.png",
+      "sizes": "307x307",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/escudo-romo.png",
+      "sizes": "505x494",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

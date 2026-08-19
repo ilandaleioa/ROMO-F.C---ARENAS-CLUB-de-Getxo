@@ -6,7 +6,7 @@ const requireRole = require('../middleware/requireRole');
 const { ROLES, ALL_ROLES } = require('../config/roles');
 const { CLUBES_USUARIO } = require('../config/clubs');
 const { parseEquiposAsignados, serializeEquiposAsignados } = require('../lib/equiposAsignados');
-const { construirSelect, omitirCampos, ejecutarConFallback } = require('../lib/usuarioColumns');
+const { construirSelect, omitirCampos, ejecutarConFallback, esColumnaInexistente } = require('../lib/usuarioColumns');
 const {
   parseApartadosVisibles,
   serializeApartadosVisibles,
@@ -51,7 +51,7 @@ async function insertarUsuarioConFallback(payload) {
     const payloadAjustado = omitirCampos(payload, PUBLIC_USER_OPTIONAL_FIELDS, omitidas);
     const select = construirSelect(PUBLIC_USER_FIELDS_BASE, PUBLIC_USER_OPTIONAL_FIELDS, omitidas);
     return supabaseAdmin.from('usuarios').insert(payloadAjustado).select(select).single();
-  });
+  }, { camposObligatorios: ['apartados_visibles'] });
 }
 
 async function actualizarUsuarioConFallback(id, payload) {
@@ -66,6 +66,16 @@ async function actualizarUsuarioConFallback(id, payload) {
     const payloadAjustado = omitirCampos(payload, PUBLIC_USER_OPTIONAL_FIELDS, omitidas);
     const select = construirSelect(PUBLIC_USER_FIELDS_BASE, camposOpcionalesDeLaMutacion, omitidas);
     return supabaseAdmin.from('usuarios').update(payloadAjustado).eq('id', id).select(select).maybeSingle();
+  }, { camposObligatorios: ['apartados_visibles'] });
+}
+
+function responderSiFaltaMigracionApartados(res, dbError) {
+  if (!esColumnaInexistente(dbError, 'apartados_visibles')) {
+    return false;
+  }
+
+  return res.status(503).json({
+    error: 'La base de datos no tiene la columna apartados_visibles. Ejecuta backend/scripts/migrar-usuarios-apartados.sql en Supabase y vuelve a intentarlo.',
   });
 }
 
@@ -163,6 +173,7 @@ router.post('/', async (req, res) => {
     });
 
     if (dbError) {
+      if (responderSiFaltaMigracionApartados(res, dbError)) return;
       if (dbError.code === '23505') {
         return res.status(409).json({ error: 'Ese nombre de usuario ya existe.' });
       }
@@ -208,6 +219,7 @@ router.put('/:id', async (req, res) => {
         details: dbError.details,
         hint: dbError.hint,
       });
+      if (responderSiFaltaMigracionApartados(res, dbError)) return;
       if (dbError.code === '23505') {
         return res.status(409).json({ error: 'Ese nombre de usuario ya existe.' });
       }

@@ -383,6 +383,33 @@ export default function FichaJugador() {
               </div>
 
               <div className="space-y-5">
+                {puedeEditarDeportivo ? (
+                  <div className="rounded-2xl border border-gray-200 bg-white p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-center">
+                      <button
+                        onClick={handleGuardarDatosDeportivos}
+                        disabled={guardandoDeportivo}
+                        className="w-full rounded-md bg-club-red px-4 py-2 text-sm font-semibold text-white hover:bg-club-red/90 disabled:opacity-60 sm:w-auto"
+                      >
+                        {guardandoDeportivo ? 'Guardando...' : 'Guardar cambios'}
+                      </button>
+                    </div>
+                    <div className="mt-3 space-y-2 text-center">
+                      {guardadoOkDeportivo ? (
+                        <p className="text-sm font-medium text-green-600">
+                          {syncHojaDeportivo?.ok ? 'Guardado y hoja actualizada' : 'Guardado'}
+                        </p>
+                      ) : null}
+                      {guardadoOkDeportivo && syncHojaDeportivo && !syncHojaDeportivo.ok ? (
+                        <p className="text-sm text-amber-700">
+                          Guardado en la app. Hoja no actualizada: {syncHojaDeportivo.motivo}
+                        </p>
+                      ) : null}
+                      {errorDeportivo ? <p className="text-sm text-club-red">{errorDeportivo}</p> : null}
+                    </div>
+                  </div>
+                ) : null}
+
                 <div className="flex flex-wrap gap-2">
                   {['equipo', 'edicion', 'lateralidad', 'demarcacion', 'colegio_instituto', 'club_procedencia'].map((campo) => {
                     const valor = formatearValor(obtenerValorCampoFicha(jugador, campo), campo);
@@ -403,7 +430,7 @@ export default function FichaJugador() {
                     const camposDisponibles = seccion.campos.filter((campo) => tieneDatoCampo(jugador, campo));
                     if (camposDisponibles.length === 0) return null;
                     const esDeportivo = seccion.titulo === 'Datos deportivos';
-                    const editable = esDeportivo && puedeEditarDeportivo;
+                    const puedeEditarSeccion = Boolean(esDeportivo && puedeEditarDeportivo);
 
                     return (
                       <section
@@ -413,7 +440,7 @@ export default function FichaJugador() {
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <h4 className="text-sm font-bold uppercase tracking-wide text-club-black">{seccion.titulo}</h4>
-                          {editable ? (
+                          {puedeEditarSeccion ? (
                             <span className="text-xs font-semibold uppercase tracking-wide text-club-red">Editable</span>
                           ) : null}
                         </div>
@@ -435,7 +462,7 @@ export default function FichaJugador() {
                                   {ETIQUETAS_JUGADOR[campo] || campo}
                                 </p>
                                 <div className={`mt-2 text-sm text-club-black/80 ${esLargo ? 'whitespace-pre-line leading-6' : 'break-words'}`}>
-                                  {editable && campo === 'dorsal' ? (
+                                  {puedeEditarSeccion && campo === 'dorsal' ? (
                                     <input
                                       type="number"
                                       min="1"
@@ -446,7 +473,7 @@ export default function FichaJugador() {
                                       }
                                       className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
                                     />
-                                  ) : editable && (campo === 'lateralidad' || campo === 'demarcacion') ? (
+                                  ) : puedeEditarSeccion && (campo === 'lateralidad' || campo === 'demarcacion') ? (
                                     <select
                                       value={datosDeportivos[campo] || ''}
                                       onChange={(e) =>
@@ -483,29 +510,6 @@ export default function FichaJugador() {
                             );
                           })}
                         </div>
-
-                        {editable ? (
-                          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
-                            <button
-                              onClick={handleGuardarDatosDeportivos}
-                              disabled={guardandoDeportivo}
-                              className="w-full rounded-md bg-club-red px-4 py-2 text-sm font-semibold text-white hover:bg-club-red/90 disabled:opacity-60 sm:w-auto"
-                            >
-                              {guardandoDeportivo ? 'Guardando...' : 'Guardar cambios'}
-                            </button>
-                            {guardadoOkDeportivo ? (
-                              <p className="text-sm font-medium text-green-600">
-                                {syncHojaDeportivo?.ok ? 'Guardado y hoja actualizada' : 'Guardado'}
-                              </p>
-                            ) : null}
-                            {guardadoOkDeportivo && syncHojaDeportivo && !syncHojaDeportivo.ok ? (
-                              <p className="text-sm text-amber-700">
-                                Guardado en la app. Hoja no actualizada: {syncHojaDeportivo.motivo}
-                              </p>
-                            ) : null}
-                            {errorDeportivo ? <p className="text-sm text-club-red">{errorDeportivo}</p> : null}
-                          </div>
-                        ) : null}
                       </section>
                     );
                   })}

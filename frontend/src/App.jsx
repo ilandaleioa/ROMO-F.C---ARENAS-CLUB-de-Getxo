@@ -13,6 +13,7 @@ import Plantillas from './pages/Plantillas';
 import FichaJugador from './pages/FichaJugador';
 import Usuarios from './pages/Usuarios';
 import Campogramas from './pages/Campogramas';
+import Graficas from './pages/Graficas';
 import HojasCalculo from './pages/HojasCalculo';
 import Captacion from './pages/Captacion';
 import CaptacionDetalle from './pages/CaptacionDetalle';
@@ -20,6 +21,8 @@ import Clubes from './pages/Clubes';
 import ClubesMaestros from './pages/ClubesMaestros';
 import Listas from './pages/Listas';
 import Personal from './pages/Personal';
+import Actividades from './pages/Actividades';
+import Competiciones from './pages/Competiciones';
 import { ROLES_GESTION_USUARIOS } from './lib/roles';
 
 function ClubThemeSync() {
@@ -38,7 +41,7 @@ function Layout({ children }) {
   const [menuUsuarioAbierto, setMenuUsuarioAbierto] = useState(false);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="app-shell min-h-[100dvh] bg-gray-50 flex flex-col">
       <Header
         onToggleSidebar={() => {
           setSidebarAbierto((v) => !v);
@@ -52,7 +55,7 @@ function Layout({ children }) {
       />
       <div className="flex flex-1 min-h-0">
         <Sidebar isOpen={sidebarAbierto} onClose={() => setSidebarAbierto(false)} />
-        <main className="flex-1 min-w-0">{children}</main>
+        <main className="app-main flex-1 min-w-0">{children}</main>
       </div>
     </div>
   );
@@ -62,7 +65,7 @@ function AppRoutes() {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center text-club-black/60">Cargando...</div>;
+    return <div className="min-h-[100dvh] flex items-center justify-center text-club-black/60">Cargando...</div>;
   }
 
   return (
@@ -70,6 +73,10 @@ function AppRoutes() {
       <Route path="/login" element={<Login />} />
       <Route
         path="/"
+        element={<Navigate to="/actividades" replace />}
+      />
+      <Route
+        path="/plantillas"
         element={
           <ProtectedRoute requiredApartado="inicio">
             <Layout>
@@ -94,6 +101,26 @@ function AppRoutes() {
           <ProtectedRoute requiredApartado="campogramas">
             <Layout>
               <Campogramas />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/graficas"
+        element={
+          <ProtectedRoute requiredApartado="graficas">
+            <Layout>
+              <Graficas />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/actividades"
+        element={
+          <ProtectedRoute requiredApartado="actividades">
+            <Layout>
+              <Actividades />
             </Layout>
           </ProtectedRoute>
         }
@@ -186,7 +213,17 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
-      <Route path="*" element={<Navigate to={user ? '/' : '/login'} replace />} />
+      <Route
+        path="/competiciones"
+        element={
+          <ProtectedRoute allowedRoles={['administrador', 'director']} requiredApartado="competiciones">
+            <Layout>
+              <Competiciones />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route path="*" element={<Navigate to={user ? '/actividades' : '/login'} replace />} />
     </Routes>
   );
 }

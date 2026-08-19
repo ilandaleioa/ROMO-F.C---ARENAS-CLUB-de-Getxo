@@ -71,7 +71,7 @@ function calcularEdad(fechaNacimiento) {
 const BLOQUES = [
   {
     title: 'Datos de alta',
-    fields: ['id_jugador', 'fecha_alta', 'quien_da_alta'],
+    fields: ['fecha_alta', 'quien_da_alta'],
   },
   {
     title: 'Contexto deportivo',
@@ -79,7 +79,7 @@ const BLOQUES = [
   },
   {
     title: 'Perfil del jugador',
-    fields: ['nombre', 'primer_apellido', 'nombre_completo', 'segundo_apellido', 'dorsal', 'altura', 'lateralidad', 'fecha_nacimiento', 'anio_nacimiento', 'edad', 'demarcacion', 'otra_demarcacion', 'demarcacion_concreta', 'valoracion_general'],
+    fields: ['nombre', 'primer_apellido', 'nombre_completo', 'segundo_apellido', 'dorsal', 'altura', 'lateralidad', 'fecha_nacimiento', 'anio_nacimiento', 'edad', 'demarcacion', 'demarcacion_concreta', 'otra_demarcacion', 'valoracion_general'],
   },
   {
     title: 'Observaciones',
@@ -87,15 +87,16 @@ const BLOQUES = [
   },
 ];
 
-const CAMPOS_INFORME = ['etapa', 'categoria', 'local', 'visitante', 'partido', 'dorsal', 'tipologia', 'lateralidad', 'titularidad', 'minutos_jugados', 'goles', 'goles_encajados'];
+const CAMPOS_INFORME = ['club', 'equipo', 'etapa', 'categoria', 'local', 'visitante', 'partido', 'dorsal', 'lateralidad', 'titularidad', 'minutos_jugados', 'goles', 'goles_encajados'];
 const ETIQUETAS_INFORME = {
+  club: 'Club',
+  equipo: 'Equipo',
   etapa: 'Etapa',
   categoria: 'Categoria',
   local: 'Local',
   visitante: 'Visitante',
   partido: 'Partido',
   dorsal: 'Dorsal',
-  tipologia: 'Tipologia',
   lateralidad: 'Lateralidad',
   titularidad: 'Titularidad',
   minutos_jugados: 'Minutos jugados',
@@ -104,7 +105,6 @@ const ETIQUETAS_INFORME = {
 };
 
 const ETIQUETAS = {
-  id_jugador: 'ID jugador',
   fecha_alta: 'Fecha alta',
   quien_da_alta: 'Quien da alta',
   club: 'Club',
@@ -112,7 +112,7 @@ const ETIQUETAS = {
   etapa: 'Etapa',
   categoria: 'Categoria',
   grupo: 'Grupo',
-  enlace: 'Enlace',
+  enlace: 'Enlace federacion',
   nombre: 'Nombre',
   primer_apellido: 'Primer apellido',
   nombre_completo: 'Nombre completo',
@@ -125,8 +125,8 @@ const ETIQUETAS = {
   anio_nacimiento: 'Anio nacimiento',
   edad: 'Edad',
   demarcacion: 'Demarcacion',
-  otra_demarcacion: 'Otra demarcacion -',
   demarcacion_concreta: 'Demarcacion concreta',
+  otra_demarcacion: 'Otra demarcacion -',
   valoracion_general: 'Valoracion general',
   descripcion_jugador: 'Descripcion del jugador',
   observaciones: 'Observaciones',
@@ -157,8 +157,8 @@ function renderValor(registro, campo) {
 function calcularPartidoInforme(informe) {
   const local = String(informe?.local || '').trim();
   const visitante = String(informe?.visitante || '').trim();
-  if (local && visitante) return `${local} - ${visitante}`;
-  return local || visitante || '';
+  if (local && visitante) return `${local} Vs ${visitante}`;
+  return '';
 }
 
 function formatearValorInforme(valor) {

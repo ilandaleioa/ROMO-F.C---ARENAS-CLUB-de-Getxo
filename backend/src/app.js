@@ -10,6 +10,7 @@ const campogramasRoutes = require('./routes/campogramas');
 const configRoutes = require('./routes/config');
 const captacionRoutes = require('./routes/captacion');
 const personalRoutes = require('./routes/personal');
+const competicionesRoutes = require('./routes/competiciones');
 
 const app = express();
 
@@ -50,10 +51,19 @@ app.use(
     credentials: true,
   })
 );
-app.use(express.json());
+// La ficha de captacion puede incluir fotos en data URL, asi que subimos el
+// limite del body para evitar que una imagen provoque un 500 al guardar.
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use((err, req, res, next) => {
   if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
     return res.status(400).json({ error: 'JSON malformado en la solicitud.' });
+  }
+
+  if (err?.type === 'entity.too.large' || err?.status === 413) {
+    return res.status(413).json({
+      error: 'El contenido enviado es demasiado grande. Reduce el tamano de la foto e intenta de nuevo.',
+    });
   }
 
   return next(err);
@@ -75,6 +85,7 @@ app.use('/api/campogramas', campogramasRoutes);
 app.use('/api/config', configRoutes);
 app.use('/api/captacion', captacionRoutes);
 app.use('/api/personal', personalRoutes);
+app.use('/api/competiciones', competicionesRoutes);
 
 // Manejador de errores generico: nunca exponer detalles internos ni datos sensibles.
 app.use((err, req, res, next) => {

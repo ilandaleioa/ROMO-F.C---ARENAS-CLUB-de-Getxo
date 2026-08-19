@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useClub } from '../context/ClubContext';
 import { api } from '../lib/api';
+import TableScroll from '../components/TableScroll';
 import { CARGOS_PERSONAL } from '../lib/personal';
+import { ordenarEquipos } from '../lib/equiposOrden';
 import {
   equiposPersonalLabel,
   parseEquiposPersonal,
@@ -38,7 +40,8 @@ export default function Personal() {
   const [personal, setPersonal] = useState([]);
   const [equipos, setEquipos] = useState([]);
   const [busqueda, setBusqueda] = useState('');
-  const [filtroEquipo, setFiltroEquipo] = useState('');
+  const [filtroCargo, setFiltroCargo] = useState('');
+  const [filtroEquipoInterno, setFiltroEquipoInterno] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [mensaje, setMensaje] = useState('');
@@ -65,14 +68,15 @@ export default function Personal() {
     try {
       const params = new URLSearchParams();
       if (busqueda.trim()) params.set('q', busqueda.trim());
-      if (filtroEquipo) params.set('equipo', filtroEquipo);
+      if (filtroCargo) params.set('cargo', filtroCargo);
+      if (filtroEquipoInterno) params.set('equipo', filtroEquipoInterno);
       const query = params.toString();
       const { personal: lista } = await api.get(query ? `/personal?${query}` : '/personal');
       setPersonal(lista || []);
     } catch (err) {
       setError(err.message);
     }
-  }, [busqueda, filtroEquipo]);
+  }, [busqueda, filtroCargo, filtroEquipoInterno]);
 
   useEffect(() => {
     const cerrarSelectorSiHaceFalta = (e) => {
@@ -115,8 +119,12 @@ export default function Personal() {
   }, [club, cargarEquipos, cargarPersonal]);
 
   const equiposOrdenados = useMemo(
-    () => [...new Set(equipos)].sort((a, b) => String(a).localeCompare(String(b), 'es', { sensitivity: 'base' })),
+    () => ordenarEquipos(equipos),
     [equipos]
+  );
+  const cargosOrdenados = useMemo(
+    () => [...new Set(CARGOS_PERSONAL)].sort((a, b) => String(a).localeCompare(String(b), 'es', { sensitivity: 'base' })),
+    []
   );
   const todosLosEquiposSeleccionados =
     equiposOrdenados.length > 0 && equiposOrdenados.every((equipo) => form.equipos.includes(equipo));
@@ -230,11 +238,23 @@ export default function Personal() {
             className="w-full sm:w-72 rounded-md border border-gray-300 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
           />
           <select
-            value={filtroEquipo}
-            onChange={(e) => setFiltroEquipo(e.target.value)}
+            value={filtroCargo}
+            onChange={(e) => setFiltroCargo(e.target.value)}
             className="w-full sm:w-56 rounded-md border border-gray-300 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
           >
-            <option value="">Todos los equipos</option>
+            <option value="">Todos los cargos</option>
+            {cargosOrdenados.map((cargo) => (
+              <option key={cargo} value={cargo}>
+                {cargo}
+              </option>
+            ))}
+          </select>
+          <select
+            value={filtroEquipoInterno}
+            onChange={(e) => setFiltroEquipoInterno(e.target.value)}
+            className="w-full sm:w-56 rounded-md border border-gray-300 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
+          >
+            <option value="">Todos los equipos internos</option>
             {equiposOrdenados.map((equipo) => (
               <option key={equipo} value={equipo}>
                 {equipo}
@@ -279,6 +299,25 @@ export default function Personal() {
 
           {puedeGestionar ? (
             <form onSubmit={guardar} className="space-y-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-center">
+                <button
+                  type="submit"
+                  disabled={guardando}
+                  className="w-full sm:w-auto inline-flex items-center justify-center rounded-md bg-club-red px-4 py-2 font-semibold text-white transition-colors hover:bg-club-redDark disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {guardando ? 'Guardando...' : editandoId ? 'Actualizar' : 'Crear personal'}
+                </button>
+                {editandoId && (
+                  <button
+                    type="button"
+                    onClick={resetForm}
+                    className="w-full sm:w-auto inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 font-semibold text-club-black transition-colors hover:bg-gray-50"
+                  >
+                    Limpiar
+                  </button>
+                )}
+              </div>
+
               <div>
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-club-black/60">
                   Nombre
@@ -461,24 +500,6 @@ export default function Personal() {
                 />
                 <p className="mt-1 text-xs text-club-black/50">JPG, PNG o WEBP. Tamaño máximo: 5 MB.</p>
               </div>
-              <div className="flex flex-wrap gap-3 pt-2">
-                <button
-                  type="submit"
-                  disabled={guardando}
-                  className="inline-flex items-center justify-center rounded-md bg-club-red px-4 py-2 font-semibold text-white transition-colors hover:bg-club-redDark disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {guardando ? 'Guardando...' : editandoId ? 'Actualizar' : 'Crear personal'}
-                </button>
-                {editandoId && (
-                  <button
-                    type="button"
-                    onClick={resetForm}
-                    className="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 font-semibold text-club-black transition-colors hover:bg-gray-50"
-                  >
-                    Limpiar
-                  </button>
-                )}
-              </div>
             </form>
           ) : (
             <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-club-black/70">
@@ -500,7 +521,7 @@ export default function Personal() {
           ) : personal.length === 0 ? (
             <p className="py-8 text-club-black/60">No se han encontrado registros de personal.</p>
           ) : (
-            <div className="overflow-x-auto">
+            <TableScroll className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead>
                   <tr className="text-left text-xs uppercase tracking-wide text-club-black/50">
@@ -574,7 +595,7 @@ export default function Personal() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableScroll>
           )}
         </section>
       </div>

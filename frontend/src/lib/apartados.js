@@ -1,7 +1,9 @@
 export const TODOS_APARTADOS = 'Todos';
 
 export const APARTADOS_APP = [
-  { key: 'inicio', label: 'Inicio', path: '/' },
+  { key: 'actividades', label: 'ACTIVIDADES', path: '/actividades' },
+  { key: 'inicio', label: 'PLANTILLAS', path: '/plantillas' },
+  { key: 'graficas', label: 'GRÁFICAS', path: '/graficas' },
   { key: 'campogramas', label: 'Campogramas', path: '/campogramas' },
   { key: 'captacion', label: 'CAPTACION', path: '/captacion' },
   { key: 'personal', label: 'PERSONAL', path: '/personal' },
@@ -9,6 +11,7 @@ export const APARTADOS_APP = [
   { key: 'listas', label: 'Listas', path: '/listas', roles: ['administrador', 'director'] },
   { key: 'clubes_maestros', label: 'CLUBES', path: '/listas/clubes', roles: ['administrador', 'director'] },
   { key: 'hojas_calculo', label: 'Hojas de calculo', path: '/hojas-calculo' },
+  { key: 'competiciones', label: 'Competiciones', path: '/competiciones', roles: ['administrador', 'director'] },
 ];
 
 export const APARTADOS_USUARIO = APARTADOS_APP.map(({ key, label }) => ({

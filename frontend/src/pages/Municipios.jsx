@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useClub } from '../context/ClubContext';
 import { api } from '../lib/api';
+import TableScroll from '../components/TableScroll';
 
 const COLORES_CIRCULAR = [
   '#2a78d6', // azul
@@ -114,7 +115,7 @@ export default function Municipios() {
   };
 
   const renderTablaEmbebida = (f) => (
-    <div className="mt-2 mb-1 overflow-x-auto rounded-md border border-gray-200">
+    <TableScroll className="mt-2 mb-1 overflow-x-auto rounded-md border border-gray-200">
       <table className="min-w-full divide-y divide-gray-200 bg-white">
         <thead className="bg-gray-50">
           <tr>
@@ -135,7 +136,7 @@ export default function Municipios() {
           ))}
         </tbody>
       </table>
-    </div>
+    </TableScroll>
   );
 
   const renderGraficaCircular = () => (

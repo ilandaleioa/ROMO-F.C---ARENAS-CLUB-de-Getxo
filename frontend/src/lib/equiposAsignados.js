@@ -1,3 +1,5 @@
+import { ordenarEquipos } from './equiposOrden';
+
 export const TODOS_EQUIPOS = 'Todos';
 const EQUIPOS_SEPARATOR = '||';
 
@@ -35,7 +37,7 @@ export function parseEquiposAsignados(valor) {
 }
 
 export function equiposAsignadosLabel(valor, { compacto = false } = {}) {
-  const equipos = parseEquiposAsignados(valor);
+  const equipos = ordenarEquipos(parseEquiposAsignados(valor));
   if (equipos.includes(TODOS_EQUIPOS)) return 'Todos';
   if (compacto && equipos.length > 2) return `${equipos.length} equipos`;
   return equipos.join(', ');

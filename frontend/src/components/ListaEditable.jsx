@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { actualizarFilaLista, actualizarLista, crearFilaLista, eliminarFilaLista, useListas } from '../lib/listas';
-import { EQUIPOS_POR_CLUB } from '../data/equipos';
+import { compararEquipos } from '../lib/equiposOrden';
+import TableScroll from './TableScroll';
 
 function generarId() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -19,16 +20,28 @@ function normalizarComparacion(valor) {
   return textoLimpio(valor).toLocaleLowerCase('es');
 }
 
-function ordenarEquiposPersonalizado(a, b) {
-  const indiceA = EQUIPOS_POR_CLUB.findIndex((nombre) => normalizarComparacion(nombre) === normalizarComparacion(a));
-  const indiceB = EQUIPOS_POR_CLUB.findIndex((nombre) => normalizarComparacion(nombre) === normalizarComparacion(b));
+function normalizarClave(valor) {
+  return textoLimpio(valor)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/gi, '')
+    .toUpperCase();
+}
 
-  if (indiceA === -1 && indiceB === -1) {
-    return a.localeCompare(b, 'es', { sensitivity: 'base' });
-  }
-  if (indiceA === -1) return 1;
-  if (indiceB === -1) return -1;
-  return indiceA - indiceB;
+function esRomoClub(valor) {
+  return normalizarClave(valor) === 'ROMOFC';
+}
+
+function compararConRomoPrimero(valorA, valorB) {
+  const romoA = esRomoClub(valorA);
+  const romoB = esRomoClub(valorB);
+
+  if (romoA !== romoB) return romoA ? -1 : 1;
+  return textoLimpio(valorA).localeCompare(textoLimpio(valorB), 'es', { sensitivity: 'base' });
+}
+
+function ordenarEquiposPersonalizado(_club, a, b) {
+  return compararEquipos(a, b);
 }
 
 function formularioInicial(lista, fila = null, opciones = {}) {
@@ -82,7 +95,7 @@ export function obtenerClubesDisponibles(listaClubes) {
     opciones.push({ value: valor, label: valor });
   });
 
-  return opciones;
+  return opciones.sort((a, b) => compararConRomoPrimero(a.label, b.label));
 }
 
 function obtenerEtiquetaClub(valor, clubesDisponibles) {
@@ -113,12 +126,12 @@ function agruparEquiposPorClub(filas, clubesDisponibles) {
     .map(([club, equipos]) => ({
       club,
       etiqueta: obtenerEtiquetaClub(club, clubesDisponibles),
-      equipos: [...new Set(equipos)].sort(ordenarEquiposPersonalizado),
+      equipos: [...new Set(equipos)].sort((a, b) => ordenarEquiposPersonalizado(club, a, b)),
     }))
-    .sort((a, b) => a.etiqueta.localeCompare(b.etiqueta, 'es', { sensitivity: 'base' }));
+    .sort((a, b) => compararConRomoPrimero(a.etiqueta, b.etiqueta));
 }
 
-function obtenerEquiposPorClub(filas = []) {
+function agruparEquiposPorClubTabla(filas = []) {
   const equiposPorClub = new Map();
 
   filas.forEach((fila) => {
@@ -132,7 +145,7 @@ function obtenerEquiposPorClub(filas = []) {
   });
 
   equiposPorClub.forEach((equipos, clave) => {
-    equiposPorClub.set(clave, Array.from(new Set(equipos)).sort(ordenarEquiposPersonalizado));
+    equiposPorClub.set(clave, Array.from(new Set(equipos)).sort((a, b) => ordenarEquiposPersonalizado(clave, a, b)));
   });
 
   return equiposPorClub;
@@ -155,17 +168,23 @@ export default function ListaEditable({ lista, clubesDisponibles = [] }) {
   const formSectionRef = useRef(null);
 
   const filasOrdenadas = useMemo(() => {
+    if (lista.id === 'clubes') {
+      return [...lista.filas].sort((a, b) =>
+        compararConRomoPrimero(textoLimpio(a?.nombre || a?.valor), textoLimpio(b?.nombre || b?.valor))
+      );
+    }
+
     if (lista.id !== 'equipos') return lista.filas;
 
     return [...lista.filas].sort((a, b) => {
       const clubA = obtenerEtiquetaClub(a?.club, clubesDisponibles);
       const clubB = obtenerEtiquetaClub(b?.club, clubesDisponibles);
-      const comparacionClub = clubA.localeCompare(clubB, 'es', { sensitivity: 'base' });
+      const comparacionClub = compararConRomoPrimero(clubA, clubB);
       if (comparacionClub !== 0) return comparacionClub;
 
       const equipoA = textoLimpio(a?.nombre);
       const equipoB = textoLimpio(b?.nombre);
-      return ordenarEquiposPersonalizado(equipoA, equipoB);
+      return ordenarEquiposPersonalizado(clubA, equipoA, equipoB);
     });
   }, [clubesDisponibles, lista.filas, lista.id]);
 
@@ -174,7 +193,7 @@ export default function ListaEditable({ lista, clubesDisponibles = [] }) {
     [clubesDisponibles, filasOrdenadas, lista.id]
   );
   const equiposPorClub = useMemo(
-    () => (lista.id === 'clubes' ? obtenerEquiposPorClub(listaEquipos?.filas || []) : new Map()),
+    () => (lista.id === 'clubes' ? agruparEquiposPorClubTabla(listaEquipos?.filas || []) : new Map()),
     [lista.id, listaEquipos]
   );
 
@@ -413,6 +432,15 @@ export default function ListaEditable({ lista, clubesDisponibles = [] }) {
               {editandoId ? 'Ajusta los campos y guarda los cambios.' : 'Rellena los campos para crear una fila nueva.'}
             </p>
           </div>
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-center">
+            <button
+              type="submit"
+              className="w-full sm:w-auto rounded-md bg-club-black px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-club-black/80"
+            >
+              {editandoId ? 'Guardar cambios' : 'Guardar'}
+            </button>
+          </div>
+          {error ? <p className="mb-3 text-sm font-medium text-club-red">{error}</p> : null}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {(esAdministrador ? lista.columnas : lista.columnas.filter((columna) => columna.key !== 'id')).map((columna) => {
               if (lista.id === 'equipos' && columna.key === 'club') {
@@ -484,19 +512,10 @@ export default function ListaEditable({ lista, clubesDisponibles = [] }) {
               );
             })}
           </div>
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-            {error ? <p className="text-sm font-medium text-club-red">{error}</p> : <span />}
-            <button
-              type="submit"
-              className="rounded-md bg-club-black px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-club-black/80"
-            >
-              {editandoId ? 'Guardar cambios' : 'Guardar'}
-            </button>
-          </div>
         </form>
       )}
 
-      <div className="overflow-x-auto">
+      <TableScroll className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200 text-sm">
           <thead className="bg-club-black text-white">
             <tr>
@@ -514,7 +533,12 @@ export default function ListaEditable({ lista, clubesDisponibles = [] }) {
           </thead>
           <tbody className="divide-y divide-gray-100">
             {filasOrdenadas.map((fila, indice) => (
-              <tr key={`${lista.id}-${fila.id || fila.nombre || fila.club || 'fila'}-${indice}`} className="transition-colors hover:bg-red-50/40">
+              <tr
+                key={`${lista.id}-${fila.id || fila.nombre || fila.club || 'fila'}-${indice}`}
+                className={`transition-colors hover:bg-red-50/40 ${
+                  lista.id === 'clubes' && esRomoClub(fila?.nombre || fila?.valor) ? 'bg-red-50/70 ring-1 ring-inset ring-club-red/15' : ''
+                }`}
+              >
                 <td className="px-4 py-3 text-club-black/45">{indice + 1}</td>
                 {columnasVisibles.map((columna) => (
                   <td key={columna.key} className="px-4 py-3 font-medium text-club-black/80">
@@ -533,7 +557,12 @@ export default function ListaEditable({ lista, clubesDisponibles = [] }) {
                               .slice(0, 2)}
                           </span>
                         )}
-                        <span>{fila[columna.key]}</span>
+                        <span className={esRomoClub(fila?.nombre || fila?.valor) ? 'font-bold text-club-red' : ''}>{fila[columna.key]}</span>
+                        {esRomoClub(fila?.nombre || fila?.valor) && (
+                          <span className="rounded-full bg-club-red px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm">
+                            Destacado
+                          </span>
+                        )}
                       </div>
                     ) : lista.id === 'equipos' && columna.key === 'club' ? (
                       <span className="inline-flex rounded-full bg-club-red/10 px-2.5 py-1 text-xs font-semibold text-club-red">
@@ -556,12 +585,17 @@ export default function ListaEditable({ lista, clubesDisponibles = [] }) {
                 ))}
                 {lista.id === 'clubes' && (() => {
                   const equipos = equiposPorClub.get(normalizarComparacion(fila.nombre)) || [];
+                  const esFilaRomo = esRomoClub(fila?.nombre || fila?.valor);
 
                   return (
                     <td className="px-4 py-3 text-club-black/80">
                       {equipos.length > 0 ? (
                         <details className="group max-w-xl">
-                          <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-club-black [&::-webkit-details-marker]:hidden">
+                          <summary
+                            className={`flex cursor-pointer list-none items-center gap-2 text-sm font-semibold [&::-webkit-details-marker]:hidden ${
+                              esFilaRomo ? 'text-club-red' : 'text-club-black'
+                            }`}
+                          >
                             <span>{equipos.length} equipo{equipos.length === 1 ? '' : 's'}</span>
                             <span className="text-club-red transition-transform group-open:rotate-180">⌄</span>
                           </summary>
@@ -569,7 +603,11 @@ export default function ListaEditable({ lista, clubesDisponibles = [] }) {
                             {equipos.map((equipo) => (
                               <span
                                 key={`${fila.id}-${equipo}`}
-                                className="inline-flex items-center rounded-full bg-club-red/10 px-3 py-1 text-xs font-semibold text-club-red"
+                                className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
+                                  esFilaRomo
+                                    ? 'border border-club-red/20 bg-club-red text-white shadow-sm'
+                                    : 'bg-club-red/10 text-club-red'
+                                }`}
                               >
                                 {equipo}
                               </span>
@@ -606,7 +644,7 @@ export default function ListaEditable({ lista, clubesDisponibles = [] }) {
             ))}
           </tbody>
         </table>
-      </div>
+      </TableScroll>
     </section>
   );
 }

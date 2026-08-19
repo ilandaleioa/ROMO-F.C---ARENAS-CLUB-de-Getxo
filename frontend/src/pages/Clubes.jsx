@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../lib/api';
 import { useClub } from '../context/ClubContext';
+import TableScroll from '../components/TableScroll';
+import { compararCategorias, compararEquipos, detectarCategoriaEquipo } from '../lib/equiposOrden';
 
 const CLUBES_INFO = {
   ROMO: { nombre: 'ROMO F.C.' },
@@ -19,14 +21,13 @@ function textoBusqueda(valor) {
 }
 
 function inferirCategoria(equipo) {
-  const texto = textoBusqueda(equipo);
-
-  if (texto.includes('PREBENJAMIN')) return 'Prebenjamin';
-  if (texto.includes('BENJAMIN')) return 'Benjamin';
-  if (texto.includes('ALEV')) return 'Alevin';
-  if (texto.includes('INFANTIL')) return 'Infantil';
-  if (texto.includes('CADETE')) return 'Cadete';
-  if (texto.includes('JUVENIL')) return 'Juvenil';
+  const categoria = detectarCategoriaEquipo(equipo);
+  if (categoria === 'PREBENJAMIN') return 'Prebenjamin';
+  if (categoria === 'BENJAMIN') return 'Benjamin';
+  if (categoria === 'ALEVIN') return 'Alevin';
+  if (categoria === 'INFANTIL') return 'Infantil';
+  if (categoria === 'CADETE') return 'Cadete';
+  if (categoria === 'JUVENIL') return 'Juvenil';
 
   return 'Sin categoria';
 }
@@ -45,10 +46,6 @@ function formatearAnios(anios) {
   return `${ordenados[0]} - ${ordenados[ordenados.length - 1]}`;
 }
 
-function ordenarPorNombre(a, b) {
-  return a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' });
-}
-
 function Tabla({ titulo, descripcion, columnas, filas, emptyText }) {
   return (
     <section className="space-y-3">
@@ -56,7 +53,7 @@ function Tabla({ titulo, descripcion, columnas, filas, emptyText }) {
         <h3 className="text-lg font-bold text-club-black">{titulo}</h3>
         {descripcion && <p className="text-sm text-club-black/60 mt-1">{descripcion}</p>}
       </div>
-      <div className="overflow-x-auto rounded-lg border border-gray-200">
+      <TableScroll className="overflow-x-auto rounded-lg border border-gray-200">
         <table className="min-w-[640px] w-full divide-y divide-gray-200 bg-white text-sm">
           <thead className="bg-club-black text-white">
             <tr>
@@ -87,7 +84,7 @@ function Tabla({ titulo, descripcion, columnas, filas, emptyText }) {
             )}
           </tbody>
         </table>
-      </div>
+      </TableScroll>
     </section>
   );
 }
@@ -148,7 +145,7 @@ export default function Clubes() {
     });
 
     const equipos = Array.from(equiposMap.values())
-      .sort((a, b) => a.categoria.localeCompare(b.categoria, 'es', { sensitivity: 'base' }) || ordenarPorNombre(a, b))
+      .sort((a, b) => compararEquipos(a.nombre, b.nombre))
       .map((equipo) => ({
         ...equipo,
         aniosNacimiento: formatearAnios(equipo.anios),
@@ -173,7 +170,7 @@ export default function Clubes() {
     });
 
     const categorias = Array.from(categoriasMap.values())
-      .sort(ordenarPorNombre)
+      .sort((a, b) => compararCategorias(a.nombre, b.nombre))
       .map((categoria) => ({
         ...categoria,
         aniosNacimiento: formatearAnios(categoria.anios),

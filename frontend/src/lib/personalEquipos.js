@@ -1,3 +1,5 @@
+import { ordenarEquipos } from './equiposOrden';
+
 const EQUIPOS_SEPARATOR = '||';
 export const TODOS_EQUIPOS = 'TODOS';
 export const NINGUNO_EQUIPOS = 'NINGUNO';
@@ -9,28 +11,26 @@ const EQUIPOS_PERSONAL_POR_CLUB = {
     'Cadete B',
     'Infantil 13',
     'Infantil 14',
-    'Alevin 15A',
-    'Alevin 15B',
-    'Alevin 16A',
-    'Alevin 16B',
-    'Benjamin 17',
-    'Benjamin 18',
+    'Alevín 15A',
+    'Alevín 15B',
+    'Alevín 16A',
+    'Alevín 16B',
+    'Benjamín 17',
+    'Benjamín 18',
   ],
   ROMO: [
-    'ROMO JUVENIL',
-    'ITZU JUVENIL',
-    'ROMO CADETE',
-    'ITZU CADETE',
-    'ROMO INFANTIL 2013',
-    'ROMO INFANTIL 2014',
-    'ROMO ALEVIN 2015 Gobela',
-    'ROMO ALEVIN 2015 Ibaiondo',
-    'ROMO ALEVIN 2016',
-    'ROMO BENJAMIN 2017 Gobela',
-    'ROMO BENJAMIN 2017 Ibaiondo',
-    'ROMO BENJAMIN 2018',
-    'ROMO PREBENJAMIN 2019',
-    'ROMO PREBENJAMIN 2020',
+    'Juvenil A',
+    'Juvenil B',
+    'Cadete A',
+    'Cadete B',
+    'Infantil 13',
+    'Infantil 14',
+    'Alevín 15A',
+    'Alevín 15B',
+    'Alevín 16A',
+    'Alevín 16B',
+    'Benjamín 17',
+    'Benjamín 18',
   ],
 };
 
@@ -46,8 +46,23 @@ function normalizarEspecialEquipo(valor) {
   return limpiarEquipo(valor).toUpperCase();
 }
 
+function normalizarClaveClub(valor) {
+  return limpiarEquipo(valor)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/gi, '')
+    .toUpperCase();
+}
+
+function resolverClaveClub(club) {
+  const clave = normalizarClaveClub(club);
+  if (clave.includes('ROMO')) return 'ROMO';
+  if (clave.includes('ARENAS')) return 'ARENAS';
+  return clave;
+}
+
 export function obtenerEquiposPersonalPorClub(club) {
-  return [...(EQUIPOS_PERSONAL_POR_CLUB[club] || [])];
+  return ordenarEquipos(EQUIPOS_PERSONAL_POR_CLUB[resolverClaveClub(club)] || []);
 }
 
 export function parseEquiposPersonal(valor) {
@@ -80,7 +95,7 @@ export function parseEquiposPersonal(valor) {
 }
 
 export function equiposPersonalLabel(valor, { compacto = false } = {}) {
-  const equipos = parseEquiposPersonal(valor);
+  const equipos = ordenarEquipos(parseEquiposPersonal(valor));
   if (equipos.length === 0) return NINGUNO_EQUIPOS;
   if (compacto && equipos.length > 2) return `${equipos.length} equipos`;
   return equipos.join(', ');

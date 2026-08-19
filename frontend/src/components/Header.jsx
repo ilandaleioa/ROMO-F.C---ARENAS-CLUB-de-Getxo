@@ -151,6 +151,74 @@ function BotonPantallaCompleta() {
   );
 }
 
+function BotonExportarPDF({ compacto = false }) {
+  const exportarPDF = () => {
+    window.print();
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={exportarPDF}
+      title="Exportar a PDF"
+      aria-label="Exportar a PDF"
+      className={`inline-flex items-center justify-center gap-2 rounded-md bg-white px-3 py-2 text-sm font-semibold text-club-black transition-colors hover:bg-white/90 ${
+        compacto ? 'p-2 px-2' : ''
+      }`}
+    >
+      <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4" aria-hidden="true">
+        <path d="M5 2a2 2 0 00-2 2v4a2 2 0 002 2V4h10V2H5z" />
+        <path d="M15 6h2a1 1 0 011 1v7a2 2 0 01-2 2h-2v-2h2V8h-1a1 1 0 01-1-1V6z" />
+        <path d="M5 8h10v10H5V8zm2 2v6h2.5a2 2 0 000-4H9v-2H7zm2 4H9v-2h1a1 1 0 010 2z" />
+      </svg>
+      {!compacto && <span>Exportar PDF</span>}
+    </button>
+  );
+}
+
+function PwaInstallButton() {
+  const promptRef = useRef(null);
+  const [instalable, setInstalable] = useState(false);
+
+  useEffect(() => {
+    const standalone = window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone;
+    if (standalone) return undefined;
+
+    const guardarPrompt = (event) => {
+      event.preventDefault();
+      promptRef.current = event;
+      setInstalable(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', guardarPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', guardarPrompt);
+  }, []);
+
+  const instalar = async () => {
+    if (!promptRef.current) return;
+    promptRef.current.prompt();
+    await promptRef.current.userChoice;
+    promptRef.current = null;
+    setInstalable(false);
+  };
+
+  if (!instalable) return null;
+
+  return (
+    <button
+      type="button"
+      onClick={instalar}
+      className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-3 py-2 text-sm font-semibold text-club-black transition-colors hover:bg-white/90"
+    >
+      <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4" aria-hidden="true">
+        <path d="M10 2a1 1 0 011 1v8.59l2.3-2.3a1 1 0 111.4 1.42l-4 4a1 1 0 01-1.4 0l-4-4a1 1 0 111.4-1.42l2.3 2.3V3a1 1 0 011-1z" />
+        <path d="M3 16a1 1 0 011 1v1h12v-1a1 1 0 112 0v2a1 1 0 01-1 1H3a1 1 0 01-1-1v-2a1 1 0 011-1z" />
+      </svg>
+      Instalar app
+    </button>
+  );
+}
+
 function BotonesHistorial() {
   const navigate = useNavigate();
 
@@ -197,22 +265,22 @@ export default function Header({ onToggleSidebar, menuAbierto, onToggleMenu }) {
   }, [user, setClub]);
 
   return (
-    <header className={`sticky top-0 z-50 text-white shadow-md ${headerBgClass}`}>
-      <div className="w-full px-4 py-3 flex items-center justify-between gap-4">
+    <header className={`app-header no-print sticky top-0 z-50 text-white shadow-md ${headerBgClass}`}>
+      <div className="app-header-content w-full px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-4">
         <div className="flex items-center gap-3 min-w-0">
           {user && (
             <button
               type="button"
               onClick={onToggleSidebar}
               aria-label="Abrir menu de navegacion"
-              className="md:hidden shrink-0 p-2 rounded-md bg-white/10 hover:bg-white/20 text-white transition-colors"
+              className="lg:hidden shrink-0 p-2 rounded-md bg-white/10 hover:bg-white/20 text-white transition-colors"
             >
               <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
                 <path fillRule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
               </svg>
             </button>
           )}
-          <ClubLogo />
+          <ClubLogo className="h-10 w-10 sm:h-12 sm:w-12 shrink-0" />
           <div className="leading-tight min-w-0">
             <h1 className={`text-base sm:text-xl font-bold tracking-wide truncate ${club === 'ARENAS' ? 'text-black' : 'text-white'}`}>
               {nombreClub}
@@ -221,17 +289,19 @@ export default function Header({ onToggleSidebar, menuAbierto, onToggleMenu }) {
         </div>
 
         {user && (
-          <div className="hidden md:flex items-center gap-2">
+          <div className="hidden lg:flex items-center gap-2">
             {puedeCambiarClub && <SelectorClub />}
             <BotonesHistorial />
+            <BotonExportarPDF />
           </div>
         )}
 
         {user && (
-          <div className="hidden md:flex items-center gap-3 text-sm">
+          <div className="hidden lg:flex items-center gap-3 text-sm">
             {mostrarFiltroEquipos && <FiltroEquiposSelector />}
+            <PwaInstallButton />
             <BotonPantallaCompleta />
-            <div className="text-right hidden lg:block">
+            <div className="text-right hidden xl:block">
               <p className="font-semibold">{user.username}</p>
               <p className="text-white/60 text-xs">{ROLE_LABELS[user.rol] || user.rol}</p>
             </div>
@@ -245,29 +315,41 @@ export default function Header({ onToggleSidebar, menuAbierto, onToggleMenu }) {
         )}
 
         {user && (
-          <button
-            type="button"
-            onClick={onToggleMenu}
-            aria-label={menuAbierto ? 'Cerrar menu de usuario' : 'Abrir menu de usuario'}
-            aria-expanded={menuAbierto}
-            className="md:hidden shrink-0 p-2 rounded-md bg-white/10 hover:bg-white/20 text-white transition-colors"
-          >
-            {menuAbierto ? (
-              <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-                <path d="M4.3 4.3a1 1 0 011.4 0L10 8.6l4.3-4.3a1 1 0 111.4 1.4L11.4 10l4.3 4.3a1 1 0 01-1.4 1.4L10 11.4l-4.3 4.3a1 1 0 01-1.4-1.4L8.6 10 4.3 5.7a1 1 0 010-1.4z" />
-              </svg>
-            ) : (
-              <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-                <path fillRule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
-              </svg>
-            )}
-          </button>
+          <div className="flex items-center gap-1 lg:hidden">
+            <BotonExportarPDF compacto />
+            <button
+              type="button"
+              onClick={onToggleMenu}
+              aria-label={menuAbierto ? 'Cerrar opciones de usuario' : 'Abrir opciones de usuario'}
+              aria-expanded={menuAbierto}
+              className="shrink-0 p-2 rounded-md bg-white/10 hover:bg-white/20 text-white transition-colors"
+            >
+              {menuAbierto ? (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+                  <path d="M20 21a8 8 0 00-16 0" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+                  <path fillRule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
+                </svg>
+              )}
+            </button>
+          </div>
         )}
       </div>
 
       {user && menuAbierto && (
-        <div className="md:hidden border-t border-white/10 px-4 py-3 flex flex-col gap-3">
+        <div className="lg:hidden border-t border-white/10 px-4 py-3 flex flex-col gap-3">
           {puedeCambiarClub && <SelectorClub grande />}
+
+          <div className="grid grid-cols-2 items-center gap-2 border-t border-white/10 pt-3">
+            <BotonExportarPDF />
+            {mostrarFiltroEquipos && <FiltroEquiposSelector />}
+            <BotonesHistorial />
+            <PwaInstallButton />
+            <BotonPantallaCompleta />
+          </div>
 
           <div className="flex items-center justify-between gap-3 pt-2 border-t border-white/10">
             <div>

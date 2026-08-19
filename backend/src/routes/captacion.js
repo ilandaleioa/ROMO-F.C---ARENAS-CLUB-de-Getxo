@@ -19,14 +19,17 @@ const CAMPOS_INFORMES = [
   'fecha',
   'observador',
   'jugador_id',
+  'club',
+  'equipo',
   'etapa',
   'categoria',
   'local',
   'visitante',
   'partido',
   'dorsal',
-  'tipologia',
   'lateralidad',
+  'descripcion',
+  'demarcacion_concreta',
   'titularidad',
   'minutos_jugados',
   'goles',
@@ -37,6 +40,11 @@ router.use(requireAuth);
 
 function normalizarTextoError(error) {
   return [error?.message, error?.details, error?.hint].filter(Boolean).join(' ').toLowerCase();
+}
+
+function esErrorDeConexion(error) {
+  const texto = normalizarTextoError(error);
+  return /fetch failed|econn|enotfound|etimedout|network|timeout/i.test(texto);
 }
 
 function limpiarPayload(body) {
@@ -61,7 +69,7 @@ function obtenerFechaHoyISO() {
 }
 
 function limpiarRegistroSegunRol(registro, rol) {
-  if (!registro || rol === ROLES.ADMINISTRADOR) {
+  if (!registro) {
     return registro;
   }
 
@@ -136,6 +144,12 @@ async function ejecutarConFallbackCampos(ejecutar, camposValidos = CAMPOS) {
       return respuesta;
     }
 
+    // Etapa es un dato funcional del formulario. Omitirlo y devolver 200 hace
+    // que parezca guardado, pero se pierde al volver a cargar el registro.
+    if (faltante === 'etapa') {
+      return respuesta;
+    }
+
     omitidas.add(faltante);
   }
 }
@@ -144,6 +158,11 @@ function responderError(res, error, accion) {
   console.error(`Error ${accion} registros de captacion:`, {
     code: error?.code, message: error?.message, details: error?.details, hint: error?.hint,
   });
+  if (esErrorDeConexion(error)) {
+    return res.status(503).json({
+      error: 'No se pudo conectar con Supabase. Comprueba la conexion del backend y vuelve a intentarlo.',
+    });
+  }
   if (esTablaInexistente(error)) {
     return res.status(503).json({
       error: `No existe la tabla "${TABLA_CAPTACION}" en Supabase. Ejecuta backend/scripts/crear-tabla-captacion.sql en el editor SQL.`,
@@ -161,6 +180,11 @@ function responderErrorInformes(res, error, accion) {
   console.error(`Error ${accion} informes de captacion:`, {
     code: error?.code, message: error?.message, details: error?.details, hint: error?.hint,
   });
+  if (esErrorDeConexion(error)) {
+    return res.status(503).json({
+      error: 'No se pudo conectar con Supabase. Comprueba la conexion del backend y vuelve a intentarlo.',
+    });
+  }
   if (esTablaInexistente(error)) {
     return res.status(503).json({
       error: `No existe la tabla "${TABLA_INFORMES}" en Supabase. Ejecuta backend/scripts/crear-tabla-captacion-informes.sql en el editor SQL.`,
@@ -193,13 +217,13 @@ function validarInformePayload(payload) {
 function calcularPartidoInforme(payload) {
   const local = String(payload?.local || '').trim();
   const visitante = String(payload?.visitante || '').trim();
-  if (local && visitante) return `${local} - ${visitante}`;
-  return local || visitante || '';
+  if (local && visitante) return `${local} Vs ${visitante}`;
+  return '';
 }
 
 function completarInformeConJugador(payload, jugador) {
   const completado = { ...payload };
-  const camposDesdeJugador = ['etapa', 'categoria', 'dorsal', 'tipologia', 'lateralidad'];
+  const camposDesdeJugador = ['club', 'equipo', 'etapa', 'categoria', 'dorsal', 'lateralidad'];
 
   for (const campo of camposDesdeJugador) {
     if (!String(completado[campo] || '').trim()) {
