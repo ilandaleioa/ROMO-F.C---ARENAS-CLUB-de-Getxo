@@ -50,7 +50,6 @@ const CAMPOS = [
 ];
 
 const VALORACION_GENERAL_OPCIONES = [1, 2, 3, 4, 5];
-const FECHA_NACIMIENTO_POR_DEFECTO = '2010-01-01';
 const RESPONSABLES_ALTA_INICIALES = ['Adrian', 'Alex', 'Mikel Exposito'];
 const RESPONSABLES_ALTA_STORAGE_KEY = 'captacion.responsablesAlta';
 const RESPONSABLES_ALTA_NUEVO_VALUE = '__nueva_opcion_responsable_alta__';
@@ -321,8 +320,6 @@ function crearFormVacio({ clubPredeterminado = '', responsablePredeterminado = '
       [campo.key]:
         campo.key === 'fecha_alta'
           ? obtenerFechaHoyISO()
-          : campo.key === 'fecha_nacimiento'
-            ? FECHA_NACIMIENTO_POR_DEFECTO
           : campo.key === 'club'
               ? clubPredeterminado
               : campo.key === 'quien_da_alta'
@@ -361,10 +358,7 @@ function parseFechaNacimiento(valor) {
 function calcularDatosNacimiento(fechaNacimiento) {
   const fecha = parseFechaNacimiento(fechaNacimiento);
   if (!fecha || Number.isNaN(fecha.getTime())) {
-    return {
-      anio_nacimiento: '',
-      edad: '',
-    };
+    return null;
   }
 
   const hoy = new Date();
@@ -1165,6 +1159,7 @@ export default function Captacion() {
   );
 
   const actualizarCampo = (key, value) => {
+    const datosNacimiento = key === 'fecha_nacimiento' ? calcularDatosNacimiento(value) : null;
     setForm((prev) => ({
       ...prev,
       [key]: value,
@@ -1177,7 +1172,7 @@ export default function Captacion() {
               : '',
           }
         : {}),
-      ...(key === 'fecha_nacimiento' ? calcularDatosNacimiento(value) : {}),
+      ...(datosNacimiento || {}),
     }));
   };
 
@@ -1324,7 +1319,7 @@ export default function Captacion() {
       const datosNacimiento = calcularDatosNacimiento(form.fecha_nacimiento);
       const formCalculado = {
         ...form,
-        ...datosNacimiento,
+        ...(datosNacimiento || {}),
       };
       const payload = {
         ...camposVisibles.reduce(
@@ -1825,13 +1820,33 @@ export default function Captacion() {
           <option value={RESPONSABLES_ALTA_NUEVO_VALUE}>+ Anadir nuevo...</option>
         </select>
       );
-    } else if (campo.type === 'computed' || campo.key === 'anio_nacimiento' || campo.key === 'edad') {
+    } else if (campo.type === 'computed') {
       contenido = (
         <input
           type="text"
           value={campo.type === 'computed' ? nombreCompleto(form) : valor}
           readOnly
           className={readOnlyClass}
+        />
+      );
+    } else if (campo.key === 'anio_nacimiento' || campo.key === 'edad') {
+      const tieneFechaNacimiento = Boolean(String(form.fecha_nacimiento || '').trim());
+      contenido = tieneFechaNacimiento ? (
+        <input
+          type="text"
+          value={valor}
+          readOnly
+          className={readOnlyClass}
+        />
+      ) : (
+        <input
+          type="number"
+          value={valor}
+          onChange={(event) => actualizarCampo(campo.key, event.target.value)}
+          min={campo.key === 'edad' ? 0 : 1900}
+          max={campo.key === 'edad' ? 120 : undefined}
+          step={1}
+          className={inputClass}
         />
       );
     } else if (campo.type === 'select') {

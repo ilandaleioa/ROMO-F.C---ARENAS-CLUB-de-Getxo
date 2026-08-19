@@ -3,10 +3,12 @@ export const TODOS_APARTADOS = 'Todos';
 export const APARTADOS_APP = [
   { key: 'actividades', label: 'ACTIVIDADES', path: '/actividades' },
   { key: 'inicio', label: 'PLANTILLAS', path: '/plantillas' },
-  { key: 'graficas', label: 'GRÁFICAS', path: '/graficas' },
+  { key: 'equipos', label: 'MIS EQUIPOS', path: '/equipos' },
+  { key: 'graficas', label: 'GRAFICAS', path: '/graficas' },
   { key: 'campogramas', label: 'Campogramas', path: '/campogramas' },
   { key: 'captacion', label: 'CAPTACION', path: '/captacion' },
   { key: 'personal', label: 'PERSONAL', path: '/personal' },
+  { key: 'configuracion', label: 'CONFIGURACIÓN', path: '/configuracion', roles: ['administrador', 'director'] },
   { key: 'usuarios', label: 'Usuarios', path: '/usuarios', roles: ['administrador', 'director'] },
   { key: 'listas', label: 'Listas', path: '/listas', roles: ['administrador', 'director'] },
   { key: 'clubes_maestros', label: 'CLUBES', path: '/listas/clubes', roles: ['administrador', 'director'] },

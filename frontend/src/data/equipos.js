@@ -1,24 +1,50 @@
 import { ordenarEquipos } from '../lib/equiposOrden';
 
-const EQUIPOS_BASE = [
+export const EQUIPOS_BASE_CLUB = [
+  'Juvenil A',
+  'Juvenil B',
+  'Juvenil C',
+  'Juvenil D',
+  'Cadete A',
+  'Cadete B',
+  'Cadete C',
+  'Cadete D',
+  'Infantil A',
+  'Infantil B',
+  'Infantil C',
+  'Infantil D',
+  'Alevín A',
+  'Alevín B',
+  'Alevín C',
+  'Alevín D',
+  'Benjamín A',
+  'Benjamín B',
+  'Benjamín C',
+  'Benjamín D',
+  'Filial',
+  'Primer equipo',
+];
+
+const EQUIPOS_ROMO_ARENAS = [
   'Juvenil A',
   'Juvenil B',
   'Cadete A',
   'Cadete B',
   'Infantil 13',
   'Infantil 14',
-  'Alevín 15A',
-  'Alevín 15B',
-  'Alevín 16A',
-  'Alevín 16B',
-  'Benjamín 17',
-  'Benjamín 18',
+  'AlevÃ­n 15A',
+  'AlevÃ­n 15B',
+  'AlevÃ­n 16A',
+  'AlevÃ­n 16B',
+  'BenjamÃ­n 17',
+  'BenjamÃ­n 18',
 ];
 
-export const EQUIPOS_POR_CLUB = Object.assign([...EQUIPOS_BASE], {
-  ARENAS: [...EQUIPOS_BASE],
-  ROMO: [...EQUIPOS_BASE],
-});
+export const EQUIPOS_POR_CLUB = {
+  DEFAULT: [...EQUIPOS_BASE_CLUB],
+  ARENAS: [...EQUIPOS_ROMO_ARENAS],
+  ROMO: [...EQUIPOS_ROMO_ARENAS],
+};
 
 function normalizarClaveClub(valor) {
   return String(valor ?? '')
@@ -37,5 +63,6 @@ function resolverClaveClub(club) {
 }
 
 export function obtenerEquiposPorClub(club) {
-  return ordenarEquipos(EQUIPOS_POR_CLUB[resolverClaveClub(club)] || []);
+  const clave = resolverClaveClub(club);
+  return ordenarEquipos(EQUIPOS_POR_CLUB[clave] || EQUIPOS_POR_CLUB.DEFAULT);
 }

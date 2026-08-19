@@ -3,6 +3,7 @@ const TODOS_APARTADOS = 'Todos';
 const APARTADOS_PERMITIDOS = [
   'inicio',
   'actividades',
+  'equipos',
   'graficas',
   'campogramas',
   'captacion',

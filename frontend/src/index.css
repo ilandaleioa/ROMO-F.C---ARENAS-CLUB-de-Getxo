@@ -145,6 +145,11 @@ canvas {
   height: 1px;
 }
 
+@page {
+  size: A4 landscape;
+  margin: 10mm;
+}
+
 @media print {
   html,
   body,
@@ -156,6 +161,8 @@ canvas {
 
   body {
     overflow: visible !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
   .no-print {
@@ -186,5 +193,134 @@ canvas {
   .app-main .rounded-2xl,
   .app-main .rounded-xl {
     break-inside: avoid;
+  }
+
+  .actividades-page {
+    padding: 0 !important;
+    background: #ffffff !important;
+  }
+
+  .actividades-page .actividades-hero,
+  .actividades-page .actividades-filtros,
+  .actividades-page .actividades-toolbar,
+  .actividades-page .actividades-vista-selector,
+  .actividades-page .actividades-calendario-actions,
+  .actividades-page .actividades-calendario-leyenda,
+  .actividades-page .actividades-abreviaturas,
+  .actividades-page .actividades-acciones-actividad,
+  .actividades-page .actividades-calendario-add,
+  .actividades-page .actividades-calendario-menu {
+    display: none !important;
+  }
+
+  .actividades-page .actividades-calendario button,
+  .actividades-page .actividades-semana button,
+  .actividades-page .actividades-equipos button,
+  .actividades-page .actividades-horas button,
+  .actividades-page .actividades-tabla button {
+    display: none !important;
+  }
+
+  .actividades-page .actividades-calendario,
+  .actividades-page .actividades-tabla,
+  .actividades-page .actividades-equipos,
+  .actividades-page .actividades-horas,
+  .actividades-page .actividades-semana {
+    box-shadow: none !important;
+  }
+
+  .actividades-page .actividades-calendario-header {
+    gap: 0.25rem !important;
+    padding: 0 0 4mm !important;
+  }
+
+  .actividades-page .actividades-calendario-weekdays,
+  .actividades-page .actividades-calendario-body {
+    overflow: visible !important;
+  }
+
+  .actividades-page .actividades-calendario-shell[data-fullscreen='true'] {
+    position: static !important;
+    inset: auto !important;
+    z-index: auto !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
+
+  .actividades-page .actividades-calendario-shell[data-fullscreen='true'] .actividades-calendario {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+  }
+
+  .actividades-page .actividades-calendario-weekdays-grid,
+  .actividades-page .actividades-calendario-grid,
+  .actividades-page .actividades-tabla .overflow-x-auto > table,
+  .actividades-page .actividades-equipos .overflow-x-auto > div,
+  .actividades-page .actividades-horas .overflow-x-auto > div {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .actividades-page .actividades-calendario-grid {
+    gap: 2mm !important;
+    padding: 0 !important;
+  }
+
+  .actividades-page .actividades-calendario-day {
+    min-height: 92px !important;
+    padding: 2.5mm !important;
+    break-inside: avoid;
+  }
+
+  .actividades-page .actividades-calendario-day-number {
+    top: 1.5mm !important;
+    right: 1.5mm !important;
+    font-size: 10pt !important;
+  }
+
+  .actividades-page .actividades-calendario-day-content {
+    min-height: 58px !important;
+    padding-top: 8mm !important;
+  }
+
+  .actividades-page .actividades-calendario-item {
+    padding: 2mm 2.5mm !important;
+    break-inside: avoid;
+  }
+
+  .actividades-page .actividades-calendario-item p,
+  .actividades-page .actividades-calendario-item span,
+  .actividades-page .actividades-calendario-item div {
+    text-shadow: none !important;
+  }
+
+  .actividades-page .actividades-tabla table {
+    font-size: 10pt !important;
+  }
+
+  .actividades-page .actividades-tabla-acciones {
+    display: none !important;
+  }
+
+  .actividades-page .actividades-semana .actividades-semana-grid {
+    width: 100% !important;
+    min-width: 0 !important;
+    gap: 2mm !important;
+    padding: 0 !important;
+  }
+
+  .actividades-page .actividades-semana section {
+    min-height: 0 !important;
+    padding: 2.5mm !important;
+  }
+
+  .actividades-page .actividades-tabla th,
+  .actividades-page .actividades-tabla td {
+    padding: 3mm 2.5mm !important;
+  }
+
+  .actividades-page .actividades-tabla .overflow-x-auto {
+    overflow: visible !important;
   }
 }

@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { useClub } from '../context/ClubContext';
-import { useFiltroEquipos } from '../context/FiltroEquiposContext';
 
 const FORM_VACIO = {
   nombre: '',
@@ -94,8 +93,8 @@ function BotonAccion({ tipo, etiqueta, onClick, disabled = false, peligro = fals
 
 export default function Competiciones() {
   const { club } = useClub();
-  const { equiposDisponibles } = useFiltroEquipos();
   const [competiciones, setCompeticiones] = useState([]);
+  const [equipos, setEquipos] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
   const [formError, setFormError] = useState('');
@@ -104,10 +103,6 @@ export default function Competiciones() {
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [guardando, setGuardando] = useState(false);
 
-  const equiposOrdenados = useMemo(
-    () => [...equiposDisponibles].sort((a, b) => texto(a).localeCompare(texto(b), 'es')),
-    [equiposDisponibles]
-  );
   const totalMinutos = numero(form.partes) * numero(form.minutos_por_parte);
 
   const cargarCompeticiones = useCallback(async () => {
@@ -123,13 +118,23 @@ export default function Competiciones() {
     }
   }, []);
 
+  const cargarEquipos = useCallback(async () => {
+    try {
+      const respuesta = await api.get('/competiciones/equipos');
+      setEquipos(respuesta.equipos || []);
+    } catch (_) {
+      setEquipos([]);
+    }
+  }, []);
+
   useEffect(() => {
     setMostrarFormulario(false);
     setEditandoId(null);
     setForm(FORM_VACIO);
     setFormError('');
     cargarCompeticiones();
-  }, [club, cargarCompeticiones]);
+    cargarEquipos();
+  }, [club, cargarCompeticiones, cargarEquipos]);
 
   const cambiarCampo = (campo, valor) => {
     setForm((actual) => ({ ...actual, [campo]: valor }));
@@ -138,7 +143,7 @@ export default function Competiciones() {
 
   const abrirCrear = () => {
     setEditandoId(null);
-    setForm({ ...FORM_VACIO, equipo_interno: equiposOrdenados[0] || '' });
+    setForm({ ...FORM_VACIO, equipo_interno: equipos[0] || '' });
     setFormError('');
     setMostrarFormulario(true);
   };
@@ -211,7 +216,7 @@ export default function Competiciones() {
     }
   };
 
-  const equipos = equiposOrdenados.length > 0 ? equiposOrdenados : ['Sin equipos disponibles'];
+  const equiposParaSelector = equipos.length > 0 ? equipos : ['Sin equipos disponibles'];
 
   return (
     <div className="min-h-full bg-white px-5 py-8 sm:px-8 sm:py-10 lg:px-12">
@@ -244,7 +249,7 @@ export default function Competiciones() {
               <label className="text-sm font-black uppercase tracking-wide text-slate-600">Nombre de la competición *<input value={form.nombre} onChange={(evento) => cambiarCampo('nombre', evento.target.value)} required className="mt-2 h-16 w-full rounded-2xl border border-slate-200 bg-white px-6 text-lg font-normal normal-case tracking-normal text-slate-800 shadow-sm focus:border-club-red focus:outline-none focus:ring-2 focus:ring-club-red/20" /></label>
               <label className="text-sm font-black uppercase tracking-wide text-slate-600">Tipo *<select value={form.tipo} onChange={(evento) => cambiarCampo('tipo', evento.target.value)} required className="mt-2 h-16 w-full rounded-2xl border border-slate-200 bg-white px-6 text-lg font-normal normal-case tracking-normal text-slate-800 shadow-sm focus:border-club-red focus:outline-none focus:ring-2 focus:ring-club-red/20"><option value="liga">Liga</option><option value="amistoso">Amistoso</option></select></label>
               <label className="text-sm font-black uppercase tracking-wide text-slate-600">Número de partes *<input type="number" min="1" value={form.partes} onChange={(evento) => cambiarCampo('partes', evento.target.value)} required className="mt-2 h-16 w-full rounded-2xl border border-slate-200 bg-white px-6 text-lg font-normal normal-case tracking-normal text-slate-800 shadow-sm focus:border-club-red focus:outline-none focus:ring-2 focus:ring-club-red/20" /></label>
-              <label className="text-sm font-black uppercase tracking-wide text-slate-600">Equipo interno<select value={form.equipo_interno} onChange={(evento) => cambiarCampo('equipo_interno', evento.target.value)} className="mt-2 h-16 w-full rounded-2xl border border-slate-200 bg-white px-6 text-lg font-normal normal-case tracking-normal text-slate-800 shadow-sm focus:border-club-red focus:outline-none focus:ring-2 focus:ring-club-red/20"><option value="">-- Seleccionar equipo --</option>{equipos.map((equipo) => <option key={equipo} value={equipo} disabled={equipo === 'Sin equipos disponibles'}>{equipo}</option>)}</select></label>
+              <label className="text-sm font-black uppercase tracking-wide text-slate-600">Equipo interno<select value={form.equipo_interno} onChange={(evento) => cambiarCampo('equipo_interno', evento.target.value)} className="mt-2 h-16 w-full rounded-2xl border border-slate-200 bg-white px-6 text-lg font-normal normal-case tracking-normal text-slate-800 shadow-sm focus:border-club-red focus:outline-none focus:ring-2 focus:ring-club-red/20"><option value="">-- Seleccionar equipo --</option>{equiposParaSelector.map((equipo) => <option key={equipo} value={equipo} disabled={equipo === 'Sin equipos disponibles'}>{equipo}</option>)}</select></label>
               <label className="text-sm font-black uppercase tracking-wide text-slate-600">Minutos por parte *<input type="number" min="1" value={form.minutos_por_parte} onChange={(evento) => cambiarCampo('minutos_por_parte', evento.target.value)} required className="mt-2 h-16 w-full rounded-2xl border border-slate-200 bg-white px-6 text-lg font-normal normal-case tracking-normal text-slate-800 shadow-sm focus:border-club-red focus:outline-none focus:ring-2 focus:ring-club-red/20" /></label>
               <div className="text-sm font-black uppercase tracking-wide text-slate-600">Total de minutos<div className="mt-2 flex h-16 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-6 text-xl font-black normal-case tracking-normal text-club-red shadow-sm"><span aria-hidden="true">◷</span> {totalMinutos > 0 ? `${totalMinutos} min` : '—'}</div></div>
             </div>

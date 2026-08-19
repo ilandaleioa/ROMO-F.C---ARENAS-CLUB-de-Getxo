@@ -7,7 +7,7 @@ import { FiltroEquiposProvider } from './context/FiltroEquiposContext';
 import { VistaPlantillasProvider } from './context/VistaPlantillasContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Header from './components/Header';
-import Sidebar from './components/Sidebar';
+import Sidebar from './components/Sidebar.jsx';
 import Login from './pages/Login';
 import Plantillas from './pages/Plantillas';
 import FichaJugador from './pages/FichaJugador';
@@ -19,6 +19,9 @@ import Captacion from './pages/Captacion';
 import CaptacionDetalle from './pages/CaptacionDetalle';
 import Clubes from './pages/Clubes';
 import ClubesMaestros from './pages/ClubesMaestros';
+import Configuracion from './pages/Configuracion';
+import MisEquipos from './pages/MisEquipos';
+import EquiposMaestros from './pages/EquiposMaestros';
 import Listas from './pages/Listas';
 import Personal from './pages/Personal';
 import Actividades from './pages/Actividades';
@@ -156,6 +159,16 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/configuracion"
+        element={
+          <ProtectedRoute allowedRoles={['administrador', 'director']} requiredApartado="configuracion">
+            <Layout>
+              <Configuracion />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/clubes"
         element={
           <ProtectedRoute>
@@ -177,11 +190,23 @@ function AppRoutes() {
       />
       <Route
         path="/equipos"
-        element={<Navigate to="/listas/clubes" replace />}
+        element={
+          <ProtectedRoute requiredApartado="equipos">
+            <Layout>
+              <MisEquipos />
+            </Layout>
+          </ProtectedRoute>
+        }
       />
       <Route
         path="/listas/equipos"
-        element={<Navigate to="/listas/clubes" replace />}
+        element={
+          <ProtectedRoute allowedRoles={['administrador', 'director']} requiredApartado="equipos">
+            <Layout>
+              <EquiposMaestros />
+            </Layout>
+          </ProtectedRoute>
+        }
       />
       <Route
         path="/usuarios"

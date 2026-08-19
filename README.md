@@ -26,6 +26,7 @@ Columnas sensibles (nunca llegan al frontend si el rol es Tecnico): `dni_jugador
 - La tabla `usuarios` necesita al menos: `id`, `username`, `password_hash`, `rol`, `equipo_asignado`, `apartados_visibles`, `activo` (booleano, opcional pero recomendado para poder desactivar usuarios sin borrarlos)
 - Si no existe aun, crea `apartados_visibles` como `text` con valor por defecto `Todos`.
 - Si la tabla ya existia antes de añadir esta funcion, ejecuta `backend/scripts/migrar-usuarios-apartados.sql` en el editor SQL de Supabase.
+- Mientras esa migracion no este aplicada, la pantalla de usuarios seguira permitiendo editar el resto de campos, pero no podra guardar `apartados_visibles`.
 - La tabla `personal` necesita al menos: `id`, `club`, `nombre`, `primer_apellido`, `segundo_apellido`, `telefono`, `email`, `cargo`, `equipo`, `foto_path`
 - `creado_en` y `actualizado_en` son opcionales; si existen en tu tabla, se seguirán guardando, pero el backend ya no depende de ellos para crear o listar personal.
 

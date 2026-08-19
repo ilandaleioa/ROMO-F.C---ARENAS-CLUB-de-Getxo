@@ -108,6 +108,72 @@ function FiltroEquiposSelector() {
   );
 }
 
+function FiltroEquiposSelectorCentro() {
+  const { equiposDisponibles, equiposSeleccionados, toggleEquipo, limpiarSeleccion } = useFiltroEquipos();
+  const [abierto, setAbierto] = useState(false);
+  const contenedorRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickFuera = (e) => {
+      if (contenedorRef.current && !contenedorRef.current.contains(e.target)) {
+        setAbierto(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickFuera);
+    return () => document.removeEventListener('mousedown', handleClickFuera);
+  }, []);
+
+  if (equiposDisponibles.length === 0) return null;
+
+  const etiqueta =
+    equiposSeleccionados.length === 0
+      ? 'Todos los equipos'
+      : equiposSeleccionados.length === 1
+      ? equiposSeleccionados[0]
+      : `${equiposSeleccionados.length} equipos`;
+
+  return (
+    <div className="relative" ref={contenedorRef}>
+      <button
+        type="button"
+        onClick={() => setAbierto((v) => !v)}
+        className="flex min-w-[16rem] max-w-[min(24rem,100vw-2rem)] items-center justify-between gap-2 rounded-md bg-club-black px-4 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-black"
+      >
+        <span className="truncate">Equipos: {etiqueta}</span>
+        <svg viewBox="0 0 10 6" className="h-3 w-3 shrink-0" aria-hidden="true" fill="currentColor">
+          <path d="M5 6 0 0h10L5 6Z" />
+        </svg>
+      </button>
+
+      {abierto && (
+        <div className="absolute left-1/2 mt-2 w-64 max-h-80 -translate-x-1/2 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg z-50 text-club-black">
+          <button
+            type="button"
+            onClick={limpiarSeleccion}
+            className="w-full border-b border-gray-100 px-4 py-2 text-left text-sm font-semibold hover:bg-red-50/60"
+          >
+            Todos los equipos
+          </button>
+          {equiposDisponibles.map((eq) => (
+            <label
+              key={eq}
+              className="flex cursor-pointer items-center gap-2 border-b border-gray-100 px-4 py-2 text-sm last:border-b-0 hover:bg-red-50/60"
+            >
+              <input
+                type="checkbox"
+                checked={equiposSeleccionados.includes(eq)}
+                onChange={() => toggleEquipo(eq)}
+                className="h-4 w-4 accent-club-red"
+              />
+              {eq}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function BotonPantallaCompleta() {
   const [esPantallaCompleta, setEsPantallaCompleta] = useState(Boolean(document.fullscreenElement));
 
@@ -147,31 +213,6 @@ function BotonPantallaCompleta() {
           <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
         </svg>
       )}
-    </button>
-  );
-}
-
-function BotonExportarPDF({ compacto = false }) {
-  const exportarPDF = () => {
-    window.print();
-  };
-
-  return (
-    <button
-      type="button"
-      onClick={exportarPDF}
-      title="Exportar a PDF"
-      aria-label="Exportar a PDF"
-      className={`inline-flex items-center justify-center gap-2 rounded-md bg-white px-3 py-2 text-sm font-semibold text-club-black transition-colors hover:bg-white/90 ${
-        compacto ? 'p-2 px-2' : ''
-      }`}
-    >
-      <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4" aria-hidden="true">
-        <path d="M5 2a2 2 0 00-2 2v4a2 2 0 002 2V4h10V2H5z" />
-        <path d="M15 6h2a1 1 0 011 1v7a2 2 0 01-2 2h-2v-2h2V8h-1a1 1 0 01-1-1V6z" />
-        <path d="M5 8h10v10H5V8zm2 2v6h2.5a2 2 0 000-4H9v-2H7zm2 4H9v-2h1a1 1 0 010 2z" />
-      </svg>
-      {!compacto && <span>Exportar PDF</span>}
     </button>
   );
 }
@@ -292,13 +333,11 @@ export default function Header({ onToggleSidebar, menuAbierto, onToggleMenu }) {
           <div className="hidden lg:flex items-center gap-2">
             {puedeCambiarClub && <SelectorClub />}
             <BotonesHistorial />
-            <BotonExportarPDF />
           </div>
         )}
 
         {user && (
           <div className="hidden lg:flex items-center gap-3 text-sm">
-            {mostrarFiltroEquipos && <FiltroEquiposSelector />}
             <PwaInstallButton />
             <BotonPantallaCompleta />
             <div className="text-right hidden xl:block">
@@ -316,7 +355,6 @@ export default function Header({ onToggleSidebar, menuAbierto, onToggleMenu }) {
 
         {user && (
           <div className="flex items-center gap-1 lg:hidden">
-            <BotonExportarPDF compacto />
             <button
               type="button"
               onClick={onToggleMenu}
@@ -339,12 +377,17 @@ export default function Header({ onToggleSidebar, menuAbierto, onToggleMenu }) {
         )}
       </div>
 
+      {user && mostrarFiltroEquipos && (
+        <div className="hidden lg:flex justify-center border-t border-black/10 bg-gray-100 px-3 sm:px-4 py-3">
+          <FiltroEquiposSelectorCentro />
+        </div>
+      )}
+
       {user && menuAbierto && (
         <div className="lg:hidden border-t border-white/10 px-4 py-3 flex flex-col gap-3">
           {puedeCambiarClub && <SelectorClub grande />}
 
           <div className="grid grid-cols-2 items-center gap-2 border-t border-white/10 pt-3">
-            <BotonExportarPDF />
             {mostrarFiltroEquipos && <FiltroEquiposSelector />}
             <BotonesHistorial />
             <PwaInstallButton />

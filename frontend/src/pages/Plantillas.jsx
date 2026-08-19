@@ -116,6 +116,7 @@ export default function Plantillas({ soloGraficas = false }) {
   const [mensajeSync, setMensajeSync] = useState('');
   const [filtroEquiposAbierto, setFiltroEquiposAbierto] = useState(false);
   const [filtroDeportivoAbierto, setFiltroDeportivoAbierto] = useState(null);
+  const [tarjetaAccionesAbiertaId, setTarjetaAccionesAbiertaId] = useState(null);
   const { vista, setVista } = useVistaPlantillas();
   const [esMovil, setEsMovil] = useState(detectarMovil);
 
@@ -147,6 +148,12 @@ export default function Plantillas({ soloGraficas = false }) {
   }, []);
 
   const vistaVisible = soloGraficas ? 'graficas' : esMovil ? 'tabla' : vista;
+
+  useEffect(() => {
+    if (vistaVisible !== 'tarjetas') {
+      setTarjetaAccionesAbiertaId(null);
+    }
+  }, [vistaVisible]);
 
   const cargarJugadores = useCallback(async () => {
     setError('');
@@ -557,6 +564,7 @@ export default function Plantillas({ soloGraficas = false }) {
     return (
       <Link
         to={`/plantillas/${jugador.id}#datos-deportivos`}
+        onClick={(event) => event.stopPropagation()}
         className="inline-flex items-center justify-center h-8 w-8 shrink-0 rounded-md border border-club-red/20 bg-white text-club-red hover:bg-red-50 hover:text-club-redDark transition-colors"
         aria-label={`Editar a ${nombreCompleto(jugador)}`}
         title={`Editar a ${nombreCompleto(jugador)}`}
@@ -591,7 +599,7 @@ export default function Plantillas({ soloGraficas = false }) {
   };
 
   const renderAccionesJugador = (jugador) => (
-    <div className="inline-flex items-center justify-start gap-1.5">
+    <div className="inline-flex items-center justify-start gap-1.5" onClick={(event) => event.stopPropagation()}>
       {renderBotonVer(jugador)}
       {renderBotonEditar(jugador)}
       {renderBotonBorrar(jugador)}
@@ -839,7 +847,20 @@ export default function Plantillas({ soloGraficas = false }) {
       {lista.map((j) => (
         <div
           key={j.id}
-          className="rounded-lg border border-gray-200 bg-white p-4 flex flex-col gap-1 hover:shadow-md transition-shadow"
+          className="rounded-lg border border-gray-200 bg-white p-4 flex flex-col gap-1 hover:shadow-md transition-shadow cursor-pointer"
+          onClick={() =>
+            setTarjetaAccionesAbiertaId((actual) => (actual === j.id ? null : j.id))
+          }
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              setTarjetaAccionesAbiertaId((actual) => (actual === j.id ? null : j.id));
+            }
+          }}
+          role="button"
+          tabIndex={0}
+          aria-expanded={tarjetaAccionesAbiertaId === j.id}
+          aria-label={`Mostrar acciones de ${nombreCompleto(j)}`}
         >
           <div className="flex items-center gap-3 mb-1">
             {j.foto_url ? (
@@ -867,8 +888,16 @@ export default function Plantillas({ soloGraficas = false }) {
           <p className="text-sm text-club-black/60">
             Demarcación: {j.demarcacion || '-'}
           </p>
-          <div className="mt-2 flex items-center justify-end gap-1.5">
-            {renderAccionesJugador(j)}
+          <div
+            className={`mt-2 overflow-hidden transition-all duration-200 ${
+              tarjetaAccionesAbiertaId === j.id
+                ? 'max-h-16 opacity-100 translate-y-0'
+                : 'max-h-0 opacity-0 -translate-y-1 pointer-events-none'
+            }`}
+          >
+            <div className="flex items-center justify-end gap-1.5 pt-1">
+              {renderAccionesJugador(j)}
+            </div>
           </div>
         </div>
       ))}

@@ -3,7 +3,9 @@ const supabaseAdmin = require('../config/supabaseClient');
 const requireAuth = require('../middleware/requireAuth');
 const requireRole = require('../middleware/requireRole');
 const resolveClub = require('../middleware/resolveClub');
+const { CLUB_TODOS } = require('../config/clubs');
 const { ROLES } = require('../config/roles');
+const { ordenarEquipos: ordenarEquiposGlobal } = require('../lib/equiposOrden');
 
 const router = express.Router();
 
@@ -85,6 +87,21 @@ function esTablaInexistente(error) {
   );
 }
 
+async function cargarEquiposParaSelector(clubes) {
+  const { data, error } = await supabaseAdmin
+    .from('jugadores')
+    .select('equipo')
+    .in('club', clubes);
+
+  if (error) return { error };
+
+  const equipos = ordenarEquiposGlobal(
+    Array.from(new Set((data || []).map((fila) => texto(fila.equipo)).filter(Boolean)))
+  );
+
+  return { equipos };
+}
+
 function responderError(res, error, accion) {
   console.error(`Error al ${accion} competiciones:`, {
     code: error?.code,
@@ -101,6 +118,14 @@ function responderError(res, error, accion) {
 
   return res.status(503).json({ error: `No se pudo ${accion} las competiciones.` });
 }
+
+router.get('/equipos', requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR), async (req, res) => {
+  const clubes = req.user?.club === CLUB_TODOS ? ['ROMO', 'ARENAS'] : [req.club];
+  const { equipos, error } = await cargarEquiposParaSelector(clubes);
+
+  if (error) return responderError(res, error, 'consultar');
+  return res.json({ equipos: equipos || [] });
+});
 
 router.get('/', requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR), async (req, res) => {
   const { data, error } = await supabaseAdmin

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { actualizarFilaLista, actualizarLista, crearFilaLista, eliminarFilaLista, useListas } from '../lib/listas';
 import { compararEquipos } from '../lib/equiposOrden';
@@ -151,7 +152,13 @@ function agruparEquiposPorClubTabla(filas = []) {
   return equiposPorClub;
 }
 
-export default function ListaEditable({ lista, clubesDisponibles = [] }) {
+export default function ListaEditable({
+  lista,
+  clubesDisponibles = [],
+  filaAutoEdicion = null,
+  autoEdicionKey = '',
+  clubEnfocado = '',
+}) {
   const { user } = useAuth();
   const listas = useListas();
   const esAdministrador = user?.rol === 'administrador';
@@ -331,6 +338,13 @@ export default function ListaEditable({ lista, clubesDisponibles = [] }) {
   };
 
   useEffect(() => {
+    if (lista.id !== 'equipos') return;
+    if (!filaAutoEdicion || !autoEdicionKey) return;
+
+    abrirEdicion(filaAutoEdicion);
+  }, [autoEdicionKey, filaAutoEdicion, lista.id]);
+
+  useEffect(() => {
     if (!formAbierto) return;
 
     const seccionFormulario = formSectionRef.current;
@@ -389,6 +403,9 @@ export default function ListaEditable({ lista, clubesDisponibles = [] }) {
                 <details
                   key={`${grupo.club}-${indiceGrupo}`}
                   className="group rounded-lg border border-gray-200 bg-white"
+                  open={clubEnfocado
+                    ? normalizarComparacion(grupo.club) === normalizarComparacion(clubEnfocado)
+                    : undefined}
                 >
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-semibold text-club-black [&::-webkit-details-marker]:hidden">
                     <span className="min-w-0 truncate">{grupo.etiqueta}</span>
@@ -398,15 +415,33 @@ export default function ListaEditable({ lista, clubesDisponibles = [] }) {
                     </span>
                   </summary>
                   <div className="border-t border-gray-100 px-3 py-3">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <p className="text-xs text-club-black/55">
+                        Pulsa editar en cualquier equipo para abrirlo directamente en la pantalla de equipos.
+                      </p>
+                      <Link
+                        to={`/listas/equipos?club=${encodeURIComponent(grupo.club)}`}
+                        className="shrink-0 rounded-full border border-club-red/20 bg-white px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-club-red transition-colors hover:bg-red-50"
+                      >
+                        Gestionar equipos
+                      </Link>
+                    </div>
                     {grupo.equipos.length > 0 ? (
                       <div className="flex flex-wrap gap-2">
                         {grupo.equipos.map((equipo) => (
-                          <span
+                          <div
                             key={`${grupo.club}-${equipo}`}
-                            className="inline-flex items-center rounded-full bg-club-red/10 px-3 py-1 text-xs font-semibold text-club-red"
+                            className="inline-flex items-center gap-2 rounded-full bg-club-red/10 px-3 py-1 text-xs font-semibold text-club-red"
                           >
-                            {equipo}
-                          </span>
+                            <span>{equipo}</span>
+                            <Link
+                              to={`/listas/equipos?club=${encodeURIComponent(grupo.club)}&equipo=${encodeURIComponent(equipo)}`}
+                              className="rounded-full border border-current px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide hover:bg-white/40"
+                              title={`Editar ${equipo}`}
+                            >
+                              Editar
+                            </Link>
+                          </div>
                         ))}
                       </div>
                     ) : (

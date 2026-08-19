@@ -24,6 +24,13 @@ const CLUBES = [
   { value: 'ARENAS', label: 'ARENAS' },
 ];
 
+const MIGRACION_APARTADOS_SQL = `alter table public.usuarios
+  add column if not exists apartados_visibles text not null default 'Todos';
+
+update public.usuarios
+set apartados_visibles = 'Todos'
+where apartados_visibles is null;`;
+
 const FORM_VACIO = {
   username: '',
   password: '',
@@ -160,10 +167,16 @@ export default function Usuarios() {
         username: form.username,
         rol: form.rol,
         equipo_asignado: form.equipos_asignados,
-        apartados_visibles: form.apartados_visibles,
         club: form.club,
         activo: form.activo,
       };
+
+      // Si la base aun no tiene la columna, dejamos que el backend guarde el
+      // resto del usuario sin intentar persistir un campo imposible.
+      if (apartadosVisiblesDisponibles) {
+        payload.apartados_visibles = form.apartados_visibles;
+      }
+
       if (form.password) payload.password = form.password;
 
       if (editandoId) {
@@ -342,27 +355,32 @@ export default function Usuarios() {
 
           <div className="relative" ref={selectorApartadosRef}>
             <label className="block text-sm font-semibold text-club-black mb-1">Apartados visibles</label>
-            {editandoId && !apartadosVisiblesDisponibles && (
+            {!apartadosVisiblesDisponibles && (
               <p className="mb-1 text-xs text-amber-700">
-                Falta la columna de apartados en la base de datos. Ejecuta la migracion para guardar estas selecciones.
+                Falta la columna `apartados_visibles` en la base de datos. Puedes guardar el resto del usuario, pero estas selecciones no se
+                persistiran hasta ejecutar la migracion.
               </p>
             )}
             <button
               type="button"
               aria-expanded={selectorApartadosAbierto}
               aria-haspopup="listbox"
+              aria-disabled={!apartadosVisiblesDisponibles}
+              disabled={!apartadosVisiblesDisponibles}
               onClick={() => setSelectorApartadosAbierto((abierto) => !abierto)}
-              className="w-full flex items-center justify-between gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-left focus:outline-none focus:ring-2 focus:ring-club-red"
+              className={`w-full flex items-center justify-between gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-left focus:outline-none focus:ring-2 focus:ring-club-red ${
+                !apartadosVisiblesDisponibles ? 'cursor-not-allowed opacity-70' : ''
+              }`}
             >
               <span className="truncate">{apartadosVisiblesLabel(form.apartados_visibles, { compacto: true })}</span>
               <span
                 className={`h-2.5 w-2.5 shrink-0 border-b-2 border-r-2 border-club-black/50 transition-transform ${
-                  selectorApartadosAbierto ? 'rotate-[225deg]' : 'rotate-45'
+                  selectorApartadosAbierto && apartadosVisiblesDisponibles ? 'rotate-[225deg]' : 'rotate-45'
                 }`}
                 aria-hidden="true"
               />
             </button>
-            {selectorApartadosAbierto && (
+            {selectorApartadosAbierto && apartadosVisiblesDisponibles && (
               <div className="absolute z-30 mt-2 w-full max-h-64 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg" role="listbox" aria-multiselectable="true">
                 <label className="flex items-center gap-2 px-3 py-2 text-sm font-semibold border-b border-gray-100 hover:bg-red-50/60 cursor-pointer">
                   <input

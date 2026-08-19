@@ -1,9 +1,11 @@
 import { useMemo, useSyncExternalStore } from 'react';
 import { CLUBES_MAESTROS } from '../data/clubes';
 import { obtenerEquiposPorClub } from '../data/equipos';
+import { EQUIPOS_MS } from '../data/msEquipos';
 
 const STORAGE_KEY = 'listas_maestras_v2';
 const STORAGE_KEY_LEGACY = 'listas_maestras_v1';
+const STORAGE_KEY_PREFIX = 'listas_maestras_v2:listas:';
 
 function limpiarTextoLocal(valor) {
   return String(valor ?? '').trim();
@@ -23,6 +25,31 @@ function normalizarClaveEquipo(valor) {
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]+/gi, '')
     .toUpperCase();
+}
+
+function normalizarNombreEquipo(club, nombre) {
+  const texto = limpiarTextoLocal(nombre);
+  if (!texto) return '';
+
+  const claveClub = normalizarClaveClub(club);
+  const alias = {
+    ROMO: {
+      JUVENIL: 'Juvenil A',
+      CADETE: 'Cadete A',
+    },
+  };
+  const aliasClub = Object.keys(alias).find((clave) => claveClub.includes(clave));
+  const aliasNombre = aliasClub ? alias[aliasClub][normalizarClaveEquipo(texto)] : '';
+  const nombreBuscado = aliasNombre || texto;
+  const clubCanonico = claveClub.includes('ROMO') ? 'ROMO' : claveClub.includes('ARENAS') ? 'ARENAS' : '';
+  const nombresCanonicos = clubCanonico
+    ? EQUIPOS_MS.filter((equipo) => equipo.club === clubCanonico).map((equipo) => equipo.nombre)
+    : obtenerEquiposPorClub(club);
+  const nombreCanonico = nombresCanonicos.find(
+    (equipo) => normalizarClaveEquipo(equipo) === normalizarClaveEquipo(nombreBuscado)
+  );
+
+  return nombreCanonico || nombreBuscado;
 }
 
 function normalizarFilaClub(fila, fallback = {}, indice = 0) {
@@ -76,7 +103,10 @@ function crearEquiposIniciales(clubes = crearClubesIniciales()) {
 
 function normalizarFilaEquipo(fila, fallback = {}, indice = 0) {
   const club = limpiarTextoLocal(fila?.club) || limpiarTextoLocal(fallback?.club);
-  const nombre = limpiarTextoLocal(fila?.nombre) || limpiarTextoLocal(fallback?.nombre);
+  const nombre = normalizarNombreEquipo(
+    club,
+    limpiarTextoLocal(fila?.nombre) || limpiarTextoLocal(fallback?.nombre)
+  );
 
   return {
     id: limpiarTextoLocal(fila?.id) || limpiarTextoLocal(fallback?.id) || `equipo-${String(indice + 1).padStart(3, '0')}`,
@@ -273,19 +303,44 @@ function crearListasBase() {
   return LISTAS_INICIALES.map((lista) => clonarLista(lista));
 }
 
+function claveListaPersistida(listaId) {
+  return `${STORAGE_KEY_PREFIX}${listaId}`;
+}
+
+function parseJsonSeguro(valor) {
+  if (!valor) return null;
+  try {
+    return JSON.parse(valor);
+  } catch (_) {
+    return null;
+  }
+}
+
 function leerListasGuardadas() {
   if (typeof localStorage === 'undefined') {
     return crearListasBase();
   }
 
-  try {
-    const persistidas = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(STORAGE_KEY_LEGACY);
-    const guardadas = JSON.parse(persistidas);
-    if (!Array.isArray(guardadas)) return crearListasBase();
-    return normalizarListas(guardadas);
-  } catch (_) {
-    return crearListasBase();
+  const guardadasPorId = new Map();
+
+  const persistidas = parseJsonSeguro(localStorage.getItem(STORAGE_KEY)) || parseJsonSeguro(localStorage.getItem(STORAGE_KEY_LEGACY));
+  if (Array.isArray(persistidas)) {
+    persistidas.forEach((lista) => {
+      if (lista && typeof lista === 'object' && typeof lista.id === 'string') {
+        guardadasPorId.set(lista.id, lista);
+      }
+    });
   }
+
+  for (const baseLista of LISTAS_INICIALES) {
+    const lista = parseJsonSeguro(localStorage.getItem(claveListaPersistida(baseLista.id)));
+    if (lista && typeof lista === 'object' && typeof lista.id === 'string') {
+      guardadasPorId.set(lista.id, lista);
+    }
+  }
+
+  if (guardadasPorId.size === 0) return crearListasBase();
+  return normalizarListas(Array.from(guardadasPorId.values()));
 }
 
 function normalizarTexto(valor) {
@@ -398,6 +453,14 @@ function guardarListas() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(listas));
   } catch (_) {
     // Si el almacenamiento local falla, mantenemos el estado en memoria.
+  }
+
+  try {
+    listas.forEach((lista) => {
+      localStorage.setItem(claveListaPersistida(lista.id), JSON.stringify(lista));
+    });
+  } catch (_) {
+    // El guardado por lista puede seguir funcionando aunque la copia global no quepa.
   }
 }
 

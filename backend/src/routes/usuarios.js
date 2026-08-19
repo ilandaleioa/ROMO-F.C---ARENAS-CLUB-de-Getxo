@@ -161,15 +161,24 @@ router.post('/', async (req, res) => {
 
     const { username, password, rol, equipo_asignado, apartados_visibles, club, activo } = req.body;
     const password_hash = await bcrypt.hash(password, 12);
-
-    const { data, error: dbError } = await insertarUsuarioConFallback({
+    const payload = {
       username: username.trim(),
       password_hash,
       rol,
       equipo_asignado: serializeEquiposAsignados(equipo_asignado),
-      apartados_visibles: normalizarApartadosVisibles(apartados_visibles),
       club,
       activo: activo !== false,
+    };
+
+    // Si el cliente no manda el campo, dejamos que la BD aplique su valor
+    // por defecto. Asi una base antigua sigue permitiendo crear usuarios para
+    // el resto de campos aunque aun no tenga la migracion aplicada.
+    if (Object.prototype.hasOwnProperty.call(req.body, 'apartados_visibles')) {
+      payload.apartados_visibles = normalizarApartadosVisibles(apartados_visibles);
+    }
+
+    const { data, error: dbError } = await insertarUsuarioConFallback({
+      ...payload,
     });
 
     if (dbError) {
@@ -195,15 +204,20 @@ router.put('/:id', async (req, res) => {
     if (errorAlcance) return res.status(403).json({ error: errorAlcance });
 
     const { username, password, rol, equipo_asignado, apartados_visibles, club, activo } = req.body;
-
     const update = {
       username: username.trim(),
       rol,
       equipo_asignado: serializeEquiposAsignados(equipo_asignado),
-      apartados_visibles: normalizarApartadosVisibles(apartados_visibles),
       club,
       activo: activo !== false,
     };
+
+    // En edicion solo tocamos apartados_visibles si el cliente lo envio
+    // explicitamente. Asi evitamos sobrescribir el valor previo cuando la
+    // pantalla no puede persistirlo por falta de migracion.
+    if (Object.prototype.hasOwnProperty.call(req.body, 'apartados_visibles')) {
+      update.apartados_visibles = normalizarApartadosVisibles(apartados_visibles);
+    }
 
     if (password) {
       update.password_hash = await bcrypt.hash(password, 12);

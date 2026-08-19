@@ -13,6 +13,7 @@ export default function Sidebar({ isOpen, onClose }) {
   const { user } = useAuth();
   const { pathname } = useLocation();
   const { club, setClub } = useClub();
+  const apartadosOcultosEnSidebar = ['equipos', 'usuarios', 'listas', 'clubes_maestros', 'hojas_calculo', 'competiciones'];
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -27,16 +28,18 @@ export default function Sidebar({ isOpen, onClose }) {
 
   const puedeCambiarClub = !user.club || user.club === 'TODOS';
   const navItems = APARTADOS_APP.filter(
-    (item) => !['campogramas', 'graficas'].includes(item.key) && usuarioPuedeVerItem(user, item)
+    (item) =>
+      !['campogramas', 'graficas', ...apartadosOcultosEnSidebar].includes(item.key) && usuarioPuedeVerItem(user, item)
   );
   const actividadesItem = navItems.find((item) => item.key === 'actividades');
   const plantillasItem = navItems.find((item) => item.key === 'inicio');
-  const restoNavItems = navItems.filter((item) => !['actividades', 'inicio'].includes(item.key));
+  const configuracionItem = navItems.find((item) => item.key === 'configuracion');
+  const restoNavItems = navItems.filter((item) => !['actividades', 'inicio', 'configuracion'].includes(item.key));
 
   const nav = (
     <nav className="flex flex-col gap-1 p-3">
       {puedeCambiarClub && (
-        <div className="lg:hidden mb-2 inline-flex rounded-md border border-gray-200 overflow-hidden self-start">
+        <div className="mb-2 inline-flex overflow-hidden rounded-md border border-gray-200 self-start lg:hidden">
           {CLUBES.map((c) => (
             <button
               key={c.valor}
@@ -86,17 +89,25 @@ export default function Sidebar({ isOpen, onClose }) {
           {item.label}
         </NavLink>
       ))}
+
+      {configuracionItem && (
+        <NavLink key={configuracionItem.path} to={configuracionItem.path} end className={linkClass} onClick={onClose}>
+          {configuracionItem.label}
+        </NavLink>
+      )}
     </nav>
   );
 
   return (
     <>
-      <aside className="no-print hidden lg:block w-56 shrink-0 border-r border-gray-200 bg-white">{nav}</aside>
+      <aside className="no-print hidden w-56 shrink-0 border-r border-gray-200 bg-white lg:block">{nav}</aside>
 
       {isOpen && (
-        <div className="lg:hidden fixed inset-0 z-40 flex" role="dialog" aria-modal="true" aria-label="Navegación principal">
+        <div className="fixed inset-0 z-40 flex lg:hidden" role="dialog" aria-modal="true" aria-label="Navegacion principal">
           <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden="true" />
-          <aside className="relative w-72 max-w-[86%] h-full bg-white shadow-xl overflow-y-auto overscroll-contain pt-[env(safe-area-inset-top)]">{nav}</aside>
+          <aside className="relative h-full w-72 max-w-[86%] overflow-y-auto overscroll-contain bg-white pt-[env(safe-area-inset-top)] shadow-xl">
+            {nav}
+          </aside>
         </div>
       )}
     </>
