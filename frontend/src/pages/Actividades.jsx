@@ -99,6 +99,17 @@ function obtenerEquipoCanonico(valor, clubPreferido = '') {
   return texto;
 }
 
+function nombreEquipoFormulario(valor, clubPreferido = '') {
+  const equipo = buscarEquipoMaestroCalendario(valor, clubPreferido);
+  if (equipo && resolverClaveClubEquipo(clubPreferido || equipo.club) === equipo.club) {
+    return equipo.nombre;
+  }
+
+  return textoLimpio(valor)
+    .replace(/^(?:ROMO|ARENAS)(?:\s+FC|\s+CLUB)?\s*[-·]\s*/i, '')
+    .trim();
+}
+
 const SEPARADOR_CLUB_EQUIPO = ' \u00b7 ';
 
 function resolverClaveClubEquipo(valor) {
@@ -971,13 +982,17 @@ function crearFechaActividad(fechaTexto, hora) {
   return new Date(`${fechaBase}T12:00:00`);
 }
 
-function normalizarActividadGuardada(actividad) {
+function normalizarActividadGuardada(actividad, clubPorDefecto = '') {
   if (!actividad) return null;
 
   const fechaGuardada = String(actividad.fecha || '').trim();
   const fechaTexto = fechaGuardada.slice(0, 10);
   const fecha = crearFechaActividad(fechaTexto, actividad.hora);
-  const club = textoLimpio(actividad.club) || resolverClaveClubEquipo(actividad.equipo || actividad.local || actividad.visitante || '');
+  const clubGuardado = textoLimpio(actividad.club);
+  const clubInferido = resolverClaveClubEquipo(actividad.equipo || actividad.local || actividad.visitante || '');
+  const club = resolverClaveClubEquipo(
+    clubGuardado || (['ROMO', 'ARENAS'].includes(clubInferido) ? clubInferido : clubPorDefecto)
+  );
   const tipo = textoLimpio(actividad.tipo).toLowerCase();
   const esLigaRomoJuvenil = esPartidoLigaRomoJuvenil(actividad);
   const equipo = esLigaRomoJuvenil
@@ -1018,7 +1033,9 @@ function serializarActividadPersistible(actividad) {
 
   return {
     ...actividad,
-    club: textoLimpio(actividad.club) || resolverClaveClubEquipo(actividad.equipo || actividad.local || actividad.visitante || ''),
+    club: resolverClaveClubEquipo(
+      textoLimpio(actividad.club) || resolverClaveClubEquipo(actividad.equipo || actividad.local || actividad.visitante || '')
+    ),
     ubicacion,
     fecha: fechaClave(actividad.fecha),
     hora: actividad.hora || '',
@@ -1038,7 +1055,7 @@ function fusionarActividades(remotas = [], locales = []) {
   return Array.from(mapa.values()).sort(ordenarActividades);
 }
 
-function cargarActividadesIniciales() {
+function cargarActividadesIniciales(clubPorDefecto = '') {
   const base = actividadesRomo();
 
   if (typeof window === 'undefined') return base;
@@ -1047,7 +1064,7 @@ function cargarActividadesIniciales() {
     const guardadas = JSON.parse(window.localStorage.getItem(ACTIVIDADES_STORAGE_KEY) || 'null');
     if (!Array.isArray(guardadas) || guardadas.length === 0) return base;
 
-    const normalizadas = guardadas.map(normalizarActividadGuardada).filter(Boolean);
+    const normalizadas = guardadas.map((actividad) => normalizarActividadGuardada(actividad, clubPorDefecto)).filter(Boolean);
     return normalizadas.length > 0 ? normalizadas : base;
   } catch (_) {
     return base;
@@ -2276,7 +2293,7 @@ function SelectorBuscadorClubEquipo({ value, onChange, placeholder, opciones = C
   );
 }
 
-function ModalCrearActividad({ tipo, formulario, onChange, onClose, onSubmit, modo = 'crear', equipoOpciones = [], competicionOpciones = [], catalogoLocalVisitante = CATALOGO_LOCAL_VISITANTE }) {
+function ModalCrearActividad({ tipo, formulario, onChange, onClose, onSubmit, modo = 'crear', clubOpciones = [], equipoOpciones = [], competicionOpciones = [], catalogoLocalVisitante = CATALOGO_LOCAL_VISITANTE }) {
   if (!tipo) return null;
 
   const esPartido = tipo === 'partido';
@@ -2322,6 +2339,9 @@ function ModalCrearActividad({ tipo, formulario, onChange, onClose, onSubmit, mo
                     required
                   />
                 </CampoFormulario>
+                <CampoFormulario etiqueta="Club">
+                  <SelectorFormulario value={formulario.club} onChange={(value) => onChange('club', value)} opciones={clubOpciones} placeholder="Selecciona un club" formatearOpcion={(valor) => valor === 'ARENAS' ? 'ARENAS CLUB' : 'ROMO FC'} required />
+                </CampoFormulario>
                 <CampoFormulario etiqueta="Mi equipo">
                   <SelectorFormulario value={formulario.equipo} onChange={(value) => onChange('equipo', value)} opciones={equipoOpciones} placeholder="Selecciona un equipo" formatearOpcion={etiquetaEquipoSelector} required />
                 </CampoFormulario>
@@ -2336,6 +2356,9 @@ function ModalCrearActividad({ tipo, formulario, onChange, onClose, onSubmit, mo
               </>
             ) : (
               <>
+                <CampoFormulario etiqueta="Club">
+                  <SelectorFormulario value={formulario.club} onChange={(value) => onChange('club', value)} opciones={clubOpciones} placeholder="Selecciona un club" formatearOpcion={(valor) => valor === 'ARENAS' ? 'ARENAS CLUB' : 'ROMO FC'} required />
+                </CampoFormulario>
                 <CampoFormulario etiqueta="Mi equipo">
                   <SelectorFormulario value={formulario.equipo} onChange={(value) => onChange('equipo', value)} opciones={equipoOpciones} placeholder="Selecciona un equipo" formatearOpcion={etiquetaEquipoSelector} required />
                 </CampoFormulario>
@@ -2746,7 +2769,7 @@ export default function Actividades() {
     instalacion: 'todos',
     horario: 'todos',
   });
-  const [actividades, setActividades] = useState(() => cargarActividadesIniciales());
+  const [actividades, setActividades] = useState(() => cargarActividadesIniciales(clubActivo));
   const [equiposSelector, setEquiposSelector] = useState([]);
   const [competicionesSelector, setCompeticionesSelector] = useState([]);
   const [tipoNuevo, setTipoNuevo] = useState(null);
@@ -2782,6 +2805,10 @@ export default function Actividades() {
     }),
     [abreviaturasEquipos]
   );
+  // Las actividades se guardan en la colección del club activo; mostramos el
+  // club explícitamente, pero no permitimos crear un registro en otra
+  // colección desde esta pantalla.
+  const opcionesClub = [clubActivo];
   const opcionesEquipo = useMemo(
     () => Array.from(new Set(actividades.map((actividad) => obtenerEquipoCanonico(actividad.equipo, actividad.club || clubActivo)).filter(Boolean))).sort(),
     [actividades, clubActivo]
@@ -2868,14 +2895,17 @@ export default function Actividades() {
     let cancelado = false;
 
     const cargarActividadesRemotas = async () => {
-      const locales = cargarActividadesIniciales();
+      const locales = cargarActividadesIniciales(clubActivo);
 
       try {
         const respuesta = await api.get('/actividades');
         if (cancelado) return;
 
         const remotas = Array.isArray(respuesta.actividades) ? respuesta.actividades : [];
-        const actividadesNormalizadas = remotas.map(normalizarActividadGuardada).filter(Boolean).sort(ordenarActividades);
+        const actividadesNormalizadas = remotas
+          .map((actividad) => normalizarActividadGuardada(actividad, clubActivo))
+          .filter(Boolean)
+          .sort(ordenarActividades);
         const actividadesIniciales = puedeEscribirRemoto
           ? fusionarActividades(actividadesNormalizadas, locales)
           : actividadesNormalizadas;
@@ -2899,7 +2929,7 @@ export default function Actividades() {
     return () => {
       cancelado = true;
     };
-  }, [puedeEscribirRemoto]);
+  }, [clubActivo, puedeEscribirRemoto]);
 
   const opcionesCompeticionModal = useMemo(() => {
     const base = competicionesSelector.length > 0 ? competicionesSelector : opcionesCompeticion;
@@ -2910,18 +2940,21 @@ export default function Actividades() {
   }, [competicionesSelector, formulario.competicion, opcionesCompeticion]);
 
   const opcionesEquipoModal = useMemo(() => {
-    const equiposDetectados = equiposSelector.map((equipo) => obtenerEquipoCanonico(equipo, clubActivo));
+    const clubFormulario = resolverClaveClubEquipo(formulario.club || clubActivo);
+    const equiposDelClub = EQUIPOS_MS
+      .filter((equipo) => equipo.club === clubFormulario)
+      .map((equipo) => equipo.nombre);
+    const equiposDetectados = equiposSelector
+      .map((equipo) => nombreEquipoFormulario(equipo, clubFormulario));
     const extras = [
       ...equiposDetectados,
       formulario.equipo,
-      formulario.local,
-      formulario.visitante,
     ]
-      .map((valor) => obtenerEquipoCanonico(valor, clubActivo))
+      .map((valor) => nombreEquipoFormulario(valor, clubFormulario))
       .filter(Boolean);
 
-    return [...new Set([...EQUIPOS_MAESTROS, ...extras])];
-  }, [clubActivo, equiposSelector, formulario.equipo, formulario.local, formulario.visitante]);
+    return [...new Set([...equiposDelClub, ...extras])];
+  }, [clubActivo, equiposSelector, formulario.club, formulario.equipo]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -3152,6 +3185,7 @@ export default function Actividades() {
     setActividadEditandoId(null);
     setFormulario({
       fecha,
+      club: clubActivo === 'ARENAS' ? 'ARENAS' : 'ROMO',
       hora: tipo === 'partido' ? '' : '18:00',
       horaFin: '',
       equipo: '',
@@ -3171,9 +3205,10 @@ export default function Actividades() {
     setActividadEditandoId(actividad.id);
     setFormulario({
       fecha: fechaClave(actividad.fecha),
+      club: resolverClaveClubEquipo(actividad.club || clubActivo),
       hora: actividad.hora || '',
       horaFin: actividad.horaFin || '',
-      equipo: obtenerEquipoCanonico(actividad.equipo || '', actividad.club || clubActivo),
+      equipo: nombreEquipoFormulario(actividad.equipo || '', actividad.club || clubActivo),
       instalacion: actividad.ubicacion || obtenerInstalacionPorDefecto(actividad.tipo, actividad.local || ''),
       espacio: actividad.espacio || '',
       competicion: actividad.competicion || '',
@@ -3246,6 +3281,13 @@ export default function Actividades() {
         siguiente.instalacion = instalacionDefecto || (siguiente.instalacion === 'GOBELA' ? '' : siguiente.instalacion);
       }
 
+      if (campo === 'club' && siguiente.equipo) {
+        const equipoSeleccionado = buscarEquipoMaestroCalendario(siguiente.equipo, valor);
+        if (equipoSeleccionado && equipoSeleccionado.club !== resolverClaveClubEquipo(valor)) {
+          siguiente.equipo = '';
+        }
+      }
+
       return siguiente;
     });
   };
@@ -3264,7 +3306,7 @@ export default function Actividades() {
     const instalacionFinal = instalacion || instalacionDefecto;
     const competicion = textoLimpio(formulario.competicion);
     const esPartido = tipoNuevo === 'partido';
-    const clubActividad = resolverClaveClubEquipo(clubActivo || user?.club || equipo || local || visitante || 'ROMO');
+    const clubActividad = resolverClaveClubEquipo(formulario.club || clubActivo || user?.club || equipo || local || visitante || 'ROMO');
     const equipoCanonico = obtenerEquipoCanonico(equipo || local || visitante, clubActividad);
     const camposIncompletos = esPartido
       ? !equipo || !local || !visitante || !competicion || !instalacionFinal
@@ -3283,7 +3325,7 @@ export default function Actividades() {
       competicion: esPartido ? competicion : 'Entrenamiento',
       titulo: esPartido ? `${local} - ${visitante}` : 'Entrenamiento',
       club: clubActividad,
-      equipo: equipoCanonico,
+      equipo: nombreEquipoFormulario(equipo || equipoCanonico, clubActividad),
       local: esPartido ? local : '',
       visitante: esPartido ? visitante : '',
       rival: esPartido ? visitante : '',
@@ -3846,6 +3888,7 @@ export default function Actividades() {
         onClose={cerrarCrear}
         onSubmit={guardarActividad}
         modo={modoFormulario}
+        clubOpciones={opcionesClub}
         equipoOpciones={opcionesEquipoModal}
         competicionOpciones={opcionesCompeticionModal}
         catalogoLocalVisitante={catalogoLocalVisitante}
