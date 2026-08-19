@@ -6,7 +6,7 @@ import { CLUBES_MAESTROS } from '../data/clubes';
 import { EQUIPOS_BASE_CLUB, obtenerEquiposPorClub } from '../data/equipos';
 import { EQUIPOS_MS, obtenerMsEquiposPorClub } from '../data/msEquipos';
 import { useAuth } from '../context/AuthContext';
-import { useClub } from '../context/ClubContext';
+import { CLUBES, useClub } from '../context/ClubContext';
 import { api } from '../lib/api';
 import { useListas } from '../lib/listas';
 
@@ -598,6 +598,20 @@ function crearFechaCalendario(fechaTexto) {
   return new Date(anio, mes - 1, dia, 12, 0, 0, 0);
 }
 
+function normalizarFechaTexto(fechaTexto) {
+  const texto = String(fechaTexto || '').trim();
+  if (!texto) return '';
+
+  const fechaIso = texto.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (fechaIso) return `${fechaIso[1]}-${fechaIso[2]}-${fechaIso[3]}`;
+
+  const fechaEuropea = texto.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);
+  if (!fechaEuropea) return '';
+
+  const [, dia, mes, anio] = fechaEuropea;
+  return `${anio}-${mes.padStart(2, '0')}-${dia.padStart(2, '0')}`;
+}
+
 function formatearHora(fecha, hora, horaFin) {
   if (hora && horaFin) return `${hora} - ${horaFin}`;
   if (hora) return hora;
@@ -971,23 +985,24 @@ function actividadesRomo() {
 }
 
 function crearFechaActividad(fechaTexto, hora) {
-  const fechaBase = String(fechaTexto || '').trim();
+  const fechaBase = normalizarFechaTexto(fechaTexto);
   if (!fechaBase) return new Date();
 
+  const [anio, mes, dia] = fechaBase.split('-').map(Number);
   const horaTexto = String(hora || '').trim();
-  if (horaTexto) {
-    return new Date(`${fechaBase}T${horaTexto}`);
-  }
+  const [horas = 12, minutos = 0] = horaTexto.split(':').map(Number);
 
-  return new Date(`${fechaBase}T12:00:00`);
+  return new Date(anio, mes - 1, dia, horas, minutos);
 }
 
 function normalizarActividadGuardada(actividad, clubPorDefecto = '') {
   if (!actividad) return null;
 
   const fechaGuardada = String(actividad.fecha || '').trim();
-  const fechaTexto = fechaGuardada.slice(0, 10);
-  const fecha = crearFechaActividad(fechaTexto, actividad.hora);
+  const fechaTexto = normalizarFechaTexto(fechaGuardada);
+  const fecha = actividad.fecha instanceof Date
+    ? new Date(actividad.fecha)
+    : crearFechaActividad(fechaTexto, actividad.hora);
   const clubGuardado = textoLimpio(actividad.club);
   const clubInferido = resolverClaveClubEquipo(actividad.equipo || actividad.local || actividad.visitante || '');
   const club = resolverClaveClubEquipo(
@@ -2805,10 +2820,7 @@ export default function Actividades() {
     }),
     [abreviaturasEquipos]
   );
-  // Las actividades se guardan en la colección del club activo; mostramos el
-  // club explícitamente, pero no permitimos crear un registro en otra
-  // colección desde esta pantalla.
-  const opcionesClub = [clubActivo];
+  const opcionesClub = CLUBES.map(({ valor }) => valor);
   const opcionesEquipo = useMemo(
     () => Array.from(new Set(actividades.map((actividad) => obtenerEquipoCanonico(actividad.equipo, actividad.club || clubActivo)).filter(Boolean))).sort(),
     [actividades, clubActivo]
