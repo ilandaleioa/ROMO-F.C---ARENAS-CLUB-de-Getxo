@@ -26,18 +26,18 @@ export const EQUIPOS_BASE_CLUB = [
 ];
 
 const EQUIPOS_ROMO_ARENAS = [
-  'Juvenil A',
-  'Juvenil B',
-  'Cadete A',
-  'Cadete B',
-  'Infantil 13',
-  'Infantil 14',
-  'AlevÃ­n 15A',
-  'AlevÃ­n 15B',
-  'AlevÃ­n 16A',
-  'AlevÃ­n 16B',
-  'BenjamÃ­n 17',
-  'BenjamÃ­n 18',
+  'ARENAS Juvenil A',
+  'ARENAS Juvenil B',
+  'ARENAS Cadete A',
+  'ARENAS Cadete B',
+  'ARENAS Infantil 13',
+  'ARENAS Infantil 14',
+  'ARENAS Alevín 15A',
+  'ARENAS Alevín 15B',
+  'ARENAS Alevín 16A',
+  'ARENAS Alevín 16B',
+  'ARENAS Benjamín 17',
+  'ARENAS Benjamín 18',
 ];
 
 export const EQUIPOS_POR_CLUB = {
