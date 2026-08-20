@@ -114,7 +114,13 @@ router.post('/login', async (req, res) => {
     return genericError();
   }
 
-  const token = createSessionToken(data);
+  let token;
+  try {
+    token = createSessionToken(data);
+  } catch (err) {
+    console.error('[auth/login] Error al crear el token de sesion:', err.message || err);
+    return res.status(500).json({ error: 'No se pudo crear la sesion. Contacta con administracion.' });
+  }
   setSessionCookie(res, token);
 
   return res.json({

@@ -70,17 +70,29 @@ export default function MisEquipos() {
       );
       const clubesPorClave = new Map(CLUBES.map((club) => [claveClub(club.valor), club]));
 
-      return (listaEquipos?.filas || []).filter((fila) => esClubMostrado(fila.club)).map((fila) => {
-        const metadato =
-          metadatosPorId.get(fila.id) || metadatos.get(`${fila.club}|${fila.nombre}`) || {};
-        const club = clubesPorClave.get(claveClub(fila.club)) || { label: fila.club };
+      return (listaEquipos?.filas || [])
+        .filter((fila) => esClubMostrado(fila.club))
+        .map((fila) => {
+          const metadato =
+            metadatosPorId.get(fila.id) || metadatos.get(`${fila.club}|${fila.nombre}`) || {};
+          const club = clubesPorClave.get(claveClub(fila.club)) || { label: fila.club };
 
-        return {
-          ...metadato,
-          ...fila,
-          clubLabel: club.label,
-        };
-      });
+          return {
+            ...metadato,
+            ...fila,
+            clubLabel: club.label,
+          };
+        })
+        .sort((a, b) => {
+          const clubOrder = { ROMO: 0, ARENAS: 1 };
+          const clubA = claveClub(a.club).includes('ROMO') ? 'ROMO' : 'ARENAS';
+          const clubB = claveClub(b.club).includes('ROMO') ? 'ROMO' : 'ARENAS';
+
+          if (clubOrder[clubA] !== clubOrder[clubB]) {
+            return clubOrder[clubA] - clubOrder[clubB];
+          }
+          return (a.orden || 0) - (b.orden || 0);
+        });
     },
     [listaEquipos]
   );
@@ -167,7 +179,6 @@ export default function MisEquipos() {
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Club</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Equipo</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Equipo completo</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Nombre FED</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Abreviatura</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Orden</th>
@@ -189,7 +200,6 @@ export default function MisEquipos() {
                       <tr key={`${equipo.club}-${equipo.id || equipo.nombre}`} className="hover:bg-red-50/40 transition-colors">
                         <td className="px-4 py-3 text-sm font-semibold text-club-black">{equipo.clubLabel}</td>
                         <td className="px-4 py-3 text-sm text-club-black/80">{equipo.nombre}</td>
-                        <td className="px-4 py-3 text-sm font-semibold text-club-black">{nombreEquipoCompleto(equipo)}</td>
                         <td className="px-4 py-3 text-sm text-club-black/80">
                           {String(equipo.nombre_federacion || '').trim() || <span className="text-club-black/40">Sin asignar</span>}
                         </td>

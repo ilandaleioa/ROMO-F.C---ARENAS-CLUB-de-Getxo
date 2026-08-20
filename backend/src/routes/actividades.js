@@ -158,4 +158,40 @@ router.put('/', requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR), async (req, re
   return res.json({ actividades });
 });
 
+router.delete('/:id', requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR), async (req, res) => {
+  const id = texto(req.params.id);
+  if (!id) {
+    return res.status(400).json({ error: 'Falta el id de la actividad a eliminar.' });
+  }
+
+  const { data, error: errorConsulta } = await supabaseAdmin
+    .from('actividades_calendario')
+    .select('actividades')
+    .eq('club', req.club)
+    .maybeSingle();
+
+  if (errorConsulta) return responderError(res, errorConsulta, 'consultar');
+
+  const actividadesActuales = Array.isArray(data?.actividades) ? data.actividades : [];
+  const actividades = actividadesActuales.filter((actividad) => texto(actividad?.id) !== id);
+
+  if (actividades.length === actividadesActuales.length) {
+    return res.status(404).json({ error: 'La actividad no existe o ya ha sido eliminada.' });
+  }
+
+  const { error: errorGuardado } = await supabaseAdmin
+    .from('actividades_calendario')
+    .upsert(
+      {
+        club: req.club,
+        actividades,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'club' }
+    );
+
+  if (errorGuardado) return responderError(res, errorGuardado, 'guardar');
+  return res.json({ actividades });
+});
+
 module.exports = router;

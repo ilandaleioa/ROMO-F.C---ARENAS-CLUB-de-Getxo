@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../lib/api';
+import { useLista, useListaValores } from '../lib/listas';
+import SelectBuscador from '../components/SelectBuscador';
+import { obtenerEquiposPorClub } from '../data/equipos';
 
 function normalizarFecha(valor) {
   const limpia = String(valor || '').trim();
@@ -88,6 +91,35 @@ const BLOQUES = [
 ];
 
 const CAMPOS_INFORME = ['club', 'equipo', 'etapa', 'categoria', 'local', 'visitante', 'partido', 'dorsal', 'lateralidad', 'titularidad', 'minutos_jugados', 'goles', 'goles_encajados'];
+
+const ITEMS_VALORACION_POR_DEMARCACION = {
+  'Portero': [
+    { key: 'asociacion_linea_defensiva', label: 'Asociacion con linea defensiva' },
+    { key: 'conduccion_fijaciones', label: 'Conduccion fijaciones' },
+    { key: 'pases_en_corto', label: 'Pases en corto' },
+    { key: 'desplazamientos_medios', label: 'Desplazamientos medios' },
+    { key: 'desplazamientos_largos', label: 'Desplazamientos largos' },
+    { key: 'inicio_transicion_ofensiva_pies', label: 'Inicio de transicion ofensiva con pies' },
+  ],
+  'Lateral Dcho': [
+    { key: 'salida_de_balon', label: 'Salida de balon' },
+    { key: 'manejo_espacio_reducido', label: 'Manejo espacio reducido' },
+    { key: 'desplazamiento_largo', label: 'Desplazamiento largo' },
+    { key: 'incorporaciones', label: 'Incorporaciones' },
+    { key: 'asociaciones_campo_rival', label: 'Asociaciones en campo rival' },
+    { key: 'desmarque_ruptura', label: 'Desmarque ruptura' },
+  ],
+  'Lateral Izdo': [
+    { key: 'salida_de_balon', label: 'Salida de balon' },
+    { key: 'manejo_espacio_reducido', label: 'Manejo espacio reducido' },
+    { key: 'desplazamiento_largo', label: 'Desplazamiento largo' },
+    { key: 'incorporaciones', label: 'Incorporaciones' },
+    { key: 'asociaciones_campo_rival', label: 'Asociaciones en campo rival' },
+    { key: 'desmarque_ruptura', label: 'Desmarque ruptura' },
+  ],
+};
+const OPCIONES_VALORACION_ITEM = [1, 2, 3, 4, 5];
+const TITULARIDAD_OPCIONES = ['TITULAR', 'SUPLENTE', 'NO CONVOCA'];
 const ETIQUETAS_INFORME = {
   club: 'Club',
   equipo: 'Equipo',
@@ -102,6 +134,9 @@ const ETIQUETAS_INFORME = {
   minutos_jugados: 'Minutos jugados',
   goles: 'Goles',
   goles_encajados: 'Goles encajados',
+  tipologia: 'Tipologia',
+  descripcion: 'Descripcion',
+  demarcacion_concreta: 'Demarcacion concreta',
 };
 
 const ETIQUETAS = {
@@ -216,9 +251,79 @@ export default function CaptacionDetalle() {
   const [loadingInformes, setLoadingInformes] = useState(true);
   const [error, setError] = useState('');
   const [errorInformes, setErrorInformes] = useState('');
+  const [editandoInformeId, setEditandoInformeId] = useState(null);
+  const [informeEditando, setInformeEditando] = useState(null);
+  const [guardandoInforme, setGuardandoInforme] = useState(false);
+  const [errorGuardarInforme, setErrorGuardarInforme] = useState('');
 
   const fotoUrl = useMemo(() => obtenerFotoJugadorUrl(registro), [registro]);
   const nombre = useMemo(() => nombreCompleto(registro) || 'Detalle de captacion', [registro]);
+
+  const abrirEdicionInforme = (informe) => {
+    setEditandoInformeId(informe.id);
+    setInformeEditando({ ...informe });
+    setErrorGuardarInforme('');
+  };
+
+  const cancelarEdicionInforme = () => {
+    setEditandoInformeId(null);
+    setInformeEditando(null);
+    setErrorGuardarInforme('');
+  };
+
+  const actualizarCampoInforme = (campo, valor) => {
+    setInformeEditando((prev) => (prev ? { ...prev, [campo]: valor } : null));
+  };
+
+  const actualizarValoracionItemInforme = (itemKey, valor) => {
+    setInformeEditando((prev) =>
+      prev ? { ...prev, valoracion_items: { ...prev.valoracion_items, [itemKey]: valor } } : null
+    );
+  };
+
+  const guardarInformeEditado = async () => {
+    if (!informeEditando || !editandoInformeId) return;
+
+    setGuardandoInforme(true);
+    setErrorGuardarInforme('');
+    try {
+      const payload = {
+        fecha: informeEditando.fecha || '',
+        observador: informeEditando.observador || '',
+        club: informeEditando.club || '',
+        equipo: informeEditando.equipo || '',
+        etapa: informeEditando.etapa || '',
+        categoria: informeEditando.categoria || '',
+        local: informeEditando.local || '',
+        visitante: informeEditando.visitante || '',
+        partido: informeEditando.partido || '',
+        dorsal: informeEditando.dorsal || '',
+        tipologia: informeEditando.tipologia || '',
+        lateralidad: informeEditando.lateralidad || '',
+        descripcion: informeEditando.descripcion || '',
+        demarcacion_concreta: informeEditando.demarcacion_concreta || '',
+        titularidad: informeEditando.titularidad || '',
+        minutos_jugados: informeEditando.minutos_jugados || '',
+        goles: informeEditando.goles || '',
+        goles_encajados: informeEditando.goles_encajados || '',
+        jugador_id: informeEditando.jugador_id || '',
+        valoracion_items: informeEditando.valoracion_items || {},
+      };
+
+      const respuesta = await api.put(`/captacion/informes/${editandoInformeId}`, payload);
+
+      setInformes((prev) =>
+        prev.map((inf) => (inf.id === editandoInformeId ? respuesta.informe : inf))
+      );
+
+      setEditandoInformeId(null);
+      setInformeEditando(null);
+    } catch (err) {
+      setErrorGuardarInforme(err.message);
+    } finally {
+      setGuardandoInforme(false);
+    }
+  };
 
   useEffect(() => {
     let cancelado = false;
@@ -445,6 +550,103 @@ export default function CaptacionDetalle() {
               </div>
             </div>
 
+            {editandoInformeId && informeEditando ? (
+              <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+                  <h4 className="text-sm font-bold text-club-black">Editando informe del {formatearFecha(informeEditando.fecha)}</h4>
+                  {errorGuardarInforme ? (
+                    <p className="text-xs text-club-red font-semibold">{errorGuardarInforme}</p>
+                  ) : null}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {['fecha', 'observador', 'dorsal', 'lateralidad', 'demarcacion_concreta', 'titularidad', 'minutos_jugados', 'goles', 'goles_encajados'].map((campo) => (
+                    <div key={campo}>
+                      <label className="block text-xs font-semibold uppercase text-club-black/60 mb-1">
+                        {ETIQUETAS_INFORME[campo] || campo}
+                      </label>
+                      <input
+                        type={campo === 'fecha' ? 'date' : 'text'}
+                        value={informeEditando[campo] || ''}
+                        onChange={(e) => actualizarCampoInforme(campo, e.target.value)}
+                        className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
+                      />
+                    </div>
+                  ))}
+                  <div className="sm:col-span-2 lg:col-span-3">
+                    <label className="block text-xs font-semibold uppercase text-club-black/60 mb-1">
+                      {ETIQUETAS_INFORME['descripcion'] || 'Descripcion'}
+                    </label>
+                    <textarea
+                      value={informeEditando.descripcion || ''}
+                      onChange={(e) => actualizarCampoInforme('descripcion', e.target.value)}
+                      rows="3"
+                      className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
+                    />
+                  </div>
+                </div>
+                {(() => {
+                  const items = ITEMS_VALORACION_POR_DEMARCACION[informeEditando.demarcacion_concreta] || [];
+                  if (!items.length) return null;
+
+                  return (
+                    <div className="mt-4">
+                      <p className="text-xs font-semibold uppercase text-club-black/60 mb-2">
+                        Valoracion en posicion ({informeEditando.demarcacion_concreta})
+                      </p>
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {items.map((item) => {
+                          const valorSeleccionado = informeEditando.valoracion_items?.[item.key] || '';
+                          return (
+                            <div key={item.key} className="rounded-md border border-gray-300 bg-white p-2">
+                              <p className="text-[11px] font-semibold uppercase text-club-black/60 mb-1">{item.label}</p>
+                              <div className="grid grid-cols-5 gap-1">
+                                {OPCIONES_VALORACION_ITEM.map((opcion) => {
+                                  const seleccionado = String(valorSeleccionado) === String(opcion);
+                                  return (
+                                    <button
+                                      key={opcion}
+                                      type="button"
+                                      onClick={() => actualizarValoracionItemInforme(item.key, opcion)}
+                                      aria-pressed={seleccionado}
+                                      className={`rounded px-1.5 py-1 text-xs font-bold transition-colors ${
+                                        seleccionado
+                                          ? 'bg-club-red text-white'
+                                          : 'bg-gray-100 text-club-black hover:bg-club-red/10'
+                                      }`}
+                                    >
+                                      {opcion}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={guardarInformeEditado}
+                    disabled={guardandoInforme}
+                    className="rounded-md bg-club-red px-4 py-2 text-sm font-semibold text-white hover:bg-club-red/90 disabled:opacity-60"
+                  >
+                    {guardandoInforme ? 'Guardando...' : 'Guardar cambios'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={cancelarEdicionInforme}
+                    disabled={guardandoInforme}
+                    className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-club-black hover:bg-gray-50 disabled:opacity-60"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
             <div className="mt-4">
               {loadingInformes ? (
                 <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-6 text-center text-club-black/60">
@@ -461,10 +663,20 @@ export default function CaptacionDetalle() {
               ) : (
                 <div className="grid gap-3 lg:grid-cols-2">
                   {informes.map((informe) => (
-                    <article key={informe.id} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                    <article key={informe.id} className={`rounded-xl border bg-gray-50 p-4 ${editandoInformeId === informe.id ? 'border-blue-300 bg-blue-50/30' : 'border-gray-200'}`}>
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="text-sm font-semibold text-club-black">{formatearFecha(informe.fecha)}</p>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-club-black/45">{informe.observador || 'Sin observador'}</p>
+                        <div>
+                          <p className="text-sm font-semibold text-club-black">{formatearFecha(informe.fecha)}</p>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-club-black/45">{informe.observador || 'Sin observador'}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => abrirEdicionInforme(informe)}
+                          disabled={editandoInformeId !== null}
+                          className="rounded-md border border-club-red/20 bg-club-red/5 px-3 py-1.5 text-xs font-semibold text-club-red hover:bg-club-red/10 disabled:opacity-50"
+                        >
+                          Editar
+                        </button>
                       </div>
                       <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                         {CAMPOS_INFORME.map((campo) => {
@@ -482,6 +694,30 @@ export default function CaptacionDetalle() {
                           );
                         })}
                       </div>
+                      {(() => {
+                        const items = ITEMS_VALORACION_POR_DEMARCACION[informe.demarcacion_concreta] || [];
+                        const valoraciones = informe.valoracion_items || {};
+                        const itemsConValor = items.filter((item) => valoraciones[item.key]);
+                        if (!itemsConValor.length) return null;
+
+                        return (
+                          <div className="mt-3">
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-club-black/45">
+                              Valoracion en posicion ({informe.demarcacion_concreta})
+                            </p>
+                            <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                              {itemsConValor.map((item) => (
+                                <div key={item.key} className="rounded-lg border border-gray-200 bg-white p-3">
+                                  <p className="text-[11px] font-semibold uppercase tracking-wide text-club-black/45">
+                                    {item.label}
+                                  </p>
+                                  <p className="mt-1 text-sm font-medium text-club-black">{valoraciones[item.key]} / 5</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
                       <p className="mt-3 text-xs text-club-black/55">Creado: {formatearFechaHora(informe.created_at)}</p>
                     </article>
                   ))}

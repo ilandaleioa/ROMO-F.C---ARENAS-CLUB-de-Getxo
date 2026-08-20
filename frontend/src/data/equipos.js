@@ -25,7 +25,24 @@ export const EQUIPOS_BASE_CLUB = [
   'Primer equipo',
 ];
 
-const EQUIPOS_ROMO_ARENAS = [
+const EQUIPOS_ROMO = [
+  'ROMO JUVENIL',
+  'ITZU JUVENIL',
+  'ROMO CADETE',
+  'ITZU CADETE',
+  'ROMO INFANTIL 2013',
+  'ROMO INFANTIL 2014',
+  'ROMO ALEVÍN 2015 Gobela',
+  'ROMO ALEVÍN 2015 Ibaiondo',
+  'ROMO ALEVÍN 2016',
+  'ROMO BENJAMÍN 2017 Gobela',
+  'ROMO BENJAMÍN 2017 Ibaiondo',
+  'ROMO BENJAMÍN 2018',
+  'ROMO PREBENJAMÍN 2019',
+  'ROMO PREBENJAMÍN 2020',
+];
+
+const EQUIPOS_ARENAS = [
   'ARENAS Juvenil A',
   'ARENAS Juvenil B',
   'ARENAS Cadete A',
@@ -42,8 +59,8 @@ const EQUIPOS_ROMO_ARENAS = [
 
 export const EQUIPOS_POR_CLUB = {
   DEFAULT: [...EQUIPOS_BASE_CLUB],
-  ARENAS: [...EQUIPOS_ROMO_ARENAS],
-  ROMO: [...EQUIPOS_ROMO_ARENAS],
+  ARENAS: [...EQUIPOS_ARENAS],
+  ROMO: [...EQUIPOS_ROMO],
 };
 
 function normalizarClaveClub(valor) {

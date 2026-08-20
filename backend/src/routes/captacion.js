@@ -35,7 +35,46 @@ const CAMPOS_INFORMES = [
   'minutos_jugados',
   'goles',
   'goles_encajados',
+  'valoracion_items',
 ];
+
+const ITEMS_VALORACION_POR_DEMARCACION = {
+  'Portero': [
+    'asociacion_linea_defensiva',
+    'conduccion_fijaciones',
+    'pases_en_corto',
+    'desplazamientos_medios',
+    'desplazamientos_largos',
+    'inicio_transicion_ofensiva_pies',
+  ],
+  'Lateral Dcho': [
+    'salida_de_balon',
+    'manejo_espacio_reducido',
+    'desplazamiento_largo',
+    'incorporaciones',
+    'asociaciones_campo_rival',
+    'desmarque_ruptura',
+  ],
+  'Lateral Izdo': [
+    'salida_de_balon',
+    'manejo_espacio_reducido',
+    'desplazamiento_largo',
+    'incorporaciones',
+    'asociaciones_campo_rival',
+    'desmarque_ruptura',
+  ],
+};
+
+function limpiarValoracionItems(demarcacionConcreta, valoracionItems) {
+  const itemsPermitidos = ITEMS_VALORACION_POR_DEMARCACION[demarcacionConcreta] || [];
+  if (!itemsPermitidos.length || !valoracionItems || typeof valoracionItems !== 'object') return {};
+
+  return itemsPermitidos.reduce((resultado, item) => {
+    const valor = Number(valoracionItems[item]);
+    if (Number.isInteger(valor) && valor >= 1 && valor <= 5) resultado[item] = valor;
+    return resultado;
+  }, {});
+}
 
 router.use(requireAuth);
 
@@ -200,10 +239,12 @@ function responderErrorInformes(res, error, accion) {
 }
 
 function limpiarInformePayload(body) {
-  return CAMPOS_INFORMES.reduce((payload, campo) => {
-    payload[campo] = String(body?.[campo] || '').trim();
-    return payload;
+  const payload = CAMPOS_INFORMES.filter((campo) => campo !== 'valoracion_items').reduce((acumulado, campo) => {
+    acumulado[campo] = String(body?.[campo] || '').trim();
+    return acumulado;
   }, {});
+  payload.valoracion_items = limpiarValoracionItems(payload.demarcacion_concreta, body?.valoracion_items);
+  return payload;
 }
 
 function validarInformePayload(payload) {

@@ -3,9 +3,9 @@ import { CLUBES_MAESTROS } from '../data/clubes';
 import { obtenerEquiposPorClub } from '../data/equipos';
 import { EQUIPOS_MS } from '../data/msEquipos';
 
-const STORAGE_KEY = 'listas_maestras_v2';
+const STORAGE_KEY = 'listas_maestras_v3';
 const STORAGE_KEY_LEGACY = 'listas_maestras_v1';
-const STORAGE_KEY_PREFIX = 'listas_maestras_v2:listas:';
+const STORAGE_KEY_PREFIX = 'listas_maestras_v3:listas:';
 
 function limpiarTextoLocal(valor) {
   return String(valor ?? '').trim();
@@ -34,8 +34,8 @@ function normalizarNombreEquipo(club, nombre) {
   const claveClub = normalizarClaveClub(club);
   const alias = {
     ROMO: {
-      JUVENIL: 'Juvenil A',
-      CADETE: 'Cadete A',
+      ROMOJUVENIL: 'JUVENIL',
+      ROMOCADETE: 'CADETE',
     },
   };
   const aliasClub = Object.keys(alias).find((clave) => claveClub.includes(clave));

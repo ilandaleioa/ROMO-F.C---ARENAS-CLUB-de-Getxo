@@ -7,6 +7,7 @@ import { EQUIPOS_BASE_CLUB, obtenerEquiposPorClub } from '../data/equipos';
 import { EQUIPOS_MS, obtenerMsEquiposPorClub } from '../data/msEquipos';
 import { useAuth } from '../context/AuthContext';
 import { CLUBES, useClub } from '../context/ClubContext';
+import { useFiltroEquipos } from '../context/FiltroEquiposContext';
 import { api } from '../lib/api';
 import { useListas } from '../lib/listas';
 
@@ -40,9 +41,9 @@ function etiquetaInstalacionActividad(actividad, fallback = '') {
 }
 
 const ACTIVIDADES_MUESTRA = [
-  ['19-08-2026', '17:30', '19:00', 'ROMO - CADETE A', 'sesion', 'ROMO - CADETE A', 'GOBELA'],
-  ['19-08-2026', '18:00', '19:30', 'ROMO - ITZU JUVENIL', 'sesion', 'ROMO - ITZU JUVENIL', 'GOBELA'],
-  ['19-08-2026', '19:15', '21:30', 'ROMO CADETE A', 'partido', 'ROMO CADETE A - BARAKALDO', 'GOBELA'],
+  ['19-08-2026', '17:30', '19:00', 'CADETE', 'sesion', 'CADETE', 'GOBELA'],
+  ['19-08-2026', '18:00', '19:30', 'ITZU JUVENIL', 'sesion', 'ITZU JUVENIL', 'GOBELA'],
+  ['19-08-2026', '19:15', '21:30', 'CADETE', 'partido', 'CADETE - BARAKALDO', 'GOBELA'],
 ];
 
 function etiquetaEquipoSelector(equipo) {
@@ -253,6 +254,21 @@ function normalizarClaveEquipo(valor) {
     .toUpperCase();
 }
 
+function actividadCoincideConEquiposSeleccionados(actividad, equiposSeleccionados) {
+  if (!equiposSeleccionados || equiposSeleccionados.length === 0) return true;
+
+  const equipoCanonico = obtenerEquipoCanonico(actividad.equipo, actividad.club);
+  const textos = [actividad.equipo, equipoCanonico, actividad.local, actividad.visitante, actividad.rival]
+    .map((valor) => normalizarClaveEquipo(valor))
+    .filter(Boolean);
+
+  return equiposSeleccionados.some((equipo) => {
+    const claveEquipo = normalizarClaveEquipo(equipo);
+    if (!claveEquipo) return false;
+    return textos.some((texto) => texto.includes(claveEquipo) || claveEquipo.includes(texto));
+  });
+}
+
 const PALETA_EQUIPOS = [
   { acento: '#dc2626', fondo: '#fff1f2', borde: '#fda4af', texto: '#9f1239', fondoAcento: '#ffe4e6' },
   { acento: '#2563eb', fondo: '#eff6ff', borde: '#93c5fd', texto: '#1e3a8a', fondoAcento: '#dbeafe' },
@@ -323,7 +339,7 @@ function quitarPrefijoJornadaPartido(texto) {
     .trim();
 }
 
-const NOMBRE_INTERNO_ROMO_JUVENIL = 'ROMO JUVENIL A';
+const NOMBRE_INTERNO_ROMO_JUVENIL = 'JUVENIL A';
 
 function reemplazarNombreRomoJuvenil(valor) {
   return textoLimpio(valor).replace(/ROMO\s+F[.,]?\s*C[.,]?/gi, NOMBRE_INTERNO_ROMO_JUVENIL);
@@ -441,9 +457,18 @@ function etiquetaEquipoCalendario(valor, mapaAbreviaturas) {
   const abreviaturaExacta = mapaAbreviaturas.get(clave);
   if (abreviaturaExacta) return abreviaturaExacta;
 
-  // Algunas actividades guardadas incluyen el club delante del equipo
-  // (por ejemplo, "ROMO FC · CADETE"). En ese caso usamos la coincidencia
-  // más específica para no confundir "ITZU CADETE" con "CADETE".
+  const equipoMaestro = EQUIPOS_MS.find((equipo) => {
+    const variantes = [
+      equipo.nombre,
+      equipo.abreviatura,
+      `${equipo.club} ${equipo.nombre}`,
+      `${equipo.club} - ${equipo.nombre}`,
+    ];
+    return variantes.some((variante) => normalizarClaveEquipo(variante) === clave);
+  });
+
+  if (equipoMaestro?.abreviatura) return equipoMaestro.abreviatura;
+
   const abreviaturaConPrefijo = Array.from(mapaAbreviaturas.entries())
     .sort(([claveA], [claveB]) => claveB.length - claveA.length)
     .find(([nombreEquipo]) => clave.endsWith(nombreEquipo))?.[1];
@@ -1058,18 +1083,6 @@ function serializarActividadPersistible(actividad) {
   };
 }
 
-function fusionarActividades(remotas = [], locales = []) {
-  const mapa = new Map();
-
-  [...remotas, ...locales].forEach((actividad) => {
-    const normalizada = normalizarActividadGuardada(actividad);
-    if (!normalizada?.id || mapa.has(normalizada.id)) return;
-    mapa.set(normalizada.id, normalizada);
-  });
-
-  return Array.from(mapa.values()).sort(ordenarActividades);
-}
-
 function cargarActividadesIniciales(clubPorDefecto = '') {
   const base = actividadesRomo();
 
@@ -1468,10 +1481,12 @@ function ActividadCalendario({ actividad, abierta, accionesCerradas, onVer, onEd
               {etiquetaInstalacionActividad(actividad, 'Pendiente')}
             </span>
           </div>
-          <div className="flex min-w-0 items-center gap-1.5">
-            <span className="shrink-0 rounded-md bg-white/75 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide" title={abreviaturaEquipoVisible}>
-              {abreviaturaEquipoVisible}
-            </span>
+          <div className="flex min-w-0 items-center gap-1">
+            {abreviaturaEquipoVisible && (
+              <span className="shrink-0 rounded-md bg-white/75 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide" title={abreviaturaEquipoVisible}>
+                {abreviaturaEquipoVisible}
+              </span>
+            )}
             <p className="min-w-0 truncate text-[9px] font-bold opacity-80" title={nombreEquipoVisible}>
               {nombreEquipoVisible}
             </p>
@@ -1488,9 +1503,11 @@ function ActividadCalendario({ actividad, abierta, accionesCerradas, onVer, onEd
             </span>
           </div>
           <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[11px] sm:text-xs">
-            <span className="shrink-0 rounded-full bg-white/75 px-2 py-0.5 font-black uppercase tracking-wide" title={abreviaturaEquipoVisible}>
-              {abreviaturaEquipoVisible}
-            </span>
+            {abreviaturaEquipoVisible && (
+              <span className="shrink-0 rounded-full bg-white/75 px-2 py-0.5 font-black uppercase tracking-wide" title={abreviaturaEquipoVisible}>
+                {abreviaturaEquipoVisible}
+              </span>
+            )}
             <span className="min-w-0 truncate font-black uppercase tracking-wide" title={nombreEquipoVisible}>
               {nombreEquipoVisible}
             </span>
@@ -1980,6 +1997,7 @@ function FiltroClub({ valor, onChange }) {
   const clubes = [
     { clave: 'ROMO', etiqueta: 'ROMO FC' },
     { clave: 'ARENAS', etiqueta: 'ARENAS CLUB' },
+    { clave: 'todos', etiqueta: 'LOS 2' },
   ];
 
   return (
@@ -1994,7 +2012,7 @@ function FiltroClub({ valor, onChange }) {
               key={club.clave}
               type="button"
               aria-pressed={activo}
-              onClick={() => onChange(activo ? 'todos' : club.clave)}
+              onClick={() => onChange(club.clave === 'todos' ? 'todos' : activo ? 'todos' : club.clave)}
               className={`min-w-0 flex-1 rounded-md px-2 text-xs font-extrabold uppercase tracking-wide transition sm:text-sm ${
                 activo
                   ? 'bg-club-red text-white shadow-sm'
@@ -2551,7 +2569,20 @@ function TablaActividades({ actividades, onEditar, onEliminar }) {
   );
 }
 
-function EquiposView({ actividades, semana, onChange, onHoy }) {
+function EquiposView({
+  actividades,
+  semana,
+  onChange,
+  onHoy,
+  actividadAccionesAbiertasId,
+  actividadAccionesCerradasId,
+  onToggleAccionesActividad,
+  onCerrarAccionesActividad,
+  onReactivarAccionesActividad,
+  onVer,
+  onEditar,
+  onEliminar,
+}) {
   const dias = diasDeSemana(semana);
   const equipos = useMemo(() => {
     const equiposBase = Array.from(new Set([...EQUIPOS_ACTIVIDADES, ...actividades.map((actividad) => obtenerEquipoCanonico(actividad.equipo, actividad.club))]));
@@ -2562,10 +2593,80 @@ function EquiposView({ actividades, semana, onChange, onHoy }) {
     );
   }, [actividades, dias]);
 
-  return <div className="actividades-equipos overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><NavegacionSemana semana={semana} onChange={onChange} onHoy={onHoy} /><div className="overflow-x-auto"><div className="min-w-[930px]">
-    <div className="grid grid-cols-[190px_repeat(7,minmax(105px,1fr))] border-b border-slate-200 bg-slate-100/90 text-center text-[11px] font-extrabold uppercase tracking-[0.12em] text-slate-400"><div className="flex items-end px-5 py-4 text-left">Equipo</div>{dias.map((dia) => <div key={fechaClave(dia)} className={`border-l border-slate-200 px-2 py-3 ${fechaClave(dia) === fechaClave(new Date()) ? 'text-club-red' : ''}`}><div>{formatearDiaSemana(dia).split(' ')[0]}</div><strong className="mt-1 block text-lg tracking-normal text-club-black">{dia.getDate()}</strong></div>)}</div>
-    {equipos.length > 0 ? equipos.map((equipo) => <div key={equipo} className="grid min-h-[92px] grid-cols-[190px_repeat(7,minmax(105px,1fr))] border-b border-slate-200 last:border-b-0"><div className="flex items-center gap-3 px-5 text-sm font-black text-slate-700"><span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: obtenerColorEquipo(equipo).acento }} />{equipo}</div>{dias.map((dia) => { const delDia = actividades.filter((actividad) => obtenerEquipoCanonico(actividad.equipo, actividad.club) === equipo && fechaClave(actividad.fecha) === fechaClave(dia)); return <div key={fechaClave(dia)} className="border-l border-slate-200 p-2">{delDia.map((actividad) => { const equipoCanonico = obtenerEquipoCanonico(actividad.equipo, actividad.club); const colorEquipo = obtenerColorEquipo(equipoCanonico); return <div key={actividad.id} className="mb-1 rounded-lg border px-2 py-2 text-[11px] font-bold leading-tight" style={{ backgroundColor: colorEquipo.fondo, borderColor: colorEquipo.borde, color: colorEquipo.texto }}><span className="block">{formatearHora(actividad.fecha, actividad.hora, actividad.horaFin)}</span><span className="mt-0.5 block line-clamp-2">{actividad.tipo === 'partido' ? tituloPartidoActividad(actividad) : actividad.titulo}</span></div>; })}</div>;})}</div>) : <div className="px-5 py-14 text-center text-sm font-semibold text-slate-400">No hay equipos con contenido en la semana seleccionada.</div>}
-  </div></div></div>;
+  return (
+    <div className="actividades-equipos overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <NavegacionSemana semana={semana} onChange={onChange} onHoy={onHoy} />
+      <div className="overflow-x-auto">
+        <div className="min-w-[930px]">
+          <div className="grid grid-cols-[190px_repeat(7,minmax(105px,1fr))] border-b border-slate-200 bg-slate-100/90 text-center text-[11px] font-extrabold uppercase tracking-[0.12em] text-slate-400">
+            <div className="flex items-end px-5 py-4 text-left">Equipo</div>
+            {dias.map((dia) => (
+              <div key={fechaClave(dia)} className={`border-l border-slate-200 px-2 py-3 ${fechaClave(dia) === fechaClave(new Date()) ? 'text-club-red' : ''}`}>
+                <div>{formatearDiaSemana(dia).split(' ')[0]}</div>
+                <strong className="mt-1 block text-lg tracking-normal text-club-black">{dia.getDate()}</strong>
+              </div>
+            ))}
+          </div>
+          {equipos.length > 0 ? (
+            equipos.map((equipo) => (
+              <div key={equipo} className="grid min-h-[92px] grid-cols-[190px_repeat(7,minmax(105px,1fr))] border-b border-slate-200 last:border-b-0">
+                <div className="flex items-center gap-3 px-5 text-sm font-black text-slate-700">
+                  <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: obtenerColorEquipo(equipo).acento }} />
+                  {equipo}
+                </div>
+                {dias.map((dia) => {
+                  const delDia = actividades.filter((actividad) => obtenerEquipoCanonico(actividad.equipo, actividad.club) === equipo && fechaClave(actividad.fecha) === fechaClave(dia));
+                  return (
+                    <div key={fechaClave(dia)} className="border-l border-slate-200 p-2">
+                      {delDia.map((actividad) => {
+                        const equipoCanonico = obtenerEquipoCanonico(actividad.equipo, actividad.club);
+                        const colorEquipo = obtenerColorEquipo(equipoCanonico);
+                        return (
+                          <div
+                            key={actividad.id}
+                            role="button"
+                            tabIndex={0}
+                            aria-expanded={actividadAccionesAbiertasId === actividad.id}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onToggleAccionesActividad?.(actividad);
+                            }}
+                            onMouseEnter={() => onReactivarAccionesActividad?.(actividad)}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+                                onToggleAccionesActividad?.(actividad);
+                              }
+                            }}
+                            className={`actividades-equipos-evento group/card relative mb-1 cursor-pointer rounded-lg border px-2 py-2 text-[11px] font-bold leading-tight transition hover:shadow-md ${actividadAccionesAbiertasId === actividad.id ? 'z-20 overflow-visible ring-2 ring-club-red/20' : 'z-10 overflow-hidden'}`}
+                            style={{ backgroundColor: colorEquipo.fondo, borderColor: colorEquipo.borde, color: colorEquipo.texto }}
+                          >
+                            <AccionesActividad
+                              actividad={actividad}
+                              abierta={actividadAccionesAbiertasId === actividad.id}
+                              cerrada={actividadAccionesCerradasId === actividad.id}
+                              onVer={onVer}
+                              onEditar={onEditar}
+                              onEliminar={onEliminar}
+                              onCerrar={() => onCerrarAccionesActividad?.(actividad)}
+                            />
+                            <span className="block">{formatearHora(actividad.fecha, actividad.hora, actividad.horaFin)}</span>
+                            <span className="mt-0.5 block line-clamp-2">{actividad.tipo === 'partido' ? tituloPartidoActividad(actividad) : actividad.titulo}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            ))
+          ) : (
+            <div className="px-5 py-14 text-center text-sm font-semibold text-slate-400">No hay equipos con contenido en la semana seleccionada.</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function HorasView({
@@ -2766,6 +2867,7 @@ function HorasView({
 export default function Actividades() {
   const { user } = useAuth();
   const { club } = useClub();
+  const { equiposSeleccionados } = useFiltroEquipos();
   const listas = useListas();
   const clubActivo = resolverClaveClubEquipo(club || user?.club || 'ROMO');
   const hoy = useMemo(() => new Date(), []);
@@ -2798,6 +2900,7 @@ export default function Actividades() {
   const [calendarioPantallaCompleta, setCalendarioPantallaCompleta] = useState(false);
   const [sincronizacionRemotaLista, setSincronizacionRemotaLista] = useState(false);
   const [sincronizacionRemotaActiva, setSincronizacionRemotaActiva] = useState(false);
+  const [errorSincronizacionRemota, setErrorSincronizacionRemota] = useState(null);
   const catalogoLocalVisitante = useMemo(() => {
     const listaClubes = listas.find((lista) => lista.id === 'clubes');
     const listaEquipos = listas.find((lista) => lista.id === 'equipos');
@@ -2918,16 +3021,16 @@ export default function Actividades() {
           .map((actividad) => normalizarActividadGuardada(actividad, clubActivo))
           .filter(Boolean)
           .sort(ordenarActividades);
-        const actividadesIniciales = puedeEscribirRemoto
-          ? fusionarActividades(actividadesNormalizadas, locales)
-          : actividadesNormalizadas;
-
-        setActividades(actividadesIniciales.length > 0 ? actividadesIniciales : locales);
+        setActividades(actividadesNormalizadas.length > 0 ? actividadesNormalizadas : locales);
         setSincronizacionRemotaActiva(puedeEscribirRemoto);
-      } catch (_) {
+        setErrorSincronizacionRemota(null);
+      } catch (err) {
         if (!cancelado) {
           setActividades(locales);
           setSincronizacionRemotaActiva(false);
+          setErrorSincronizacionRemota(
+            'No se ha podido conectar con el servidor. Se estan mostrando datos guardados localmente y los cambios (incluidos los borrados) no se sincronizaran hasta que vuelva la conexion.'
+          );
         }
       } finally {
         if (!cancelado) {
@@ -2991,9 +3094,15 @@ export default function Actividades() {
     const guardarActividadesRemotas = async () => {
       try {
         await api.put('/actividades', { actividades: serializadas });
-      } catch (_) {
+        if (!cancelado) {
+          setErrorSincronizacionRemota(null);
+        }
+      } catch (err) {
         if (!cancelado) {
           setSincronizacionRemotaActiva(false);
+          setErrorSincronizacionRemota(
+            'No se han podido guardar los cambios en el servidor (sesion caducada o sin conexion). Los cambios, incluidos los borrados, se han perdido de la version remota: vuelve a iniciar sesion y repitelos.'
+          );
         }
       }
     };
@@ -3034,9 +3143,10 @@ export default function Actividades() {
           (filtros.evento === 'todos' || actividad.evento === filtros.evento) &&
           (filtros.competicion === 'todos' || actividad.competicion === filtros.competicion) &&
           (filtros.instalacion === 'todos' || textoLimpio(actividad.ubicacion) === filtros.instalacion) &&
-          (filtros.horario === 'todos' || textoLimpio(actividad.hora) === filtros.horario)
+          (filtros.horario === 'todos' || textoLimpio(actividad.hora) === filtros.horario) &&
+          actividadCoincideConEquiposSeleccionados(actividad, equiposSeleccionados)
       ),
-    [actividades, filtros]
+    [actividades, filtros, equiposSeleccionados]
   );
 
   const actividadesPorDia = useMemo(() => {
@@ -3273,6 +3383,16 @@ export default function Actividades() {
       cerrarCrear();
     }
 
+    if (puedeEscribirRemoto && sincronizacionRemotaActiva) {
+      api.delete(`/actividades/${encodeURIComponent(actividad.id)}`)
+        .then(() => setErrorSincronizacionRemota(null))
+        .catch(() => {
+          setErrorSincronizacionRemota(
+            'No se ha podido eliminar la actividad en el servidor (sesion caducada o sin conexion). Vuelve a iniciar sesion e intentalo de nuevo.'
+          );
+        });
+    }
+
     return true;
   };
 
@@ -3383,6 +3503,12 @@ export default function Actividades() {
           </button>
         </div>
 
+        {errorSincronizacionRemota && (
+          <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+            {errorSincronizacionRemota}
+          </div>
+        )}
+
         <div className="actividades-filtros mt-6 flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:flex-wrap sm:items-end sm:px-5">
           <FiltroClub
             valor={filtros.club}
@@ -3475,7 +3601,22 @@ export default function Actividades() {
               />
             )}
             {vista === 'tabla' && <TablaActividades actividades={actividadesFiltradas} onEditar={abrirEditar} onEliminar={eliminarActividad} />}
-            {vista === 'equipos' && <EquiposView actividades={actividadesFiltradas} semana={semanaVisible} onChange={cambiarSemana} onHoy={() => setSemanaVisible(obtenerInicioSemana(hoy))} />}
+            {vista === 'equipos' && (
+              <EquiposView
+                actividades={actividadesFiltradas}
+                semana={semanaVisible}
+                onChange={cambiarSemana}
+                onHoy={() => setSemanaVisible(obtenerInicioSemana(hoy))}
+                actividadAccionesAbiertasId={actividadAccionesAbiertasId}
+                actividadAccionesCerradasId={actividadAccionesCerradasId}
+                onToggleAccionesActividad={alternarAccionesActividad}
+                onCerrarAccionesActividad={cerrarAccionesActividad}
+                onReactivarAccionesActividad={reactivarAccionesActividad}
+                onVer={abrirVistaActividad}
+                onEditar={abrirEditar}
+                onEliminar={eliminarActividad}
+              />
+            )}
             {vista === 'horas' && (
               <HorasView
                 actividades={actividadesFiltradas}
