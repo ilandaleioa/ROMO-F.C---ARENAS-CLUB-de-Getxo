@@ -85,7 +85,7 @@ const BLOQUES = [
   },
   {
     title: 'Observaciones',
-    fields: ['descripcion_jugador', 'observaciones'],
+    fields: ['informe_realizado_por', 'descripcion_jugador', 'observaciones'],
   },
 ];
 
@@ -417,9 +417,16 @@ const ETIQUETAS = {
   demarcacion_concreta: 'Demarcacion concreta',
   otra_demarcacion: 'Otra demarcacion -',
   valoracion_general: 'Valoracion general',
+  informe_realizado_por: 'Informe realizado por',
   descripcion_jugador: 'Descripcion del jugador',
   observaciones: 'Observaciones',
 };
+
+const OPCIONES_VALORACION_DIRECCION = [
+  { value: 'DESCARTAR', clase: 'border-red-600 bg-red-600 text-white' },
+  { value: 'SEGUIR', clase: 'border-amber-500 bg-amber-500 text-white' },
+  { value: 'POTENCIAL', clase: 'border-green-600 bg-green-600 text-white' },
+];
 
 function renderValor(registro, campo) {
   if (!registro) return '-';
@@ -800,14 +807,21 @@ export default function CaptacionDetalle() {
                     const valoracionItems = registro.valoracion_items || {};
                     const demarcacionInformeCompleto = valoracionItems.demarcacion || '';
                     const gruposDemarcacion = ITEMS_INFORME_COMPLETO_POR_DEMARCACION[demarcacionInformeCompleto];
+                    const direccionInformeCompleto = valoracionItems.direccion || '';
+                    const opcionDireccion = OPCIONES_VALORACION_DIRECCION.find((opcion) => opcion.value === direccionInformeCompleto);
 
                     return (
                       <section className="rounded-2xl border border-gray-200 bg-gray-50 p-4 lg:col-span-2">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <h4 className="text-sm font-bold uppercase tracking-wide text-club-black">Informe completo (Del 1 al 5)</h4>
+                        <div className="flex flex-wrap items-center gap-3">
                           {demarcacionInformeCompleto ? (
-                            <span className="inline-flex items-center rounded-full border border-club-red/20 bg-club-red/5 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-club-red">
+                            <span className="inline-flex items-center rounded-full border border-club-red bg-club-red px-4 py-1.5 text-sm font-bold uppercase tracking-wide text-white shadow-sm">
                               {demarcacionInformeCompleto}
+                            </span>
+                          ) : null}
+                          <h4 className="text-sm font-bold uppercase tracking-wide text-club-black">Informe completo (Del 1 al 5)</h4>
+                          {opcionDireccion ? (
+                            <span className={`inline-flex items-center rounded-full border px-4 py-1.5 text-sm font-bold uppercase tracking-wide shadow-sm ${opcionDireccion.clase}`}>
+                              {opcionDireccion.value}
                             </span>
                           ) : null}
                         </div>
