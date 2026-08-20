@@ -65,6 +65,34 @@ const SECCIONES_CAPTACION = [
   { id: 'informes', label: 'INFORMES' },
 ];
 
+const ITEMS_VALORACION_POR_DEMARCACION = {
+  'Portero': [
+    { key: 'asociacion_linea_defensiva', label: 'Asociacion con linea defensiva' },
+    { key: 'conduccion_fijaciones', label: 'Conduccion fijaciones' },
+    { key: 'pases_en_corto', label: 'Pases en corto' },
+    { key: 'desplazamientos_medios', label: 'Desplazamientos medios' },
+    { key: 'desplazamientos_largos', label: 'Desplazamientos largos' },
+    { key: 'inicio_transicion_ofensiva_pies', label: 'Inicio de transicion ofensiva con pies' },
+  ],
+  'Lateral Dcho': [
+    { key: 'salida_de_balon', label: 'Salida de balon' },
+    { key: 'manejo_espacio_reducido', label: 'Manejo espacio reducido' },
+    { key: 'desplazamiento_largo', label: 'Desplazamiento largo' },
+    { key: 'incorporaciones', label: 'Incorporaciones' },
+    { key: 'asociaciones_campo_rival', label: 'Asociaciones en campo rival' },
+    { key: 'desmarque_ruptura', label: 'Desmarque ruptura' },
+  ],
+  'Lateral Izdo': [
+    { key: 'salida_de_balon', label: 'Salida de balon' },
+    { key: 'manejo_espacio_reducido', label: 'Manejo espacio reducido' },
+    { key: 'desplazamiento_largo', label: 'Desplazamiento largo' },
+    { key: 'incorporaciones', label: 'Incorporaciones' },
+    { key: 'asociaciones_campo_rival', label: 'Asociaciones en campo rival' },
+    { key: 'desmarque_ruptura', label: 'Desmarque ruptura' },
+  ],
+};
+const OPCIONES_VALORACION_ITEM = [1, 2, 3, 4, 5];
+
 const INFORME_TITULARIDAD_OPCIONES = ['TITULAR', 'SUPLENTE', 'NO CONVOCA'];
 const CAMPOS_INFORME_JUGADOR = ['etapa', 'categoria', 'dorsal', 'lateralidad', 'demarcacion_concreta'];
 const CAMPOS_INFORME_TABLA = [
@@ -161,6 +189,7 @@ function crearInformeVacio() {
     minutos_jugados: '',
     goles: '',
     goles_encajados: '',
+    valoracion_items: {},
   };
 }
 function calcularPartidoInforme(informe) {
@@ -577,7 +606,18 @@ function obtenerEquiposFiltradosPorClub(listaEquipos, clubSeleccionado) {
     const clubFila = String(fila?.club || '').trim();
     const equipoFila = String(fila?.nombre || '').trim();
     if (!clubFila || !equipoFila) return;
-    if (clubNormalizado && normalizarComparacion(clubFila) !== clubNormalizado) return;
+
+    const clubFilaNormalizado = normalizarComparacion(clubFila);
+
+    // Coincide si son iguales exactamente o si uno contiene al otro
+    // (para manejar "ARENAS CLUB" vs "ARENAS")
+    const palabrasClubesSeleccionado = clubNormalizado.split(/\s+/);
+    const palabrasClubesFila = clubFilaNormalizado.split(/\s+/);
+    const coincideClub = palabrasClubesSeleccionado.some(
+      (palabra) => palabrasClubesFila.some((palabraFila) => palabra === palabraFila || palabra.includes(palabraFila) || palabraFila.includes(palabra))
+    );
+
+    if (!coincideClub) return;
 
     const clave = normalizarComparacion(equipoFila);
     if (vistos.has(clave)) return;
@@ -991,9 +1031,8 @@ export default function Captacion() {
   }, [busqueda, camposVisibles, filtros, registros]);
 
   const informesFiltrados = useMemo(() => {
-    if (!jugadorInformesFiltro) return informes;
-    return informes.filter((informe) => String(informe?.jugador?.id || '') === String(jugadorInformesFiltro.id));
-  }, [informes, jugadorInformesFiltro]);
+    return informes;
+  }, [informes]);
 
   function verInformesDeJugador(registro) {
     setJugadorInformesFiltro({ id: registro.id, nombre: nombreCompleto(registro) || 'Jugador' });
@@ -1334,6 +1373,7 @@ export default function Captacion() {
       if (key === 'club') {
         siguiente.equipo = '';
         siguiente.jugador_id = '';
+        siguiente.valoracion_items = {};
         CAMPOS_INFORME_JUGADOR.forEach((campo) => {
           siguiente[campo] = '';
         });
@@ -1341,6 +1381,7 @@ export default function Captacion() {
 
       if (key === 'equipo') {
         siguiente.jugador_id = '';
+        siguiente.valoracion_items = {};
         CAMPOS_INFORME_JUGADOR.forEach((campo) => {
           siguiente[campo] = '';
         });
@@ -1350,6 +1391,7 @@ export default function Captacion() {
         const jugador = registros.find((registro) => String(registro.id) === String(value));
         const datosJugador = jugador ? obtenerDatosJugadorParaInforme(jugador) : null;
 
+        siguiente.valoracion_items = {};
         CAMPOS_INFORME_JUGADOR.forEach((campo) => {
           siguiente[campo] = String(datosJugador?.[campo] || '').trim();
         });
@@ -1367,8 +1409,19 @@ export default function Captacion() {
         siguiente.partido = calcularPartidoInforme(siguiente);
       }
 
+      if (key === 'demarcacion_concreta' && prev.demarcacion_concreta !== value) {
+        siguiente.valoracion_items = {};
+      }
+
       return siguiente;
     });
+  };
+
+  const actualizarValoracionItemInforme = (itemKey, valor) => {
+    setFormInforme((prev) => ({
+      ...prev,
+      valoracion_items: { ...prev.valoracion_items, [itemKey]: valor },
+    }));
   };
 
   const cancelarFormularioInforme = () => {
@@ -1442,6 +1495,7 @@ export default function Captacion() {
         minutos_jugados: String(formInforme.minutos_jugados || '').trim(),
         goles: String(formInforme.goles || '').trim(),
         goles_encajados: String(formInforme.goles_encajados || '').trim(),
+        valoracion_items: formInforme.valoracion_items || {},
       };
       const resultado = editandoInformeId
         ? await api.put(`/captacion/informes/${editandoInformeId}`, payload)
@@ -1646,6 +1700,47 @@ export default function Captacion() {
             {control}
           </>
         )}
+      </div>
+    );
+  };
+
+  const renderItemsValoracionInforme = () => {
+    const items = ITEMS_VALORACION_POR_DEMARCACION[formInforme.demarcacion_concreta] || [];
+    if (!items.length) return null;
+
+    return (
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {items.map((item) => {
+          const valorSeleccionado = formInforme.valoracion_items?.[item.key] || '';
+          return (
+            <div key={item.key} className="rounded-2xl border border-gray-200 bg-white p-3">
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-club-black/55">
+                {item.label}
+              </label>
+              <div className="grid grid-cols-5 gap-2">
+                {OPCIONES_VALORACION_ITEM.map((opcion) => {
+                  const seleccionado = String(valorSeleccionado) === String(opcion);
+                  return (
+                    <button
+                      key={opcion}
+                      type="button"
+                      onClick={() => actualizarValoracionItemInforme(item.key, opcion)}
+                      aria-pressed={seleccionado}
+                      aria-label={`${item.label} valoracion ${opcion}`}
+                      className={`inline-flex items-center justify-center rounded-xl border px-2 py-2 text-sm font-bold transition-all focus:outline-none focus:ring-2 focus:ring-club-red focus:ring-offset-1 ${
+                        seleccionado
+                          ? 'border-club-red bg-club-red text-white shadow-sm'
+                          : 'border-gray-300 bg-white text-club-black hover:border-club-red/40 hover:bg-red-50'
+                      }`}
+                    >
+                      {opcion}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
       </div>
     );
   };
@@ -2363,6 +2458,7 @@ export default function Captacion() {
                     <div className={`mt-4 grid grid-cols-1 gap-4 ${bloque.gridClassName || 'sm:grid-cols-2 xl:grid-cols-3'}`}>
                       {bloque.fields.map((campo) => renderCampoInforme(campo))}
                     </div>
+                    {bloque.title === 'VALORACIÓN EN POSICIÓN' && renderItemsValoracionInforme()}
                     </section>
                 ))}
               </div>
@@ -2425,20 +2521,41 @@ export default function Captacion() {
                   informesFiltrados.map((informe) => (
                     <tr key={informe.id} className="hover:bg-red-50/40 transition-colors">
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <button
-                          type="button"
-                          onClick={() => editarInforme(informe)}
-                          className="text-club-red font-semibold hover:underline text-sm mr-3"
-                        >
-                          Editar
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => eliminarInforme(informe)}
-                          className="text-club-black/60 font-semibold hover:underline text-sm"
-                        >
-                          Eliminar
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/captacion/${informe.jugador_id}`)}
+                            title="Ver"
+                            aria-label="Ver"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-club-black/60 transition-colors hover:bg-gray-100 hover:text-club-black"
+                          >
+                            <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5" aria-hidden="true">
+                              <path d="M10 4.5c3.8 0 6.9 2.3 8.1 5.5C16.9 13.2 13.8 15.5 10 15.5S3.1 13.2 1.9 10C3.1 6.8 6.2 4.5 10 4.5Zm0 1.5c-2.9 0-5.3 1.7-6.3 4 1 2.3 3.4 4 6.3 4s5.3-1.7 6.3-4c-1-2.3-3.4-4-6.3-4Zm0 1.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5Z" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => editarInforme(informe)}
+                            title="Editar"
+                            aria-label="Editar"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-club-red transition-colors hover:bg-red-50 hover:text-club-redDark"
+                          >
+                            <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5" aria-hidden="true">
+                              <path d="M13.9 2.9a2 2 0 0 1 2.8 2.8l-.8.8-2.8-2.8.8-.8Zm-2 2L4 12.8V16h3.2l7.9-7.9-3.2-3.2Z" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => eliminarInforme(informe)}
+                            title="Eliminar"
+                            aria-label="Eliminar"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-club-black/60 transition-colors hover:bg-red-50 hover:text-club-red"
+                          >
+                            <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5" aria-hidden="true">
+                              <path d="M7 3.5A1.5 1.5 0 0 1 8.5 2h3A1.5 1.5 0 0 1 13 3.5V4h3a1 1 0 1 1 0 2h-1v9.5A2.5 2.5 0 0 1 12.5 18h-5A2.5 2.5 0 0 1 5 15.5V6H4a1 1 0 1 1 0-2h3v-.5ZM8.5 4h3v-.5h-3V4ZM7 6v9.5c0 .3.2.5.5.5h5a.5.5 0 0 0 .5-.5V6H7Zm2 2a1 1 0 0 1 1 1v4a1 1 0 1 1-2 0V9a1 1 0 0 1 1-1Zm3 0a1 1 0 0 1 1 1v4a1 1 0 1 1-2 0V9a1 1 0 0 1 1-1Z" />
+                            </svg>
+                          </button>
+                        </div>
                       </td>
                       {CAMPOS_INFORME_TABLA.map((campo) => {
                         const valor = campo.key === 'partido'
