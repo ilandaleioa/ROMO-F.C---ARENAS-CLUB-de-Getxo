@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../lib/api';
-import { useLista, useListaValores } from '../lib/listas';
+import { useLista } from '../lib/listas';
 import SelectBuscador from '../components/SelectBuscador';
-import { obtenerEquiposPorClub } from '../data/equipos';
 
 function normalizarFecha(valor) {
   const limpia = String(valor || '').trim();
@@ -90,36 +89,269 @@ const BLOQUES = [
   },
 ];
 
-const CAMPOS_INFORME = ['club', 'equipo', 'etapa', 'categoria', 'local', 'visitante', 'partido', 'dorsal', 'lateralidad', 'titularidad', 'minutos_jugados', 'goles', 'goles_encajados'];
+const CAMPOS_INFORME = ['club', 'equipo', 'etapa', 'categoria', 'local', 'visitante', 'partido', 'dorsal', 'lateralidad', 'valoracion', 'titularidad', 'minutos_jugados', 'goles', 'goles_encajados', 'observador'];
 
-const ITEMS_VALORACION_POR_DEMARCACION = {
-  'Portero': [
-    { key: 'asociacion_linea_defensiva', label: 'Asociacion con linea defensiva' },
-    { key: 'conduccion_fijaciones', label: 'Conduccion fijaciones' },
-    { key: 'pases_en_corto', label: 'Pases en corto' },
-    { key: 'desplazamientos_medios', label: 'Desplazamientos medios' },
-    { key: 'desplazamientos_largos', label: 'Desplazamientos largos' },
-    { key: 'inicio_transicion_ofensiva_pies', label: 'Inicio de transicion ofensiva con pies' },
-  ],
-  'Lateral Dcho': [
-    { key: 'salida_de_balon', label: 'Salida de balon' },
-    { key: 'manejo_espacio_reducido', label: 'Manejo espacio reducido' },
-    { key: 'desplazamiento_largo', label: 'Desplazamiento largo' },
-    { key: 'incorporaciones', label: 'Incorporaciones' },
-    { key: 'asociaciones_campo_rival', label: 'Asociaciones en campo rival' },
-    { key: 'desmarque_ruptura', label: 'Desmarque ruptura' },
-  ],
-  'Lateral Izdo': [
-    { key: 'salida_de_balon', label: 'Salida de balon' },
-    { key: 'manejo_espacio_reducido', label: 'Manejo espacio reducido' },
-    { key: 'desplazamiento_largo', label: 'Desplazamiento largo' },
-    { key: 'incorporaciones', label: 'Incorporaciones' },
-    { key: 'asociaciones_campo_rival', label: 'Asociaciones en campo rival' },
-    { key: 'desmarque_ruptura', label: 'Desmarque ruptura' },
-  ],
+
+const INFORME_COMPLETO_DEMARCACIONES = [
+  'PORTERO',
+  'LATERAL',
+  'CENTRAL',
+  'MEDIO',
+  'EXTREMO',
+  'DELANTERO',
+  'MEDIA PUNTA',
+];
+
+const GRUPOS_INFORME_COMPLETO = [
+  { key: 'fisico', label: 'Fisico' },
+  { key: 'conBalon', label: 'Con balon' },
+  { key: 'sinBalon', label: 'Sin balon' },
+];
+
+function normalizarClaveItemInformeCompleto(texto) {
+  return String(texto || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function construirItemsInformeCompleto(etiquetas) {
+  const clavesUsadas = new Map();
+  return etiquetas.map((label) => {
+    const claveBase = normalizarClaveItemInformeCompleto(label);
+    const veces = (clavesUsadas.get(claveBase) || 0) + 1;
+    clavesUsadas.set(claveBase, veces);
+    return { key: veces > 1 ? `${claveBase}_${veces}` : claveBase, label };
+  });
+}
+
+const FISICO_ESTANDAR = ['Velocidad', 'Potencia', 'Aceleracion', 'Salto', 'Fuerza'];
+
+const ITEMS_INFORME_COMPLETO_POR_DEMARCACION = {
+  'PORTERO': {
+    conBalon: construirItemsInformeCompleto([
+      'Asociacion con linea defensiva',
+      'Conduccion fijaciones',
+      'Pases en corto',
+      'Desplazamientos medios',
+      'Desplazamientos largos',
+      'Inicio de transicion ofensiva con pies',
+      'Inicio de transicion ofensiva con manos',
+    ]),
+    sinBalon: construirItemsInformeCompleto([
+      'Acciones debajo de los palos',
+      'Salidas 1 contra 1',
+      'Juego aereo frontal',
+      'Juego aereo lateral',
+      'Segundas jugadas',
+      'Bloqueos',
+      'Dominio area juego lateral',
+      'Dominio distancia linea defensiva',
+    ]),
+    fisico: construirItemsInformeCompleto(['Velocidad', 'Potencia', 'Desplazamiento lateral', 'Salto', 'Fuerza']),
+  },
+  'LATERAL': {
+    conBalon: construirItemsInformeCompleto([
+      'Salida de balon',
+      'Manejo espacio reducido',
+      'Desplazamiento largo',
+      'Incorporaciones',
+      'Asociaciones en campo rival',
+      'Desmarque ruptura',
+      'Duelos 1 contra 1',
+      'Centros laterales en ultimo tercio',
+    ]),
+    sinBalon: construirItemsInformeCompleto([
+      'Acciones de duelo terrestre',
+      'Acciones de duelo aereo',
+      'Comportamiento dentro del area',
+      'Orientaciones',
+      'Defender situacion con pelota alejada',
+      'Eleccion momento entrada',
+      'Defensa balon espalda',
+      'Dominio de la linea defensiva',
+    ]),
+    fisico: construirItemsInformeCompleto(FISICO_ESTANDAR),
+  },
+  'CENTRAL': {
+    conBalon: construirItemsInformeCompleto([
+      'Salida de balon (pases filtrados)',
+      'Desplazamiento corto',
+      'Desplazamiento largo',
+      'Conducciones para progresar',
+      'Incorporacion ataque',
+      'Comunicacion',
+      'Vigil',
+      'Juego aereo ofensivo',
+    ]),
+    sinBalon: construirItemsInformeCompleto([
+      'Defensa area',
+      'Acciones de duelo terrestre',
+      'Acciones de duelo aereo',
+      'Anticipacion',
+      'Ganar duelos en campo abierto',
+      'Capacidad para girar',
+      'Vigilancias',
+      'Dominio de la linea defensiva',
+    ]),
+    fisico: construirItemsInformeCompleto(FISICO_ESTANDAR),
+  },
+  'MEDIO': {
+    conBalon: construirItemsInformeCompleto([
+      'Manejo balon',
+      'Manejo tiempos',
+      'Cambios de orientacion',
+      'Capacidad para girar',
+      'Dominio espacial - orientaciones',
+      'Crear lineas de pase',
+      'Primer contacto',
+      'Controles orientados',
+    ]),
+    sinBalon: construirItemsInformeCompleto([
+      'Defender juego aereo frontal/diagonal',
+      'Defender situaciones en pasillo central/lateral',
+      'Capacidad de ir a linea defensiva',
+      'Temporizar',
+      'Recuperaciones',
+      'Anticipacion',
+      'Repliegue',
+      'Retornos',
+    ]),
+    fisico: construirItemsInformeCompleto(FISICO_ESTANDAR),
+  },
+  'EXTREMO': {
+    conBalon: construirItemsInformeCompleto([
+      'Desmarques de ruptura',
+      'Centros laterales',
+      'Asistencia',
+      'Acciones de 1vs1 en movimiento',
+      'Acciones de 1vs1 en parado',
+      'Centros',
+      'Finalizar desde fuera',
+      'Ir al espalda linea defensiva',
+    ]),
+    sinBalon: construirItemsInformeCompleto([
+      'Defender cerrando lado opuesto',
+      'Capacidad recuperar en su zona',
+      'Capacidad def de no ser superado',
+      'Recuperaciones balon',
+      'Ayudas al lateral',
+      'Anticipacion',
+      'Orientar la presion',
+      'Tapar lineas de pase',
+    ]),
+    fisico: construirItemsInformeCompleto(FISICO_ESTANDAR),
+  },
+  'DELANTERO': {
+    conBalon: construirItemsInformeCompleto([
+      'Remates en area',
+      'Juego de espaldas',
+      'Tiro',
+      'Asistencias',
+      'Dar apoyo y continuidad al juego',
+      'Dar profundidad (prolongacion/desvio)',
+      'Remate de centro lateral',
+      'Capacidad de jugar solo o con companero linea',
+    ]),
+    sinBalon: construirItemsInformeCompleto([
+      'Presion orientada',
+      'Presion tras perdida',
+      'Duelo',
+      'Retornos',
+      'Ayudas al lateral',
+      'Anticipacion',
+      'Orientar la presion',
+      'Tapar lineas de pase',
+    ]),
+    fisico: construirItemsInformeCompleto(FISICO_ESTANDAR),
+  },
+  'MEDIA PUNTA': {
+    conBalon: construirItemsInformeCompleto([
+      'Arrancadas - conducciones',
+      'Ultimos y penultimos pases',
+      'Remate',
+      'Tiro',
+      'Asistencia',
+      'Movilidades dentro-fuera',
+      'Romper linea defensiva',
+      'Hace desmarque o se mueve reactivamente',
+    ]),
+    sinBalon: construirItemsInformeCompleto([
+      'Presion orientada',
+      'Presion tras perdida',
+      'Duelo',
+      'Anticipacion',
+      'Retornos',
+      'Duelos terrestres',
+      'Duelos aereos',
+      'Tapar lineas de pase',
+    ]),
+    fisico: construirItemsInformeCompleto(FISICO_ESTANDAR),
+  },
 };
-const OPCIONES_VALORACION_ITEM = [1, 2, 3, 4, 5];
+
+const DEMARCACION_CONCRETA_OPCIONES = [
+  'Portero',
+  'Lateral Dcho',
+  'Lateral Izdo',
+  'Central Dcho',
+  'Central Izdo',
+  'Pivote',
+  'Media punta',
+  'Interior Dcho',
+  'Interior Izdo',
+  'Extremo Dcho',
+  'Extremo Izdo',
+  'Delantero',
+];
 const TITULARIDAD_OPCIONES = ['TITULAR', 'SUPLENTE', 'NO CONVOCA'];
+
+const POSICIONES_CAMPO = {
+  'Portero': { x: 50, y: 91 },
+  'Lateral Dcho': { x: 82, y: 82 },
+  'Lateral Izdo': { x: 18, y: 82 },
+  'Central Dcho': { x: 62, y: 80 },
+  'Central Izdo': { x: 38, y: 80 },
+  'Pivote': { x: 50, y: 60 },
+  'Media punta': { x: 50, y: 32 },
+  'Interior Dcho': { x: 66, y: 46 },
+  'Interior Izdo': { x: 34, y: 46 },
+  'Extremo Dcho': { x: 85, y: 24 },
+  'Extremo Izdo': { x: 15, y: 24 },
+  'Delantero': { x: 50, y: 12 },
+};
+
+function CampoFutbolPosicion({ demarcacionConcreta }) {
+  const posicion = POSICIONES_CAMPO[demarcacionConcreta];
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white p-2">
+      <svg viewBox="0 0 100 150" className="w-full" role="img" aria-label={`Posicion en el campo: ${demarcacionConcreta || 'sin asignar'}`}>
+        <rect x="0" y="0" width="100" height="150" fill="#3f8a4b" />
+        <rect x="2" y="2" width="96" height="146" fill="none" stroke="white" strokeWidth="0.6" />
+        <line x1="2" y1="75" x2="98" y2="75" stroke="white" strokeWidth="0.6" />
+        <circle cx="50" cy="75" r="9" fill="none" stroke="white" strokeWidth="0.6" />
+        <circle cx="50" cy="75" r="0.8" fill="white" />
+        <rect x="26" y="2" width="48" height="18" fill="none" stroke="white" strokeWidth="0.6" />
+        <rect x="38" y="2" width="24" height="8" fill="none" stroke="white" strokeWidth="0.6" />
+        <path d="M 38 20 A 9 9 0 0 0 62 20" fill="none" stroke="white" strokeWidth="0.6" />
+        <rect x="26" y="130" width="48" height="18" fill="none" stroke="white" strokeWidth="0.6" />
+        <rect x="38" y="140" width="24" height="8" fill="none" stroke="white" strokeWidth="0.6" />
+        <path d="M 38 130 A 9 9 0 0 1 62 130" fill="none" stroke="white" strokeWidth="0.6" />
+        {posicion ? (
+          <g>
+            <circle cx={posicion.x} cy={posicion.y} r="4.5" fill="#e2001a" stroke="white" strokeWidth="0.8" />
+          </g>
+        ) : null}
+      </svg>
+      <p className="mt-1 text-center text-xs font-semibold uppercase tracking-wide text-club-black/60">
+        {demarcacionConcreta || 'Sin demarcacion concreta'}
+      </p>
+    </div>
+  );
+}
 const ETIQUETAS_INFORME = {
   club: 'Club',
   equipo: 'Equipo',
@@ -130,6 +362,7 @@ const ETIQUETAS_INFORME = {
   partido: 'Partido',
   dorsal: 'Dorsal',
   lateralidad: 'Lateralidad',
+  valoracion: 'Valoracion',
   titularidad: 'Titularidad',
   minutos_jugados: 'Minutos jugados',
   goles: 'Goles',
@@ -137,7 +370,14 @@ const ETIQUETAS_INFORME = {
   tipologia: 'Tipologia',
   descripcion: 'Descripcion',
   demarcacion_concreta: 'Demarcacion concreta',
+  observador: 'Observador',
 };
+
+const VALORACION_INFORME_OPCIONES = [
+  { valor: 'BAJO', etiqueta: 'NIVEL BAJO' },
+  { valor: 'MEDIO', etiqueta: 'NIVEL MEDIO' },
+  { valor: 'ALTO', etiqueta: 'NIVEL ALTO' },
+];
 
 const ETIQUETAS = {
   fecha_alta: 'Fecha alta',
@@ -256,6 +496,35 @@ export default function CaptacionDetalle() {
   const [guardandoInforme, setGuardandoInforme] = useState(false);
   const [errorGuardarInforme, setErrorGuardarInforme] = useState('');
 
+  const listaClubes = useLista('clubes');
+  const listaEquipos = useLista('equipos');
+  const listaEtapas = useLista('etapas');
+  const listaCategorias = useLista('categorias');
+
+  const opcionesClub = useMemo(
+    () => (listaClubes?.filas || []).map(fila => fila.nombre || fila.valor).filter(Boolean),
+    [listaClubes]
+  );
+
+  const opcionesEquipo = useMemo(() => {
+    const clubSeleccionado = informeEditando?.club;
+    if (!clubSeleccionado) return [];
+    return (listaEquipos?.filas || [])
+      .filter(fila => String(fila?.club || '').trim() === String(clubSeleccionado || '').trim())
+      .map(fila => fila.nombre)
+      .filter(Boolean);
+  }, [listaEquipos, informeEditando?.club]);
+
+  const opcionesEtapa = useMemo(
+    () => (listaEtapas?.filas || []).map(fila => fila.nombre).filter(Boolean),
+    [listaEtapas]
+  );
+
+  const opcionesCategoria = useMemo(
+    () => (listaCategorias?.filas || []).map(fila => fila.nombre).filter(Boolean),
+    [listaCategorias]
+  );
+
   const fotoUrl = useMemo(() => obtenerFotoJugadorUrl(registro), [registro]);
   const nombre = useMemo(() => nombreCompleto(registro) || 'Detalle de captacion', [registro]);
 
@@ -273,12 +542,6 @@ export default function CaptacionDetalle() {
 
   const actualizarCampoInforme = (campo, valor) => {
     setInformeEditando((prev) => (prev ? { ...prev, [campo]: valor } : null));
-  };
-
-  const actualizarValoracionItemInforme = (itemKey, valor) => {
-    setInformeEditando((prev) =>
-      prev ? { ...prev, valoracion_items: { ...prev.valoracion_items, [itemKey]: valor } } : null
-    );
   };
 
   const guardarInformeEditado = async () => {
@@ -301,13 +564,13 @@ export default function CaptacionDetalle() {
         tipologia: informeEditando.tipologia || '',
         lateralidad: informeEditando.lateralidad || '',
         descripcion: informeEditando.descripcion || '',
+        valoracion: informeEditando.valoracion || '',
         demarcacion_concreta: informeEditando.demarcacion_concreta || '',
         titularidad: informeEditando.titularidad || '',
         minutos_jugados: informeEditando.minutos_jugados || '',
         goles: informeEditando.goles || '',
         goles_encajados: informeEditando.goles_encajados || '',
         jugador_id: informeEditando.jugador_id || '',
-        valoracion_items: informeEditando.valoracion_items || {},
       };
 
       const respuesta = await api.put(`/captacion/informes/${editandoInformeId}`, payload);
@@ -451,6 +714,8 @@ export default function CaptacionDetalle() {
                     <p className="mt-1 text-xl font-bold text-club-black">{renderValor(registro, 'dorsal')}</p>
                   </div>
                 </div>
+
+                <CampoFutbolPosicion demarcacionConcreta={registro.demarcacion_concreta} />
               </div>
 
               <div className="space-y-5">
@@ -533,6 +798,51 @@ export default function CaptacionDetalle() {
                       </div>
                     </section>
                   ))}
+
+                  {(() => {
+                    const valoracionItems = registro.valoracion_items || {};
+                    const demarcacionInformeCompleto = valoracionItems.demarcacion || '';
+                    const gruposDemarcacion = ITEMS_INFORME_COMPLETO_POR_DEMARCACION[demarcacionInformeCompleto];
+
+                    return (
+                      <section className="rounded-2xl border border-gray-200 bg-gray-50 p-4 lg:col-span-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <h4 className="text-sm font-bold uppercase tracking-wide text-club-black">Informe completo</h4>
+                          {demarcacionInformeCompleto ? (
+                            <span className="inline-flex items-center rounded-full border border-club-red/20 bg-club-red/5 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-club-red">
+                              {demarcacionInformeCompleto}
+                            </span>
+                          ) : null}
+                        </div>
+                        {!gruposDemarcacion ? (
+                          <p className="mt-3 text-sm text-club-black/55">
+                            El jugador todavia no tiene una demarcacion de informe completo asignada.
+                          </p>
+                        ) : (
+                          GRUPOS_INFORME_COMPLETO.map((grupo) => {
+                            const items = gruposDemarcacion[grupo.key] || [];
+                            if (!items.length) return null;
+
+                            return (
+                              <div key={grupo.key} className="mt-4">
+                                <p className="text-[11px] font-semibold uppercase tracking-wide text-club-black/45">{grupo.label}</p>
+                                <div className="mt-2 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                                  {items.map((item) => (
+                                    <div key={item.key} className="rounded-xl border border-gray-200 bg-white p-4">
+                                      <p className="text-xs font-semibold uppercase tracking-wide text-club-black/45">{item.label}</p>
+                                      <p className="mt-2 text-sm font-medium text-club-black">
+                                        {valoracionItems[grupo.key]?.[item.key] ? `${valoracionItems[grupo.key][item.key]} / 5` : '-'}
+                                      </p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </section>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
@@ -558,24 +868,167 @@ export default function CaptacionDetalle() {
                     <p className="text-xs text-club-red font-semibold">{errorGuardarInforme}</p>
                   ) : null}
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {['fecha', 'observador', 'dorsal', 'lateralidad', 'demarcacion_concreta', 'titularidad', 'minutos_jugados', 'goles', 'goles_encajados'].map((campo) => (
-                    <div key={campo}>
-                      <label className="block text-xs font-semibold uppercase text-club-black/60 mb-1">
-                        {ETIQUETAS_INFORME[campo] || campo}
-                      </label>
-                      <input
-                        type={campo === 'fecha' ? 'date' : 'text'}
-                        value={informeEditando[campo] || ''}
-                        onChange={(e) => actualizarCampoInforme(campo, e.target.value)}
-                        className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
+
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wide text-club-black/70 mb-3">Datos básicos</p>
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                      <div>
+                        <label className="block text-xs font-semibold uppercase text-club-black/60 mb-1">Fecha</label>
+                        <input
+                          type="date"
+                          value={informeEditando.fecha || ''}
+                          onChange={(e) => actualizarCampoInforme('fecha', e.target.value)}
+                          className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold uppercase text-club-black/60 mb-1">Observador</label>
+                        <input
+                          type="text"
+                          value={informeEditando.observador || ''}
+                          onChange={(e) => actualizarCampoInforme('observador', e.target.value)}
+                          className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
+                        />
+                      </div>
+                      <SelectBuscador
+                        label="Club"
+                        value={informeEditando.club || ''}
+                        options={opcionesClub}
+                        emptyLabel="Seleccionar..."
+                        onChange={(valor) => actualizarCampoInforme('club', valor)}
+                      />
+                      <SelectBuscador
+                        label="Equipo"
+                        value={informeEditando.equipo || ''}
+                        options={opcionesEquipo}
+                        emptyLabel="Seleccionar..."
+                        onChange={(valor) => actualizarCampoInforme('equipo', valor)}
                       />
                     </div>
-                  ))}
-                  <div className="sm:col-span-2 lg:col-span-3">
-                    <label className="block text-xs font-semibold uppercase text-club-black/60 mb-1">
-                      {ETIQUETAS_INFORME['descripcion'] || 'Descripcion'}
-                    </label>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wide text-club-black/70 mb-3">Partido</p>
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                      <SelectBuscador
+                        label="Etapa"
+                        value={informeEditando.etapa || ''}
+                        options={opcionesEtapa}
+                        emptyLabel="Seleccionar..."
+                        onChange={(valor) => actualizarCampoInforme('etapa', valor)}
+                      />
+                      <SelectBuscador
+                        label="Categoría"
+                        value={informeEditando.categoria || ''}
+                        options={opcionesCategoria}
+                        emptyLabel="Seleccionar..."
+                        onChange={(valor) => actualizarCampoInforme('categoria', valor)}
+                      />
+                      <div>
+                        <label className="block text-xs font-semibold uppercase text-club-black/60 mb-1">Local</label>
+                        <input
+                          type="text"
+                          value={informeEditando.local || ''}
+                          onChange={(e) => actualizarCampoInforme('local', e.target.value)}
+                          className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold uppercase text-club-black/60 mb-1">Visitante</label>
+                        <input
+                          type="text"
+                          value={informeEditando.visitante || ''}
+                          onChange={(e) => actualizarCampoInforme('visitante', e.target.value)}
+                          className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold uppercase text-club-black/60 mb-1">Partido</label>
+                        <input
+                          type="text"
+                          value={informeEditando.partido || ''}
+                          onChange={(e) => actualizarCampoInforme('partido', e.target.value)}
+                          className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wide text-club-black/70 mb-3">Informe</p>
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      <div>
+                        <label className="block text-xs font-semibold uppercase text-club-black/60 mb-1">Dorsal</label>
+                        <input
+                          type="text"
+                          value={informeEditando.dorsal || ''}
+                          onChange={(e) => actualizarCampoInforme('dorsal', e.target.value)}
+                          className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold uppercase text-club-black/60 mb-1">Tipología</label>
+                        <input
+                          type="text"
+                          value={informeEditando.tipologia || ''}
+                          onChange={(e) => actualizarCampoInforme('tipologia', e.target.value)}
+                          className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
+                        />
+                      </div>
+                      <SelectBuscador
+                        label="Lateralidad"
+                        value={informeEditando.lateralidad || ''}
+                        options={['Diestro', 'Zurdo', 'Ambas']}
+                        emptyLabel="Seleccionar..."
+                        onChange={(valor) => actualizarCampoInforme('lateralidad', valor)}
+                      />
+                      <SelectBuscador
+                        label="Demarcación concreta"
+                        value={informeEditando.demarcacion_concreta || ''}
+                        options={DEMARCACION_CONCRETA_OPCIONES}
+                        emptyLabel="Seleccionar..."
+                        onChange={(valor) => actualizarCampoInforme('demarcacion_concreta', valor)}
+                      />
+                      <SelectBuscador
+                        label="Titularidad"
+                        value={informeEditando.titularidad || ''}
+                        options={TITULARIDAD_OPCIONES}
+                        emptyLabel="Seleccionar..."
+                        onChange={(valor) => actualizarCampoInforme('titularidad', valor)}
+                      />
+                      <div>
+                        <label className="block text-xs font-semibold uppercase text-club-black/60 mb-1">Minutos jugados</label>
+                        <input
+                          type="text"
+                          value={informeEditando.minutos_jugados || ''}
+                          onChange={(e) => actualizarCampoInforme('minutos_jugados', e.target.value)}
+                          className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold uppercase text-club-black/60 mb-1">Goles</label>
+                        <input
+                          type="text"
+                          value={informeEditando.goles || ''}
+                          onChange={(e) => actualizarCampoInforme('goles', e.target.value)}
+                          className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold uppercase text-club-black/60 mb-1">Goles encajados</label>
+                        <input
+                          type="text"
+                          value={informeEditando.goles_encajados || ''}
+                          onChange={(e) => actualizarCampoInforme('goles_encajados', e.target.value)}
+                          className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold uppercase text-club-black/60 mb-1">Descripción</label>
                     <textarea
                       value={informeEditando.descripcion || ''}
                       onChange={(e) => actualizarCampoInforme('descripcion', e.target.value)}
@@ -584,48 +1037,31 @@ export default function CaptacionDetalle() {
                     />
                   </div>
                 </div>
-                {(() => {
-                  const items = ITEMS_VALORACION_POR_DEMARCACION[informeEditando.demarcacion_concreta] || [];
-                  if (!items.length) return null;
-
-                  return (
-                    <div className="mt-4">
-                      <p className="text-xs font-semibold uppercase text-club-black/60 mb-2">
-                        Valoracion en posicion ({informeEditando.demarcacion_concreta})
-                      </p>
-                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                        {items.map((item) => {
-                          const valorSeleccionado = informeEditando.valoracion_items?.[item.key] || '';
-                          return (
-                            <div key={item.key} className="rounded-md border border-gray-300 bg-white p-2">
-                              <p className="text-[11px] font-semibold uppercase text-club-black/60 mb-1">{item.label}</p>
-                              <div className="grid grid-cols-5 gap-1">
-                                {OPCIONES_VALORACION_ITEM.map((opcion) => {
-                                  const seleccionado = String(valorSeleccionado) === String(opcion);
-                                  return (
-                                    <button
-                                      key={opcion}
-                                      type="button"
-                                      onClick={() => actualizarValoracionItemInforme(item.key, opcion)}
-                                      aria-pressed={seleccionado}
-                                      className={`rounded px-1.5 py-1 text-xs font-bold transition-colors ${
-                                        seleccionado
-                                          ? 'bg-club-red text-white'
-                                          : 'bg-gray-100 text-club-black hover:bg-club-red/10'
-                                      }`}
-                                    >
-                                      {opcion}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })()}
+                <div className="mt-4">
+                  <p className="text-xs font-bold uppercase tracking-wide text-club-black/70 mb-3">Valoracion</p>
+                  {(() => {
+                    const coloresValoracion = {
+                      BAJO: 'border-red-300 bg-red-50 text-red-700 focus:ring-red-500',
+                      MEDIO: 'border-orange-300 bg-orange-50 text-orange-700 focus:ring-orange-500',
+                      ALTO: 'border-green-300 bg-green-50 text-green-700 focus:ring-green-500',
+                    };
+                    const claseColor = coloresValoracion[informeEditando.valoracion || ''] || '';
+                    return (
+                      <select
+                        value={informeEditando.valoracion || ''}
+                        onChange={(e) => actualizarCampoInforme('valoracion', e.target.value)}
+                        className={`w-full max-w-xs rounded-md border border-gray-300 px-2 py-1.5 text-sm font-semibold focus:outline-none focus:ring-2 ${claseColor}`}
+                      >
+                        <option value="">Seleccionar...</option>
+                        {VALORACION_INFORME_OPCIONES.map((opcion) => (
+                          <option key={opcion.valor} value={opcion.valor}>
+                            {opcion.etiqueta}
+                          </option>
+                        ))}
+                      </select>
+                    );
+                  })()}
+                </div>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <button
                     type="button"
@@ -694,30 +1130,6 @@ export default function CaptacionDetalle() {
                           );
                         })}
                       </div>
-                      {(() => {
-                        const items = ITEMS_VALORACION_POR_DEMARCACION[informe.demarcacion_concreta] || [];
-                        const valoraciones = informe.valoracion_items || {};
-                        const itemsConValor = items.filter((item) => valoraciones[item.key]);
-                        if (!itemsConValor.length) return null;
-
-                        return (
-                          <div className="mt-3">
-                            <p className="text-[11px] font-semibold uppercase tracking-wide text-club-black/45">
-                              Valoracion en posicion ({informe.demarcacion_concreta})
-                            </p>
-                            <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                              {itemsConValor.map((item) => (
-                                <div key={item.key} className="rounded-lg border border-gray-200 bg-white p-3">
-                                  <p className="text-[11px] font-semibold uppercase tracking-wide text-club-black/45">
-                                    {item.label}
-                                  </p>
-                                  <p className="mt-1 text-sm font-medium text-club-black">{valoraciones[item.key]} / 5</p>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })()}
                       <p className="mt-3 text-xs text-club-black/55">Creado: {formatearFechaHora(informe.created_at)}</p>
                     </article>
                   ))}

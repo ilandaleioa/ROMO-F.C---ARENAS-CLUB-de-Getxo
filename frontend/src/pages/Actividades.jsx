@@ -106,9 +106,15 @@ function nombreEquipoFormulario(valor, clubPreferido = '') {
     return equipo.nombre;
   }
 
-  return textoLimpio(valor)
+  const cleaned = textoLimpio(valor)
     .replace(/^(?:ROMO|ARENAS)(?:\s+FC|\s+CLUB)?\s*[-·]\s*/i, '')
     .trim();
+
+  if (!cleaned || cleaned === valor.trim()) {
+    return textoLimpio(valor);
+  }
+
+  return cleaned;
 }
 
 const SEPARADOR_CLUB_EQUIPO = ' \u00b7 ';
@@ -502,7 +508,8 @@ function nombreEquipoCalendario(valor, clubPreferido = '') {
 }
 
 function nombreEquipoLegible(valor, clubPreferido = '') {
-  const texto = nombreEquipoCalendario(valor, clubPreferido);
+  const equipoMaestro = buscarEquipoMaestroCalendario(valor, clubPreferido);
+  const texto = equipoMaestro ? equipoMaestro.nombre : nombreEquipoCalendario(valor, clubPreferido);
   if (!texto) return 'Equipo pendiente';
 
   const limpio = texto
@@ -926,6 +933,15 @@ function IconoBorrar() {
   );
 }
 
+function IconoDuplicar() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4" aria-hidden="true">
+      <rect x="8" y="8" width="12" height="12" rx="2" />
+      <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" />
+    </svg>
+  );
+}
+
 const JORNADAS_ROMO = [
   ['13-09-2026', 'BARAKALDO C.F.', 'ROMO F.C.'],
   ['20-09-2026', 'ROMO F.C.', 'CULTURAL DPVA. DURANGO, S.'],
@@ -1267,12 +1283,12 @@ function EquipoPartido({ nombre, nombreMostrado, alineacion, compacta = false, d
   );
 }
 
-function AccionesActividad({ actividad, abierta, cerrada, onVer, onEditar, onEliminar, onCerrar }) {
-  if (!onVer && !onEditar && !onEliminar) return null;
+function AccionesActividad({ actividad, abierta, cerrada, onVer, onEditar, onDuplicar, onEliminar, onCerrar }) {
+  if (!onVer && !onEditar && !onDuplicar && !onEliminar) return null;
 
   return (
     <div
-      className={`actividades-acciones-actividad absolute right-2 top-2 z-20 flex items-center gap-1 rounded-full border border-white/70 bg-white/90 p-1 shadow-lg shadow-slate-900/10 backdrop-blur-sm transition-all duration-150 ${
+      className={`actividades-acciones-actividad absolute right-2 -top-9 z-20 flex items-center gap-1 rounded-full border border-white/70 bg-white/90 p-1 shadow-lg shadow-slate-900/10 backdrop-blur-sm transition-all duration-150 ${
         abierta
           ? 'opacity-100 ring-2 ring-club-red/15'
           : cerrada
@@ -1307,6 +1323,20 @@ function AccionesActividad({ actividad, abierta, cerrada, onVer, onEditar, onEli
           title="Editar actividad"
         >
           <IconoEditar />
+        </button>
+      )}
+      {onDuplicar && (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onDuplicar(actividad);
+          }}
+          className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white text-blue-500 shadow-sm transition hover:bg-blue-500 hover:text-white"
+          aria-label="Duplicar actividad"
+          title="Duplicar actividad"
+        >
+          <IconoDuplicar />
         </button>
       )}
       {onEliminar && (
@@ -1347,7 +1377,7 @@ function AccionesActividad({ actividad, abierta, cerrada, onVer, onEditar, onEli
   );
 }
 
-function ActividadCalendario({ actividad, abierta, accionesCerradas, onVer, onEditar, onEliminar, onSeleccionar, equipoVisible, onToggleAcciones, onCerrarAcciones, onReactivarAcciones, mapaAbreviaturasEquipos, compacta = false }) {
+function ActividadCalendario({ actividad, abierta, accionesCerradas, onVer, onEditar, onDuplicar, onEliminar, onSeleccionar, equipoVisible, onToggleAcciones, onCerrarAcciones, onReactivarAcciones, mapaAbreviaturasEquipos, compacta = false }) {
   const { club: clubContexto } = useClub();
   const clubPreferido = actividad.club || clubContexto;
   const equipoCanonico = obtenerEquipoCanonico(actividad.equipo, clubPreferido);
@@ -1388,6 +1418,7 @@ function ActividadCalendario({ actividad, abierta, accionesCerradas, onVer, onEd
           cerrada={accionesCerradas}
           onVer={onVer}
           onEditar={onEditar}
+          onDuplicar={onDuplicar}
           onEliminar={onEliminar}
           onCerrar={() => onCerrarAcciones?.(actividad)}
         />
@@ -1464,6 +1495,7 @@ function ActividadCalendario({ actividad, abierta, accionesCerradas, onVer, onEd
         cerrada={accionesCerradas}
         onVer={onVer}
         onEditar={onEditar}
+        onDuplicar={onDuplicar}
         onEliminar={onEliminar}
         onCerrar={() => onCerrarAcciones?.(actividad)}
       />
@@ -1518,7 +1550,7 @@ function ActividadCalendario({ actividad, abierta, accionesCerradas, onVer, onEd
   );
 }
 
-function ModalDetalleActividad({ actividad, onClose, onEditar, onEliminar }) {
+function ModalDetalleActividad({ actividad, onClose, onEditar, onDuplicar, onEliminar }) {
   if (!actividad) return null;
 
   const esPartido = actividad.tipo === 'partido';
@@ -1642,6 +1674,14 @@ function ModalDetalleActividad({ actividad, onClose, onEditar, onEliminar }) {
             </button>
             <button
               type="button"
+              onClick={() => onDuplicar?.(actividad)}
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-extrabold uppercase tracking-wide text-blue-600 transition hover:border-blue-300 hover:bg-blue-50"
+            >
+              <IconoDuplicar />
+              Duplicar
+            </button>
+            <button
+              type="button"
               onClick={() => onEliminar?.(actividad)}
               className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white px-4 py-3 text-sm font-extrabold uppercase tracking-wide text-rose-600 transition hover:border-rose-300 hover:bg-rose-50"
             >
@@ -1655,7 +1695,7 @@ function ModalDetalleActividad({ actividad, onClose, onEditar, onEliminar }) {
   );
 }
 
-function ActividadSemana({ actividad, abierta, accionesCerradas, onToggleAcciones, onCerrarAcciones, onReactivarAcciones, onEditar, onEliminar }) {
+function ActividadSemana({ actividad, abierta, accionesCerradas, onToggleAcciones, onCerrarAcciones, onReactivarAcciones, onEditar, onDuplicar, onEliminar }) {
   const esPartido = actividad.tipo === 'partido';
   const partido = descomponerPartidoActividad(actividad);
   const local = partido.local || actividad.local || actividad.equipo || 'Pendiente';
@@ -1677,6 +1717,7 @@ function ActividadSemana({ actividad, abierta, accionesCerradas, onToggleAccione
         abierta={abierta}
         cerrada={accionesCerradas}
         onEditar={onEditar}
+        onDuplicar={onDuplicar}
         onEliminar={onEliminar}
         onCerrar={() => onCerrarAcciones?.(actividad)}
       />
@@ -1718,6 +1759,7 @@ function SemanaView({
   onReactivarAccionesActividad,
   onVer,
   onEditar,
+  onDuplicar,
   onEliminar,
   onCrear,
   mapaAbreviaturasEquipos,
@@ -1814,6 +1856,7 @@ function SemanaView({
                           accionesCerradas={actividadAccionesCerradasId === actividad.id}
                           onVer={onVer}
                           onEditar={onEditar}
+                          onDuplicar={onDuplicar}
                           onEliminar={onEliminar}
                           onSeleccionar={() => {
                             setFechaMenuCreacion(null);
@@ -1927,6 +1970,7 @@ function SemanaView({
                           accionesCerradas={actividadAccionesCerradasId === actividad.id}
                           onVer={onVer}
                           onEditar={onEditar}
+                          onDuplicar={onDuplicar}
                           onEliminar={onEliminar}
                           onSeleccionar={() => setFechaMenuCreacion(null)}
                           onToggleAcciones={onToggleAccionesActividad}
@@ -1945,6 +1989,7 @@ function SemanaView({
                           onCerrarAcciones={onCerrarAccionesActividad}
                           onReactivarAcciones={onReactivarAccionesActividad}
                           onEditar={onEditar}
+                          onDuplicar={onDuplicar}
                           onEliminar={onEliminar}
                         />
                       )
@@ -2424,6 +2469,10 @@ function IconoEquipos() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true"><circle cx="9" cy="8" r="3" /><circle cx="17" cy="9" r="2.5" /><path d="M3.5 19c.5-3 2.2-4.5 5.5-4.5s5 1.5 5.5 4.5M14 14.5c3.8-.5 5.9 1 6.5 4.5" /></svg>;
 }
 
+function IconoGraficas() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true"><path d="M4 20V10M11 20V4M18 20v-7" strokeLinecap="round" /><path d="M3 20h18" strokeLinecap="round" /></svg>;
+}
+
 function IconoVistaHoras() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true"><circle cx="12" cy="12" r="8.5" /><path d="M12 7v5l3.2 2" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 }
@@ -2444,6 +2493,7 @@ function VistaSelector({ vista, onChange }) {
     ['equipos', 'Equipos', <IconoEquipos key="equipos" />],
     ['horas', 'Horas', <IconoVistaHoras key="horas" />],
     ['tabla', 'Tabla', <IconoTabla key="tabla" />],
+    ['graficas', 'Gráficas', <IconoGraficas key="graficas" />],
   ];
 
   return (
@@ -2549,7 +2599,7 @@ function NavegacionSemana({ semana, onChange, onHoy }) {
   );
 }
 
-function TablaActividades({ actividades, onEditar, onEliminar }) {
+function TablaActividades({ actividades, onEditar, onDuplicar, onEliminar }) {
   return (
     <div className="actividades-tabla overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="overflow-x-auto">
@@ -2560,11 +2610,157 @@ function TablaActividades({ actividades, onEditar, onEliminar }) {
           <tbody className="divide-y divide-slate-100">
             {actividades.length > 0 ? actividades.slice().sort((a, b) => a.fecha - b.fecha || String(a.hora || '').localeCompare(String(b.hora || ''))).map((actividad) => {
               const estilo = claseActividad(actividad.tipo);
-              return <tr key={actividad.id} className="transition hover:bg-slate-50"><td className="whitespace-nowrap px-5 py-4 text-sm font-black text-club-black">{formatearFechaTabla(actividad.fecha)}</td><td className="whitespace-nowrap px-5 py-4 text-sm font-bold text-slate-500">{formatearHora(actividad.fecha, actividad.hora, actividad.horaFin)}</td><td className="whitespace-nowrap px-5 py-4 text-sm font-bold text-slate-600"><span className={`mr-2 inline-block h-2.5 w-2.5 rounded-full ${estilo.punto}`} />{obtenerEquipoCanonico(actividad.equipo, actividad.club)}</td><td className="px-5 py-4"><span className={`inline-flex rounded-md border px-3 py-1 text-[11px] font-extrabold uppercase tracking-wide ${actividad.tipo === 'partido' ? 'border-red-200 bg-red-50 text-red-600' : 'border-slate-200 bg-slate-100 text-slate-600'}`}>{estilo.etiqueta}</span></td><td className="min-w-[260px] px-5 py-4 text-sm font-bold text-slate-700">{actividad.tipo === 'partido' ? tituloPartidoActividad(actividad) : actividad.titulo}</td><td className="whitespace-nowrap px-5 py-4 text-sm font-semibold text-slate-500">{actividad.ubicacion}</td><td className="actividades-tabla-acciones whitespace-nowrap px-5 py-4 text-right"><div className="flex justify-end gap-2"><button type="button" onClick={() => onEditar?.(actividad)} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold uppercase tracking-wide text-slate-600 transition hover:border-club-red/30 hover:text-club-red"><IconoEditar /> Editar</button><button type="button" onClick={() => onEliminar?.(actividad)} className="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-extrabold uppercase tracking-wide text-rose-600 transition hover:border-rose-300 hover:bg-rose-50"><IconoBorrar /> Eliminar</button></div></td></tr>;
+              return <tr key={actividad.id} className="transition hover:bg-slate-50"><td className="whitespace-nowrap px-5 py-4 text-sm font-black text-club-black">{formatearFechaTabla(actividad.fecha)}</td><td className="whitespace-nowrap px-5 py-4 text-sm font-bold text-slate-500">{formatearHora(actividad.fecha, actividad.hora, actividad.horaFin)}</td><td className="whitespace-nowrap px-5 py-4 text-sm font-bold text-slate-600"><span className={`mr-2 inline-block h-2.5 w-2.5 rounded-full ${estilo.punto}`} />{obtenerEquipoCanonico(actividad.equipo, actividad.club)}</td><td className="px-5 py-4"><span className={`inline-flex rounded-md border px-3 py-1 text-[11px] font-extrabold uppercase tracking-wide ${actividad.tipo === 'partido' ? 'border-red-200 bg-red-50 text-red-600' : 'border-slate-200 bg-slate-100 text-slate-600'}`}>{estilo.etiqueta}</span></td><td className="min-w-[260px] px-5 py-4 text-sm font-bold text-slate-700">{actividad.tipo === 'partido' ? tituloPartidoActividad(actividad) : actividad.titulo}</td><td className="whitespace-nowrap px-5 py-4 text-sm font-semibold text-slate-500">{actividad.ubicacion}</td><td className="actividades-tabla-acciones whitespace-nowrap px-5 py-4 text-right"><div className="flex justify-end gap-2"><button type="button" onClick={() => onEditar?.(actividad)} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold uppercase tracking-wide text-slate-600 transition hover:border-club-red/30 hover:text-club-red"><IconoEditar /> Editar</button><button type="button" onClick={() => onDuplicar?.(actividad)} className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-extrabold uppercase tracking-wide text-blue-600 transition hover:border-blue-300 hover:bg-blue-50"><IconoDuplicar /> Duplicar</button><button type="button" onClick={() => onEliminar?.(actividad)} className="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-extrabold uppercase tracking-wide text-rose-600 transition hover:border-rose-300 hover:bg-rose-50"><IconoBorrar /> Eliminar</button></div></td></tr>;
             }) : <tr><td colSpan="7" className="px-5 py-14 text-center text-sm font-semibold text-slate-400">No hay actividades para los filtros seleccionados.</td></tr>}
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+const DURACION_DEFECTO_MINUTOS = 90;
+
+function horasUsoActividad(actividad) {
+  const rango = obtenerRangoActividad(actividad);
+  return rango ? (rango.fin - rango.inicio) / 60 : DURACION_DEFECTO_MINUTOS / 60;
+}
+
+function calcularUsoCampos(actividades) {
+  const porInstalacion = new Map();
+
+  actividades.forEach((actividad) => {
+    const instalacion = textoLimpio(actividad.ubicacion).toUpperCase();
+    if (!INSTALACIONES_ROMO.includes(instalacion)) return;
+
+    const equipo = obtenerEquipoCanonico(actividad.equipo, actividad.club) || 'Equipo pendiente';
+    const horas = horasUsoActividad(actividad);
+
+    if (!porInstalacion.has(instalacion)) porInstalacion.set(instalacion, new Map());
+    const porEquipo = porInstalacion.get(instalacion);
+    const actual = porEquipo.get(equipo) || { horas: 0, sesiones: 0 };
+    actual.horas += horas;
+    actual.sesiones += 1;
+    porEquipo.set(equipo, actual);
+  });
+
+  return INSTALACIONES_ROMO.map((instalacion) => {
+    const porEquipo = porInstalacion.get(instalacion) || new Map();
+    const equipos = Array.from(porEquipo.entries())
+      .map(([equipo, datos]) => ({ equipo, ...datos }))
+      .sort((a, b) => b.horas - a.horas || a.equipo.localeCompare(b.equipo, 'es'));
+    const horasTotales = equipos.reduce((total, item) => total + item.horas, 0);
+    const sesionesTotales = equipos.reduce((total, item) => total + item.sesiones, 0);
+
+    return { instalacion, equipos, horasTotales, sesionesTotales };
+  });
+}
+
+function formatearHoras(horas) {
+  const redondeado = Math.round(horas * 10) / 10;
+  return `${redondeado.toLocaleString('es-ES', { maximumFractionDigits: 1 })} h`;
+}
+
+function GraficasView({ actividades }) {
+  const usoCampos = useMemo(() => calcularUsoCampos(actividades), [actividades]);
+  const horasMaximas = Math.max(1, ...usoCampos.map((campo) => campo.horasTotales));
+  const equiposLeyenda = useMemo(() => {
+    const totales = new Map();
+    usoCampos.forEach((campo) => {
+      campo.equipos.forEach(({ equipo, horas }) => {
+        totales.set(equipo, (totales.get(equipo) || 0) + horas);
+      });
+    });
+    return Array.from(totales.entries())
+      .map(([equipo, horas]) => ({ equipo, horas }))
+      .sort((a, b) => b.horas - a.horas || a.equipo.localeCompare(b.equipo, 'es'));
+  }, [usoCampos]);
+  const hayDatos = usoCampos.some((campo) => campo.horasTotales > 0);
+
+  return (
+    <div className="actividades-graficas overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="border-b border-slate-100 px-5 py-4">
+        <h3 className="text-sm font-black uppercase tracking-wide text-club-black">Uso de los campos por equipo</h3>
+        <p className="mt-1 text-xs font-semibold text-slate-400">Horas de ocupación por instalación, desglosadas por equipo, según los filtros seleccionados.</p>
+      </div>
+
+      {hayDatos ? (
+        <>
+          <div className="space-y-5 px-5 py-5">
+            {usoCampos.map((campo) => (
+              <div key={campo.instalacion} className="grid grid-cols-[130px_1fr_70px] items-center gap-3 sm:grid-cols-[150px_1fr_80px]">
+                <span className="truncate text-xs font-extrabold uppercase tracking-wide text-slate-600" title={campo.instalacion}>
+                  {campo.instalacion}
+                </span>
+                <div className="flex h-6 min-w-0 overflow-hidden rounded-full bg-slate-100" role="img" aria-label={`${campo.instalacion}: ${formatearHoras(campo.horasTotales)} de uso, ${campo.sesionesTotales} sesiones`}>
+                  {campo.horasTotales > 0 ? (
+                    campo.equipos.map(({ equipo, horas, sesiones }, indice) => {
+                      const color = obtenerColorEquipo(equipo);
+                      const anchoPct = (horas / horasMaximas) * 100;
+                      return (
+                        <div
+                          key={equipo}
+                          title={`${equipo} · ${formatearHoras(horas)} · ${sesiones} sesión${sesiones === 1 ? '' : 'es'}`}
+                          className={`h-full first:rounded-l-full last:rounded-r-full ${indice > 0 ? 'ml-0.5' : ''}`}
+                          style={{ width: `${anchoPct}%`, backgroundColor: color.acento, minWidth: anchoPct > 0 ? '3px' : 0 }}
+                        />
+                      );
+                    })
+                  ) : null}
+                </div>
+                <span className="text-right text-xs font-black text-slate-500">{formatearHoras(campo.horasTotales)}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap gap-x-4 gap-y-2 border-t border-slate-100 px-5 py-4">
+            {equiposLeyenda.map(({ equipo, horas }) => (
+              <span key={equipo} className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-500">
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: obtenerColorEquipo(equipo).acento }} />
+                {equipo}
+                <span className="text-slate-400">({formatearHoras(horas)})</span>
+              </span>
+            ))}
+          </div>
+
+          <div className="overflow-x-auto border-t border-slate-100">
+            <table className="min-w-[560px] w-full border-collapse text-left">
+              <thead className="bg-slate-100/90 text-[11px] uppercase tracking-[0.12em] text-slate-500">
+                <tr>
+                  <th className="px-5 py-3">Instalación</th>
+                  <th className="px-5 py-3">Equipo</th>
+                  <th className="px-5 py-3 text-right">Sesiones</th>
+                  <th className="px-5 py-3 text-right">Horas</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {usoCampos.flatMap((campo) =>
+                  campo.equipos.length > 0
+                    ? campo.equipos.map(({ equipo, horas, sesiones }) => (
+                        <tr key={`${campo.instalacion}-${equipo}`} className="text-sm">
+                          <td className="whitespace-nowrap px-5 py-3 font-bold text-slate-600">{campo.instalacion}</td>
+                          <td className="whitespace-nowrap px-5 py-3 font-semibold text-slate-600">
+                            <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: obtenerColorEquipo(equipo).acento }} />
+                            {equipo}
+                          </td>
+                          <td className="whitespace-nowrap px-5 py-3 text-right font-semibold text-slate-500">{sesiones}</td>
+                          <td className="whitespace-nowrap px-5 py-3 text-right font-black text-slate-700">{formatearHoras(horas)}</td>
+                        </tr>
+                      ))
+                    : [
+                        <tr key={campo.instalacion} className="text-sm">
+                          <td className="whitespace-nowrap px-5 py-3 font-bold text-slate-600">{campo.instalacion}</td>
+                          <td className="px-5 py-3 font-semibold text-slate-400" colSpan={3}>Sin uso registrado</td>
+                        </tr>,
+                      ]
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : (
+        <div className="px-5 py-14 text-center text-sm font-semibold text-slate-400">No hay actividades con instalación asignada para los filtros seleccionados.</div>
+      )}
     </div>
   );
 }
@@ -2581,6 +2777,7 @@ function EquiposView({
   onReactivarAccionesActividad,
   onVer,
   onEditar,
+  onDuplicar,
   onEliminar,
 }) {
   const dias = diasDeSemana(semana);
@@ -2647,6 +2844,7 @@ function EquiposView({
                               cerrada={actividadAccionesCerradasId === actividad.id}
                               onVer={onVer}
                               onEditar={onEditar}
+                              onDuplicar={onDuplicar}
                               onEliminar={onEliminar}
                               onCerrar={() => onCerrarAccionesActividad?.(actividad)}
                             />
@@ -2682,6 +2880,7 @@ function HorasView({
   onReactivarAccionesActividad,
   onVer,
   onEditar,
+  onDuplicar,
   onEliminar,
 }) {
   const dias = diasDeSemana(semana);
@@ -2837,6 +3036,7 @@ function HorasView({
                                   cerrada={actividadAccionesCerradasId === actividad.id}
                                   onVer={onVer}
                                   onEditar={onEditar}
+                                  onDuplicar={onDuplicar}
                                   onEliminar={onEliminar}
                                   onCerrar={() => onCerrarAccionesActividad?.(actividad)}
                                 />
@@ -3059,17 +3259,9 @@ export default function Actividades() {
     const equiposDelClub = EQUIPOS_MS
       .filter((equipo) => equipo.club === clubFormulario)
       .map((equipo) => equipo.nombre);
-    const equiposDetectados = equiposSelector
-      .map((equipo) => nombreEquipoFormulario(equipo, clubFormulario));
-    const extras = [
-      ...equiposDetectados,
-      formulario.equipo,
-    ]
-      .map((valor) => nombreEquipoFormulario(valor, clubFormulario))
-      .filter(Boolean);
 
-    return [...new Set([...equiposDelClub, ...extras])];
-  }, [clubActivo, equiposSelector, formulario.club, formulario.equipo]);
+    return equiposDelClub;
+  }, [clubActivo, formulario.club]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -3367,6 +3559,18 @@ export default function Actividades() {
     setActividadAccionesCerradasId((actual) => (actual === actividad.id ? null : actual));
   };
 
+  const duplicarActividad = (actividad) => {
+    if (!actividad) return;
+
+    const copia = {
+      ...actividad,
+      id: `${actividad.tipo}-${Date.now()}`,
+    };
+
+    setActividades((actuales) => [...actuales, copia]);
+    setActividadAccionesAbiertasId(null);
+  };
+
   const eliminarActividad = (actividad) => {
     if (!actividad) return;
 
@@ -3509,7 +3713,7 @@ export default function Actividades() {
           </div>
         )}
 
-        <div className="actividades-filtros mt-6 flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:flex-wrap sm:items-end sm:px-5">
+        <div className="actividades-filtros mt-6 hidden gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:flex sm:flex-row sm:flex-wrap sm:items-end sm:px-5">
           <FiltroClub
             valor={filtros.club}
             onChange={(valor) => setFiltros((actuales) => ({ ...actuales, club: valor, equipo: 'todos' }))}
@@ -3595,12 +3799,14 @@ export default function Actividades() {
                 onReactivarAccionesActividad={reactivarAccionesActividad}
                 onVer={abrirVistaActividad}
                 onEditar={abrirEditar}
+                onDuplicar={duplicarActividad}
                 onEliminar={eliminarActividad}
                 onCrear={abrirCrear}
                 mapaAbreviaturasEquipos={mapaAbreviaturasEquipos}
               />
             )}
-            {vista === 'tabla' && <TablaActividades actividades={actividadesFiltradas} onEditar={abrirEditar} onEliminar={eliminarActividad} />}
+            {vista === 'tabla' && <TablaActividades actividades={actividadesFiltradas} onEditar={abrirEditar} onDuplicar={duplicarActividad} onEliminar={eliminarActividad} />}
+            {vista === 'graficas' && <GraficasView actividades={actividadesFiltradas} />}
             {vista === 'equipos' && (
               <EquiposView
                 actividades={actividadesFiltradas}
@@ -3614,6 +3820,7 @@ export default function Actividades() {
                 onReactivarAccionesActividad={reactivarAccionesActividad}
                 onVer={abrirVistaActividad}
                 onEditar={abrirEditar}
+                onDuplicar={duplicarActividad}
                 onEliminar={eliminarActividad}
               />
             )}
@@ -3631,6 +3838,7 @@ export default function Actividades() {
                 onReactivarAccionesActividad={reactivarAccionesActividad}
                 onVer={abrirVistaActividad}
                 onEditar={abrirEditar}
+                onDuplicar={duplicarActividad}
                 onEliminar={eliminarActividad}
               />
             )}
@@ -3748,6 +3956,7 @@ export default function Actividades() {
                                   accionesCerradas={actividadAccionesCerradasId === actividad.id}
                                   onVer={abrirVistaActividad}
                                   onEditar={abrirEditar}
+                                  onDuplicar={duplicarActividad}
                                   onEliminar={eliminarActividad}
                                   onSeleccionar={() => {
                                     setFechaSeleccionada(clave);
@@ -3779,7 +3988,7 @@ export default function Actividades() {
           </div>
 
           {abreviaturasEquipos.length > 0 && (
-            <div className="no-print actividades-abreviaturas mb-3 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+            <div className="no-print actividades-abreviaturas mb-3 hidden rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm sm:block">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-slate-400">Colores y abreviaturas de equipos</p>
@@ -3959,6 +4168,7 @@ export default function Actividades() {
                                   accionesCerradas={actividadAccionesCerradasId === actividad.id}
                                   onVer={abrirVistaActividad}
                                   onEditar={abrirEditar}
+                                  onDuplicar={duplicarActividad}
                                   onEliminar={eliminarActividad}
                                   onSeleccionar={() => {
                                     setFechaSeleccionada(clave);
@@ -4052,6 +4262,10 @@ export default function Actividades() {
         onEditar={(actividad) => {
           cerrarVistaActividad();
           abrirEditar(actividad);
+        }}
+        onDuplicar={(actividad) => {
+          duplicarActividad(actividad);
+          cerrarVistaActividad();
         }}
         onEliminar={(actividad) => {
           if (eliminarActividad(actividad)) {

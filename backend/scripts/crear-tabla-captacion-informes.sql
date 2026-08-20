@@ -23,6 +23,7 @@ create table if not exists public.captacion_informes (
   minutos_jugados text not null default '',
   goles text not null default '',
   goles_encajados text not null default '',
+  valoracion text not null default '',
   valoracion_items jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -49,6 +50,7 @@ alter table public.captacion_informes add column if not exists titularidad text 
 alter table public.captacion_informes add column if not exists minutos_jugados text not null default '';
 alter table public.captacion_informes add column if not exists goles text not null default '';
 alter table public.captacion_informes add column if not exists goles_encajados text not null default '';
+alter table public.captacion_informes add column if not exists valoracion text not null default '';
 alter table public.captacion_informes add column if not exists valoracion_items jsonb not null default '{}'::jsonb;
 
 -- La restriccion se creo con un nombre de tabla mal codificado en una version

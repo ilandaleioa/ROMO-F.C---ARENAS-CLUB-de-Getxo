@@ -12,7 +12,7 @@ const CAMPOS = [
   'id_jugador', 'fecha_alta', 'quien_da_alta', 'club', 'equipo', 'etapa', 'categoria', 'grupo', 'enlace',
   'nombre', 'primer_apellido', 'segundo_apellido', 'dorsal', 'altura', 'lateralidad',
   'foto_jugador', 'fecha_nacimiento', 'anio_nacimiento', 'edad', 'demarcacion', 'otra_demarcacion', 'demarcacion_concreta',
-  'valoracion_general', 'descripcion_jugador', 'observaciones',
+  'valoracion_general', 'informe_realizado_por', 'descripcion_jugador', 'observaciones', 'valoracion_items',
 ];
 
 const CAMPOS_INFORMES = [
@@ -30,6 +30,7 @@ const CAMPOS_INFORMES = [
   'tipologia',
   'lateralidad',
   'descripcion',
+  'valoracion',
   'demarcacion_concreta',
   'titularidad',
   'minutos_jugados',
@@ -63,6 +64,78 @@ const ITEMS_VALORACION_POR_DEMARCACION = {
     'asociaciones_campo_rival',
     'desmarque_ruptura',
   ],
+  'Central Dcho': [
+    'anticipacion_marca',
+    'juego_aereo_defensivo',
+    'cobertura_ayudas',
+    'salida_de_balon',
+    'pase_largo_diagonal',
+    'duelos_individuales',
+  ],
+  'Central Izdo': [
+    'anticipacion_marca',
+    'juego_aereo_defensivo',
+    'cobertura_ayudas',
+    'salida_de_balon',
+    'pase_largo_diagonal',
+    'duelos_individuales',
+  ],
+  'Pivote': [
+    'recepcion_bajo_presion',
+    'distribucion_juego',
+    'cobertura_espacios',
+    'recuperacion_balon',
+    'cambio_orientacion',
+    'proteccion_balon',
+  ],
+  'Media punta': [
+    'ultimo_pase',
+    'llegada_area',
+    'asociacion_espacios_reducidos',
+    'vision_periferica',
+    'regate_corto',
+    'remate',
+  ],
+  'Interior Dcho': [
+    'llegada_area',
+    'asociacion_juego',
+    'presion_tras_perdida',
+    'desmarque_ruptura',
+    'conduccion_progresion',
+    'remate',
+  ],
+  'Interior Izdo': [
+    'llegada_area',
+    'asociacion_juego',
+    'presion_tras_perdida',
+    'desmarque_ruptura',
+    'conduccion_progresion',
+    'remate',
+  ],
+  'Extremo Dcho': [
+    'regate_uno_contra_uno',
+    'desborde',
+    'centro_balon',
+    'definicion_llegada_area',
+    'repliegue_defensivo',
+    'velocidad_espacio',
+  ],
+  'Extremo Izdo': [
+    'regate_uno_contra_uno',
+    'desborde',
+    'centro_balon',
+    'definicion_llegada_area',
+    'repliegue_defensivo',
+    'velocidad_espacio',
+  ],
+  'Delantero': [
+    'definicion',
+    'juego_espaldas_defensa',
+    'remate_cabeza',
+    'desmarque_ruptura',
+    'presion_primer_defensor',
+    'asociacion_area',
+  ],
 };
 
 function limpiarValoracionItems(demarcacionConcreta, valoracionItems) {
@@ -74,6 +147,235 @@ function limpiarValoracionItems(demarcacionConcreta, valoracionItems) {
     if (Number.isInteger(valor) && valor >= 1 && valor <= 5) resultado[item] = valor;
     return resultado;
   }, {});
+}
+
+function normalizarClaveItemInformeCompleto(texto) {
+  return String(texto || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function construirClavesInformeCompleto(etiquetas) {
+  const clavesUsadas = new Map();
+  return etiquetas.map((label) => {
+    const claveBase = normalizarClaveItemInformeCompleto(label);
+    const veces = (clavesUsadas.get(claveBase) || 0) + 1;
+    clavesUsadas.set(claveBase, veces);
+    return veces > 1 ? `${claveBase}_${veces}` : claveBase;
+  });
+}
+
+const FISICO_ESTANDAR = ['Velocidad', 'Potencia', 'Aceleracion', 'Salto', 'Fuerza'];
+
+const GRUPOS_INFORME_COMPLETO = ['fisico', 'conBalon', 'sinBalon'];
+
+const ITEMS_INFORME_COMPLETO_POR_DEMARCACION = {
+  'PORTERO': {
+    conBalon: construirClavesInformeCompleto([
+      'Asociacion con linea defensiva',
+      'Conduccion fijaciones',
+      'Pases en corto',
+      'Desplazamientos medios',
+      'Desplazamientos largos',
+      'Inicio de transicion ofensiva con pies',
+      'Inicio de transicion ofensiva con manos',
+    ]),
+    sinBalon: construirClavesInformeCompleto([
+      'Acciones debajo de los palos',
+      'Salidas 1 contra 1',
+      'Juego aereo frontal',
+      'Juego aereo lateral',
+      'Segundas jugadas',
+      'Bloqueos',
+      'Dominio area juego lateral',
+      'Dominio distancia linea defensiva',
+    ]),
+    fisico: construirClavesInformeCompleto(['Velocidad', 'Potencia', 'Desplazamiento lateral', 'Salto', 'Fuerza']),
+  },
+  'LATERAL': {
+    conBalon: construirClavesInformeCompleto([
+      'Salida de balon',
+      'Manejo espacio reducido',
+      'Desplazamiento largo',
+      'Incorporaciones',
+      'Asociaciones en campo rival',
+      'Desmarque ruptura',
+      'Duelos 1 contra 1',
+      'Centros laterales en ultimo tercio',
+    ]),
+    sinBalon: construirClavesInformeCompleto([
+      'Acciones de duelo terrestre',
+      'Acciones de duelo aereo',
+      'Comportamiento dentro del area',
+      'Orientaciones',
+      'Defender situacion con pelota alejada',
+      'Eleccion momento entrada',
+      'Defensa balon espalda',
+      'Dominio de la linea defensiva',
+    ]),
+    fisico: construirClavesInformeCompleto(FISICO_ESTANDAR),
+  },
+  'CENTRAL': {
+    conBalon: construirClavesInformeCompleto([
+      'Salida de balon (pases filtrados)',
+      'Desplazamiento corto',
+      'Desplazamiento largo',
+      'Conducciones para progresar',
+      'Incorporacion ataque',
+      'Comunicacion',
+      'Vigil',
+      'Juego aereo ofensivo',
+    ]),
+    sinBalon: construirClavesInformeCompleto([
+      'Defensa area',
+      'Acciones de duelo terrestre',
+      'Acciones de duelo aereo',
+      'Anticipacion',
+      'Ganar duelos en campo abierto',
+      'Capacidad para girar',
+      'Vigilancias',
+      'Dominio de la linea defensiva',
+    ]),
+    fisico: construirClavesInformeCompleto(FISICO_ESTANDAR),
+  },
+  'MEDIO CENTRO 6': {
+    conBalon: construirClavesInformeCompleto([
+      'Manejo balon',
+      'Manejo tiempos',
+      'Cambios de orientacion',
+      'Capacidad para girar',
+      'Dominio espacial - orientaciones',
+      'Crear lineas de pase',
+      'Primer contacto',
+      'Controles orientados',
+    ]),
+    sinBalon: construirClavesInformeCompleto([
+      'Defender juego aereo frontal/diagonal',
+      'Defender situaciones en pasillo central/lateral',
+      'Capacidad de ir a linea defensiva',
+      'Temporizar',
+      'Recuperaciones',
+      'Anticipacion',
+      'Repliegue',
+      'Retornos',
+    ]),
+    fisico: construirClavesInformeCompleto(FISICO_ESTANDAR),
+  },
+  'INTERIOR': {
+    conBalon: construirClavesInformeCompleto([
+      'Pases filtrados - verticalidad',
+      'Pases ventajosos definitivos',
+      'Arrancadas - conducciones',
+      'Recibir en 3/4',
+      'Girar entre lineas',
+      'Capacidad de llegada',
+      'Filtrar ultimo pase',
+      'Finalizar accion',
+    ]),
+    sinBalon: construirClavesInformeCompleto([
+      'Actividad defensiva para recuperar',
+      'Presion orientada',
+      'Presion tras perdida',
+      'Anticipacion',
+      'Retornos',
+      'Duelos terrestres',
+      'Duelos aereos',
+      'Agresividad',
+    ]),
+    fisico: construirClavesInformeCompleto(FISICO_ESTANDAR),
+  },
+  'EXTREMO': {
+    conBalon: construirClavesInformeCompleto([
+      'Desmarques de ruptura',
+      'Centros laterales',
+      'Asistencia',
+      'Acciones de 1vs1 en movimiento',
+      'Acciones de 1vs1 en parado',
+      'Centros',
+      'Finalizar desde fuera',
+      'Ir al espalda linea defensiva',
+    ]),
+    sinBalon: construirClavesInformeCompleto([
+      'Defender cerrando lado opuesto',
+      'Capacidad recuperar en su zona',
+      'Capacidad def de no ser superado',
+      'Recuperaciones balon',
+      'Ayudas al lateral',
+      'Anticipacion',
+      'Orientar la presion',
+      'Tapar lineas de pase',
+    ]),
+    fisico: construirClavesInformeCompleto(FISICO_ESTANDAR),
+  },
+  'DELANTERO': {
+    conBalon: construirClavesInformeCompleto([
+      'Remates en area',
+      'Juego de espaldas',
+      'Tiro',
+      'Asistencias',
+      'Dar apoyo y continuidad al juego',
+      'Dar profundidad (prolongacion/desvio)',
+      'Remate de centro lateral',
+      'Capacidad de jugar solo o con companero linea',
+    ]),
+    sinBalon: construirClavesInformeCompleto([
+      'Presion orientada',
+      'Presion tras perdida',
+      'Duelo',
+      'Retornos',
+      'Ayudas al lateral',
+      'Anticipacion',
+      'Orientar la presion',
+      'Tapar lineas de pase',
+    ]),
+    fisico: construirClavesInformeCompleto(FISICO_ESTANDAR),
+  },
+  'MEDIA PUNTA': {
+    conBalon: construirClavesInformeCompleto([
+      'Arrancadas - conducciones',
+      'Ultimos y penultimos pases',
+      'Remate',
+      'Tiro',
+      'Asistencia',
+      'Movilidades dentro-fuera',
+      'Romper linea defensiva',
+      'Hace desmarque o se mueve reactivamente',
+    ]),
+    sinBalon: construirClavesInformeCompleto([
+      'Presion orientada',
+      'Presion tras perdida',
+      'Duelo',
+      'Anticipacion',
+      'Retornos',
+      'Duelos terrestres',
+      'Duelos aereos',
+      'Tapar lineas de pase',
+    ]),
+    fisico: construirClavesInformeCompleto(FISICO_ESTANDAR),
+  },
+};
+
+function limpiarValoracionItemsInformeCompleto(valoracionItems) {
+  const demarcacion = String(valoracionItems?.demarcacion || '').trim().toUpperCase();
+  const grupos = ITEMS_INFORME_COMPLETO_POR_DEMARCACION[demarcacion];
+  if (!grupos || !valoracionItems || typeof valoracionItems !== 'object') {
+    return { demarcacion: '', conBalon: {}, sinBalon: {}, fisico: {} };
+  }
+
+  const resultado = { demarcacion };
+  GRUPOS_INFORME_COMPLETO.forEach((grupo) => {
+    const itemsPermitidos = grupos[grupo] || [];
+    const valoresGrupo = valoracionItems[grupo];
+    resultado[grupo] = itemsPermitidos.reduce((acumulado, item) => {
+      const valor = Number(valoresGrupo?.[item]);
+      if (Number.isInteger(valor) && valor >= 1 && valor <= 5) acumulado[item] = valor;
+      return acumulado;
+    }, {});
+  });
+  return resultado;
 }
 
 router.use(requireAuth);
@@ -88,10 +390,12 @@ function esErrorDeConexion(error) {
 }
 
 function limpiarPayload(body) {
-  return CAMPOS.reduce((payload, campo) => {
-    payload[campo] = String(body?.[campo] || '').trim();
-    return payload;
+  const payload = CAMPOS.filter((campo) => campo !== 'valoracion_items').reduce((acumulado, campo) => {
+    acumulado[campo] = String(body?.[campo] || '').trim();
+    return acumulado;
   }, {});
+  payload.valoracion_items = limpiarValoracionItemsInformeCompleto(body?.valoracion_items);
+  return payload;
 }
 
 function validarPayload(payload) {

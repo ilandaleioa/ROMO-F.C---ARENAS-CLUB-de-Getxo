@@ -46,6 +46,7 @@ const CAMPOS = [
   { key: 'demarcacion_concreta', label: 'DEMARCACION CONCRETA', type: 'select', options: DEMARCACION_CONCRETA_OPCIONES },
   { key: 'otra_demarcacion', label: 'OTRA DEMARCACION -', type: 'select', options: ['PORTERO', 'LATERAL', 'CENTRAL', 'MEDIO', 'MEDIA PUNTA', 'EXTREMO', 'DELANTERO'] },
   { key: 'valoracion_general', label: 'VALORACION GENERAL', type: 'ratingButtons' },
+  { key: 'informe_realizado_por', label: 'INFORME REALIZADO POR', type: 'select', options: ['Mikel Exposito', 'Adrian Alvite', 'Alex'] },
   { key: 'descripcion_jugador', label: 'DESCRIPCION DEL JUGADOR', type: 'textarea' },
   { key: 'observaciones', label: 'OBSERVACIONES', type: 'textarea' },
 ];
@@ -62,36 +63,233 @@ const RESPONSABLES_ALTA_OBSOLETOS = new Map([
 ]);
 const SECCIONES_CAPTACION = [
   { id: 'base-datos', label: 'BASE DE DATOS' },
-  { id: 'informes', label: 'INFORMES' },
+  { id: 'informes', label: 'INFORMES PARTIDOS' },
+  { id: 'graficas', label: 'GRAFICAS' },
 ];
 
-const ITEMS_VALORACION_POR_DEMARCACION = {
-  'Portero': [
-    { key: 'asociacion_linea_defensiva', label: 'Asociacion con linea defensiva' },
-    { key: 'conduccion_fijaciones', label: 'Conduccion fijaciones' },
-    { key: 'pases_en_corto', label: 'Pases en corto' },
-    { key: 'desplazamientos_medios', label: 'Desplazamientos medios' },
-    { key: 'desplazamientos_largos', label: 'Desplazamientos largos' },
-    { key: 'inicio_transicion_ofensiva_pies', label: 'Inicio de transicion ofensiva con pies' },
-  ],
-  'Lateral Dcho': [
-    { key: 'salida_de_balon', label: 'Salida de balon' },
-    { key: 'manejo_espacio_reducido', label: 'Manejo espacio reducido' },
-    { key: 'desplazamiento_largo', label: 'Desplazamiento largo' },
-    { key: 'incorporaciones', label: 'Incorporaciones' },
-    { key: 'asociaciones_campo_rival', label: 'Asociaciones en campo rival' },
-    { key: 'desmarque_ruptura', label: 'Desmarque ruptura' },
-  ],
-  'Lateral Izdo': [
-    { key: 'salida_de_balon', label: 'Salida de balon' },
-    { key: 'manejo_espacio_reducido', label: 'Manejo espacio reducido' },
-    { key: 'desplazamiento_largo', label: 'Desplazamiento largo' },
-    { key: 'incorporaciones', label: 'Incorporaciones' },
-    { key: 'asociaciones_campo_rival', label: 'Asociaciones en campo rival' },
-    { key: 'desmarque_ruptura', label: 'Desmarque ruptura' },
-  ],
-};
 const OPCIONES_VALORACION_ITEM = [1, 2, 3, 4, 5];
+
+const OPCIONES_VALORACION_DIRECCION = [
+  {
+    value: 'DESCARTAR',
+    activo: 'border-red-600 bg-red-600 text-white shadow-sm',
+    inactivo: 'border-red-300 bg-white text-red-600 hover:border-red-500 hover:bg-red-50',
+  },
+  {
+    value: 'SEGUIR',
+    activo: 'border-amber-500 bg-amber-500 text-white shadow-sm',
+    inactivo: 'border-amber-300 bg-white text-amber-600 hover:border-amber-500 hover:bg-amber-50',
+  },
+  {
+    value: 'POTENCIAL',
+    activo: 'border-green-600 bg-green-600 text-white shadow-sm',
+    inactivo: 'border-green-300 bg-white text-green-600 hover:border-green-500 hover:bg-green-50',
+  },
+];
+
+const INFORME_COMPLETO_DEMARCACIONES = [
+  'PORTERO',
+  'LATERAL',
+  'CENTRAL',
+  'MEDIO',
+  'EXTREMO',
+  'DELANTERO',
+  'MEDIA PUNTA',
+];
+
+const GRUPOS_INFORME_COMPLETO = [
+  { key: 'fisico', label: 'Fisico' },
+  { key: 'conBalon', label: 'Con balon' },
+  { key: 'sinBalon', label: 'Sin balon' },
+];
+
+function normalizarClaveItemInformeCompleto(texto) {
+  return String(texto || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function construirItemsInformeCompleto(etiquetas) {
+  const clavesUsadas = new Map();
+  return etiquetas.map((label) => {
+    const claveBase = normalizarClaveItemInformeCompleto(label);
+    const veces = (clavesUsadas.get(claveBase) || 0) + 1;
+    clavesUsadas.set(claveBase, veces);
+    return { key: veces > 1 ? `${claveBase}_${veces}` : claveBase, label };
+  });
+}
+
+const FISICO_ESTANDAR = ['Velocidad', 'Potencia', 'Aceleracion', 'Salto', 'Fuerza'];
+
+const ITEMS_INFORME_COMPLETO_POR_DEMARCACION = {
+  'PORTERO': {
+    conBalon: construirItemsInformeCompleto([
+      'Asociacion con linea defensiva',
+      'Conduccion fijaciones',
+      'Pases en corto',
+      'Desplazamientos medios',
+      'Desplazamientos largos',
+      'Inicio de transicion ofensiva con pies',
+      'Inicio de transicion ofensiva con manos',
+    ]),
+    sinBalon: construirItemsInformeCompleto([
+      'Acciones debajo de los palos',
+      'Salidas 1 contra 1',
+      'Juego aereo frontal',
+      'Juego aereo lateral',
+      'Segundas jugadas',
+      'Bloqueos',
+      'Dominio area juego lateral',
+      'Dominio distancia linea defensiva',
+    ]),
+    fisico: construirItemsInformeCompleto(['Velocidad', 'Potencia', 'Desplazamiento lateral', 'Salto', 'Fuerza']),
+  },
+  'LATERAL': {
+    conBalon: construirItemsInformeCompleto([
+      'Salida de balon',
+      'Manejo espacio reducido',
+      'Desplazamiento largo',
+      'Incorporaciones',
+      'Asociaciones en campo rival',
+      'Desmarque ruptura',
+      'Duelos 1 contra 1',
+      'Centros laterales en ultimo tercio',
+    ]),
+    sinBalon: construirItemsInformeCompleto([
+      'Acciones de duelo terrestre',
+      'Acciones de duelo aereo',
+      'Comportamiento dentro del area',
+      'Orientaciones',
+      'Defender situacion con pelota alejada',
+      'Eleccion momento entrada',
+      'Defensa balon espalda',
+      'Dominio de la linea defensiva',
+    ]),
+    fisico: construirItemsInformeCompleto(FISICO_ESTANDAR),
+  },
+  'CENTRAL': {
+    conBalon: construirItemsInformeCompleto([
+      'Salida de balon (pases filtrados)',
+      'Desplazamiento corto',
+      'Desplazamiento largo',
+      'Conducciones para progresar',
+      'Incorporacion ataque',
+      'Comunicacion',
+      'Vigil',
+      'Juego aereo ofensivo',
+    ]),
+    sinBalon: construirItemsInformeCompleto([
+      'Defensa area',
+      'Acciones de duelo terrestre',
+      'Acciones de duelo aereo',
+      'Anticipacion',
+      'Ganar duelos en campo abierto',
+      'Capacidad para girar',
+      'Vigilancias',
+      'Dominio de la linea defensiva',
+    ]),
+    fisico: construirItemsInformeCompleto(FISICO_ESTANDAR),
+  },
+  'MEDIO': {
+    conBalon: construirItemsInformeCompleto([
+      'Manejo balon',
+      'Manejo tiempos',
+      'Cambios de orientacion',
+      'Capacidad para girar',
+      'Dominio espacial - orientaciones',
+      'Crear lineas de pase',
+      'Primer contacto',
+      'Controles orientados',
+    ]),
+    sinBalon: construirItemsInformeCompleto([
+      'Defender juego aereo frontal/diagonal',
+      'Defender situaciones en pasillo central/lateral',
+      'Capacidad de ir a linea defensiva',
+      'Temporizar',
+      'Recuperaciones',
+      'Anticipacion',
+      'Repliegue',
+      'Retornos',
+    ]),
+    fisico: construirItemsInformeCompleto(FISICO_ESTANDAR),
+  },
+  'EXTREMO': {
+    conBalon: construirItemsInformeCompleto([
+      'Desmarques de ruptura',
+      'Centros laterales',
+      'Asistencia',
+      'Acciones de 1vs1 en movimiento',
+      'Acciones de 1vs1 en parado',
+      'Centros',
+      'Finalizar desde fuera',
+      'Ir al espalda linea defensiva',
+    ]),
+    sinBalon: construirItemsInformeCompleto([
+      'Defender cerrando lado opuesto',
+      'Capacidad recuperar en su zona',
+      'Capacidad def de no ser superado',
+      'Recuperaciones balon',
+      'Ayudas al lateral',
+      'Anticipacion',
+      'Orientar la presion',
+      'Tapar lineas de pase',
+    ]),
+    fisico: construirItemsInformeCompleto(FISICO_ESTANDAR),
+  },
+  'DELANTERO': {
+    conBalon: construirItemsInformeCompleto([
+      'Remates en area',
+      'Juego de espaldas',
+      'Tiro',
+      'Asistencias',
+      'Dar apoyo y continuidad al juego',
+      'Dar profundidad (prolongacion/desvio)',
+      'Remate de centro lateral',
+      'Capacidad de jugar solo o con companero linea',
+    ]),
+    sinBalon: construirItemsInformeCompleto([
+      'Presion orientada',
+      'Presion tras perdida',
+      'Duelo',
+      'Retornos',
+      'Ayudas al lateral',
+      'Anticipacion',
+      'Orientar la presion',
+      'Tapar lineas de pase',
+    ]),
+    fisico: construirItemsInformeCompleto(FISICO_ESTANDAR),
+  },
+  'MEDIA PUNTA': {
+    conBalon: construirItemsInformeCompleto([
+      'Arrancadas - conducciones',
+      'Ultimos y penultimos pases',
+      'Remate',
+      'Tiro',
+      'Asistencia',
+      'Movilidades dentro-fuera',
+      'Romper linea defensiva',
+      'Hace desmarque o se mueve reactivamente',
+    ]),
+    sinBalon: construirItemsInformeCompleto([
+      'Presion orientada',
+      'Presion tras perdida',
+      'Duelo',
+      'Anticipacion',
+      'Retornos',
+      'Duelos terrestres',
+      'Duelos aereos',
+      'Tapar lineas de pase',
+    ]),
+    fisico: construirItemsInformeCompleto(FISICO_ESTANDAR),
+  },
+};
+
+function crearValoracionItemsVacio(demarcacion, direccion) {
+  return { demarcacion: demarcacion || '', conBalon: {}, sinBalon: {}, fisico: {}, direccion: direccion || '' };
+}
 
 const INFORME_TITULARIDAD_OPCIONES = ['TITULAR', 'SUPLENTE', 'NO CONVOCA'];
 const CAMPOS_INFORME_JUGADOR = ['etapa', 'categoria', 'dorsal', 'lateralidad', 'demarcacion_concreta'];
@@ -110,7 +308,7 @@ const CAMPOS_INFORME_TABLA = [
   { key: 'tipologia', label: 'TIPOLOGIA' },
   { key: 'lateralidad', label: 'LATERALIDAD' },
   { key: 'descripcion', label: 'DESCRIPCION' },
-  { key: 'demarcacion_concreta', label: 'DEMARCACION CONCRETA' },
+  { key: 'valoracion', label: 'VALORACION' },
   { key: 'titularidad', label: 'TITULARIDAD' },
   { key: 'minutos_jugados', label: 'MINUTOS JUGADOS' },
   { key: 'goles', label: 'GOLES' },
@@ -120,7 +318,7 @@ const BLOQUES_INFORME_FORM = [
   { title: 'Datos basicos', fields: ['fecha', 'observador', 'club', 'equipo', 'jugador_id'], gridClassName: 'sm:grid-cols-2 xl:grid-cols-5' },
   { title: 'Partido', fields: ['etapa', 'categoria', 'local', 'visitante', 'partido'], gridClassName: 'sm:grid-cols-2 xl:grid-cols-5' },
   { title: 'INFORME', fields: ['dorsal', 'tipologia', 'lateralidad', 'descripcion'], gridClassName: 'sm:grid-cols-2 xl:grid-cols-3' },
-  { title: 'VALORACIÓN EN POSICIÓN', fields: ['demarcacion_concreta'], gridClassName: 'sm:grid-cols-2 xl:grid-cols-3' },
+  { title: 'VALORACION', fields: ['valoracion'], gridClassName: 'sm:grid-cols-2 xl:grid-cols-3' },
   { title: 'DATOS PARTIDO', fields: ['titularidad', 'minutos_jugados', 'goles', 'goles_encajados'], gridClassName: 'sm:grid-cols-2 xl:grid-cols-3' },
 ];
 
@@ -139,7 +337,7 @@ const ETIQUETAS_INFORME = {
   tipologia: 'TIPOLOGIA',
   lateralidad: 'LATERALIDAD',
   descripcion: 'DESCRIPCION',
-  demarcacion_concreta: 'DEMARCACION CONCRETA',
+  valoracion: 'VALORACION',
   titularidad: 'TITULARIDAD',
   minutos_jugados: 'MINUTOS JUGADOS',
   goles: 'GOLES',
@@ -160,8 +358,12 @@ const BLOQUES_FORMULARIO_CAPTACION = [
     fields: ['nombre', 'primer_apellido', 'nombre_completo', 'segundo_apellido', 'dorsal', 'altura', 'lateralidad', 'fecha_nacimiento', 'anio_nacimiento', 'edad', 'demarcacion', 'demarcacion_concreta', 'otra_demarcacion', 'valoracion_general'],
   },
   {
+    title: 'Informe completo',
+    fields: [],
+  },
+  {
     title: 'Observaciones',
-    fields: ['descripcion_jugador', 'observaciones'],
+    fields: ['observaciones'],
   },
 ];
 
@@ -184,12 +386,12 @@ function crearInformeVacio() {
     tipologia: '',
     lateralidad: '',
     descripcion: '',
+    valoracion: '',
     demarcacion_concreta: '',
     titularidad: '',
     minutos_jugados: '',
     goles: '',
     goles_encajados: '',
-    valoracion_items: {},
   };
 }
 function calcularPartidoInforme(informe) {
@@ -344,20 +546,23 @@ function formatearFechaCorta(valor) {
 }
 
 function crearFormVacio({ clubPredeterminado = '', responsablePredeterminado = '' } = {}) {
-  return CAMPOS.reduce(
-    (acc, campo) => ({
-      ...acc,
-      [campo.key]:
-        campo.key === 'fecha_alta'
-          ? obtenerFechaHoyISO()
-          : campo.key === 'club'
-              ? clubPredeterminado
-              : campo.key === 'quien_da_alta'
-                ? responsablePredeterminado
-                : '',
-    }),
-    {}
-  );
+  return {
+    ...CAMPOS.reduce(
+      (acc, campo) => ({
+        ...acc,
+        [campo.key]:
+          campo.key === 'fecha_alta'
+            ? obtenerFechaHoyISO()
+            : campo.key === 'club'
+                ? clubPredeterminado
+                : campo.key === 'quien_da_alta'
+                  ? responsablePredeterminado
+                  : '',
+      }),
+      {}
+    ),
+    valoracion_items: crearValoracionItemsVacio(''),
+  };
 }
 
 function ordenarRegistros(registros) {
@@ -451,6 +656,7 @@ function CaptacionFormulario({
   responsablesAltaFormulario,
   manejarCambioResponsableAltaFormulario,
   renderCampoFormulario = () => null,
+  renderItemsValoracionFormulario = () => null,
   setFotoJugadorPreviewError,
 }) {
   const nombreFormulario = [formActual.nombre, formActual.primer_apellido].filter(Boolean).join(' ');
@@ -564,21 +770,25 @@ function CaptacionFormulario({
                 <section
                   key={bloque.title}
                   className={`rounded-2xl border border-gray-200 bg-gray-50 p-4 ${
-                    bloque.title === 'Perfil del jugador' || bloque.title === 'Observaciones' ? 'lg:col-span-2' : ''
+                    bloque.title === 'Perfil del jugador' || bloque.title === 'Observaciones' || bloque.title === 'Informe completo' ? 'lg:col-span-2' : ''
                   }`}
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <h4 className="text-sm font-bold uppercase tracking-wide text-club-black">{bloque.title}</h4>
                   </div>
 
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                    {bloque.fields
-                      .filter((campoKey) => campoKey !== 'foto_jugador')
-                      .map((campoKey) => {
-                        const campo = camposFormularioPorClaveActual.get(campoKey) || camposFormularioDetalleActual.find((item) => item.key === campoKey);
-                        return campo ? renderCampoFormulario(campo) : null;
-                      })}
-                  </div>
+                  {bloque.title === 'Informe completo' ? (
+                    <div className="mt-4">{renderItemsValoracionFormulario()}</div>
+                  ) : (
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                      {bloque.fields
+                        .filter((campoKey) => campoKey !== 'foto_jugador')
+                        .map((campoKey) => {
+                          const campo = camposFormularioPorClaveActual.get(campoKey) || camposFormularioDetalleActual.find((item) => item.key === campoKey);
+                          return campo ? renderCampoFormulario(campo) : null;
+                        })}
+                    </div>
+                  )}
                 </section>
               ))}
             </div>
@@ -681,6 +891,53 @@ function obtenerOpcionesClubEquipo(listaEquipos, valoresActuales = []) {
   return opciones.sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
 }
 
+function obtenerOpcionesClubesConJugadores(registros, clubActual = '') {
+  const opciones = [];
+  const vistos = new Set();
+
+  (registros || []).forEach((registro) => {
+    const club = String(registro?.club || '').trim();
+    if (!club) return;
+
+    const clave = normalizarComparacion(club);
+    if (vistos.has(clave)) return;
+    vistos.add(clave);
+    opciones.push(club);
+  });
+
+  const clubLimpio = String(clubActual || '').trim();
+  if (clubLimpio && !vistos.has(normalizarComparacion(clubLimpio))) {
+    opciones.push(clubLimpio);
+  }
+
+  return opciones.sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+}
+
+function obtenerOpcionesEquiposConJugadores(registros, clubSeleccionado, equipoActual = '') {
+  const clubNormalizado = normalizarComparacion(clubSeleccionado);
+  const opciones = [];
+  const vistos = new Set();
+
+  (registros || []).forEach((registro) => {
+    const club = String(registro?.club || '').trim();
+    const equipo = String(registro?.equipo || '').trim();
+    if (!club || !equipo) return;
+    if (clubNormalizado && normalizarComparacion(club) !== clubNormalizado) return;
+
+    const clave = normalizarComparacion(equipo);
+    if (vistos.has(clave)) return;
+    vistos.add(clave);
+    opciones.push(equipo);
+  });
+
+  const equipoLimpio = String(equipoActual || '').trim();
+  if (equipoLimpio && !vistos.has(normalizarComparacion(equipoLimpio))) {
+    opciones.push(equipoLimpio);
+  }
+
+  return opciones.sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+}
+
 function obtenerOpcionesJugadoresInforme(registros, clubSeleccionado, equipoSeleccionado, jugadorActual = '') {
   const clubNormalizado = normalizarComparacion(clubSeleccionado);
   const equipoNormalizado = normalizarComparacion(equipoSeleccionado);
@@ -756,6 +1013,82 @@ function obtenerOpcionesFiltroDependientes(registros, filtros, clave, opcionesBa
   const opcionesDesdeRegistros = registrosFiltrados.map((registro) => registro?.[clave]);
 
   return obtenerOpcionesUnicas(opcionesDesdeBase, opcionesDesdeRegistros, valorActual ? [valorActual] : []);
+}
+
+const MAX_BARRAS_DISTRIBUCION = 8;
+
+function contarDistribucion(lista, obtenerValor, { orden = null, maxBarras = MAX_BARRAS_DISTRIBUCION } = {}) {
+  const conteo = new Map();
+
+  lista.forEach((item) => {
+    const valor = String(obtenerValor(item) || '').trim();
+    if (!valor) return;
+    conteo.set(valor, (conteo.get(valor) || 0) + 1);
+  });
+
+  let entradas = [...conteo.entries()].map(([label, count]) => ({ label, count }));
+
+  if (Array.isArray(orden) && orden.length > 0) {
+    entradas = orden
+      .map((label) => ({ label, count: conteo.get(label) || 0 }))
+      .filter((entrada) => entrada.count > 0);
+  } else {
+    entradas.sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, 'es', { sensitivity: 'base' }));
+  }
+
+  if (!maxBarras || entradas.length <= maxBarras) {
+    return entradas;
+  }
+
+  const visibles = entradas.slice(0, maxBarras - 1);
+  const resto = entradas.slice(maxBarras - 1).reduce((suma, entrada) => suma + entrada.count, 0);
+  return resto > 0 ? [...visibles, { label: 'Otros', count: resto }] : visibles;
+}
+
+function TarjetaEstadistica({ etiqueta, valor }) {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-club-black/50">{etiqueta}</p>
+      <p className="mt-1 text-3xl font-bold text-club-black tabular-nums">{valor}</p>
+    </div>
+  );
+}
+
+function GraficoBarras({ titulo, datos }) {
+  const total = datos.reduce((suma, item) => suma + item.count, 0);
+  const maximo = datos.reduce((max, item) => Math.max(max, item.count), 0) || 1;
+
+  return (
+    <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+      <h4 className="text-sm font-bold uppercase tracking-wide text-club-black">{titulo}</h4>
+      {datos.length === 0 ? (
+        <p className="mt-4 text-sm text-club-black/50">Sin datos suficientes.</p>
+      ) : (
+        <div className="mt-4 space-y-2.5">
+          {datos.map((item) => {
+            const porcentaje = total > 0 ? Math.round((item.count / total) * 100) : 0;
+            const anchoBarra = Math.max((item.count / maximo) * 100, 4);
+            return (
+              <div key={item.label} className="flex items-center gap-3">
+                <span className="w-28 shrink-0 truncate text-xs font-medium text-club-black/70" title={item.label}>
+                  {item.label}
+                </span>
+                <div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-100">
+                  <div
+                    className="h-2 rounded-full bg-club-red transition-all"
+                    style={{ width: `${anchoBarra}%` }}
+                  />
+                </div>
+                <span className="w-16 shrink-0 text-right text-xs font-semibold tabular-nums text-club-black/80">
+                  {item.count} ({porcentaje}%)
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
 }
 
 function FiltroBuscador({ label, value, options, emptyLabel, onChange }) {
@@ -926,6 +1259,15 @@ export default function Captacion() {
     lateralidad: '',
     demarcacion: '',
   });
+  const [filtrosInformes, setFiltrosInformes] = useState({
+    club: '',
+    etapa: '',
+    categoria: '',
+    anio_nacimiento: '',
+    lateralidad: '',
+    demarcacion: '',
+    valoracion: '',
+  });
   const [seccionActiva, setSeccionActiva] = useState('base-datos');
   const [fotoJugadorFile, setFotoJugadorFile] = useState(null);
   const [fotoJugadorBaseUrl, setFotoJugadorBaseUrl] = useState('');
@@ -1030,9 +1372,30 @@ export default function Captacion() {
     });
   }, [busqueda, camposVisibles, filtros, registros]);
 
+  const informesConDatos = useMemo(() => {
+    const registrosPorId = new Map(registros.map((registro) => [String(registro?.id || ''), registro]));
+
+    return informes.map((informe) => {
+      const jugador = registrosPorId.get(String(informe?.jugador_id || ''));
+      return {
+        ...informe,
+        demarcacion: String(informe?.demarcacion_concreta || '').trim(),
+        anio_nacimiento: String(jugador?.anio_nacimiento || '').trim(),
+      };
+    });
+  }, [informes, registros]);
+
   const informesFiltrados = useMemo(() => {
-    return informes;
-  }, [informes]);
+    const filtrosActivos = Object.entries(filtrosInformes).filter(([, valor]) => String(valor || '').trim());
+
+    return informesConDatos.filter((informe) => {
+      if (jugadorInformesFiltro && String(informe?.jugador_id || '') !== String(jugadorInformesFiltro.id || '')) {
+        return false;
+      }
+
+      return filtrosActivos.every(([clave, valorSeleccionado]) => normalizarComparacion(informe?.[clave]) === normalizarComparacion(valorSeleccionado));
+    });
+  }, [filtrosInformes, informesConDatos, jugadorInformesFiltro]);
 
   function verInformesDeJugador(registro) {
     setJugadorInformesFiltro({ id: registro.id, nombre: nombreCompleto(registro) || 'Jugador' });
@@ -1047,17 +1410,13 @@ export default function Captacion() {
   const etapas = useListaValores('etapas');
   const categorias = useListaValores('categorias');
   const listaEquipos = useLista('equipos');
-  const opcionesClubesInforme = useMemo(() => {
-    const opciones = clubes.map((nombre) => String(nombre || '').trim()).filter(Boolean);
-    const clubActual = String(formInforme.club || '').trim();
-    if (clubActual && !opciones.some((opcion) => normalizarComparacion(opcion) === normalizarComparacion(clubActual))) {
-      opciones.push(clubActual);
-    }
-    return [...new Map(opciones.map((opcion) => [normalizarComparacion(opcion), opcion])).values()];
-  }, [clubes, formInforme.club]);
+  const opcionesClubesInforme = useMemo(
+    () => obtenerOpcionesClubesConJugadores(registros, formInforme.club),
+    [registros, formInforme.club]
+  );
   const opcionesEquiposInforme = useMemo(
-    () => obtenerOpcionesEquipoFormulario(listaEquipos, formInforme.club, formInforme.equipo),
-    [formInforme.club, formInforme.equipo, listaEquipos]
+    () => obtenerOpcionesEquiposConJugadores(registros, formInforme.club, formInforme.equipo),
+    [registros, formInforme.club, formInforme.equipo]
   );
   const opcionesJugadoresInforme = useMemo(
     () => obtenerOpcionesJugadoresInforme(registros, formInforme.club, formInforme.equipo, formInforme.jugador_id),
@@ -1121,6 +1480,37 @@ export default function Captacion() {
     [clubes, filtros, opcionesListas.categorias, opcionesListas.etapas, registros]
   );
 
+  const estadisticasJugadores = useMemo(
+    () => ({
+      total: registros.length,
+      porClub: contarDistribucion(registros, (registro) => registro.club),
+      porEtapa: contarDistribucion(registros, (registro) => registro.etapa),
+      porCategoria: contarDistribucion(registros, (registro) => registro.categoria),
+      porDemarcacion: contarDistribucion(registros, (registro) => registro.demarcacion),
+      porLateralidad: contarDistribucion(registros, (registro) => registro.lateralidad),
+      porAnioNacimiento: contarDistribucion(registros, (registro) => registro.anio_nacimiento),
+    }),
+    [registros]
+  );
+
+  const estadisticasInformes = useMemo(
+    () => ({
+      total: informesConDatos.length,
+      porObservador: contarDistribucion(informesConDatos, (informe) => informe.observador),
+      porClub: contarDistribucion(informesConDatos, (informe) => informe.club),
+      porValoracion: contarDistribucion(informesConDatos, (informe) => informe.valoracion, {
+        orden: ['1', '2', '3', '4', '5'],
+        maxBarras: 0,
+      }),
+      porTitularidad: contarDistribucion(informesConDatos, (informe) => informe.titularidad, {
+        orden: INFORME_TITULARIDAD_OPCIONES,
+        maxBarras: 0,
+      }),
+      porTipologia: contarDistribucion(informesConDatos, (informe) => informe.tipologia),
+    }),
+    [informesConDatos]
+  );
+
   const limpiarFiltros = () => {
     setFiltros({
       club: '',
@@ -1134,6 +1524,38 @@ export default function Captacion() {
 
   const actualizarFiltro = (clave, valor) => {
     setFiltros((prev) => ({
+      ...prev,
+      [clave]: valor,
+    }));
+  };
+
+  const opcionesFiltrosInformes = useMemo(
+    () => ({
+      club: obtenerOpcionesFiltroDependientes(informesConDatos, filtrosInformes, 'club', clubes),
+      etapa: obtenerOpcionesFiltroDependientes(informesConDatos, filtrosInformes, 'etapa', opcionesListas.etapas),
+      categoria: obtenerOpcionesFiltroDependientes(informesConDatos, filtrosInformes, 'categoria', opcionesListas.categorias),
+      anio_nacimiento: obtenerOpcionesFiltroDependientes(informesConDatos, filtrosInformes, 'anio_nacimiento'),
+      lateralidad: obtenerOpcionesFiltroDependientes(informesConDatos, filtrosInformes, 'lateralidad', ['Diestro', 'Zurdo', 'Ambas']),
+      demarcacion: obtenerOpcionesFiltroDependientes(informesConDatos, filtrosInformes, 'demarcacion', DEMARCACION_CONCRETA_OPCIONES),
+      valoracion: obtenerOpcionesFiltroDependientes(informesConDatos, filtrosInformes, 'valoracion', ['BAJO', 'MEDIO', 'ALTO']),
+    }),
+    [clubes, filtrosInformes, informesConDatos, opcionesListas.categorias, opcionesListas.etapas]
+  );
+
+  const limpiarFiltrosInformes = () => {
+    setFiltrosInformes({
+      club: '',
+      etapa: '',
+      categoria: '',
+      anio_nacimiento: '',
+      lateralidad: '',
+      demarcacion: '',
+      valoracion: '',
+    });
+  };
+
+  const actualizarFiltroInforme = (clave, valor) => {
+    setFiltrosInformes((prev) => ({
       ...prev,
       [clave]: valor,
     }));
@@ -1179,6 +1601,134 @@ export default function Captacion() {
         : {}),
       ...(datosNacimiento || {}),
     }));
+  };
+
+  const actualizarDemarcacionInformeCompleto = (valor) => {
+    setForm((prev) => ({
+      ...prev,
+      valoracion_items: crearValoracionItemsVacio(valor, prev.valoracion_items?.direccion),
+    }));
+  };
+
+  const actualizarValoracionItemInformeCompleto = (grupo, itemKey, valor) => {
+    setForm((prev) => ({
+      ...prev,
+      valoracion_items: {
+        ...prev.valoracion_items,
+        [grupo]: { ...prev.valoracion_items?.[grupo], [itemKey]: valor },
+      },
+    }));
+  };
+
+  const actualizarValoracionDireccionInformeCompleto = (valor) => {
+    setForm((prev) => ({
+      ...prev,
+      valoracion_items: {
+        ...prev.valoracion_items,
+        direccion: prev.valoracion_items?.direccion === valor ? '' : valor,
+      },
+    }));
+  };
+
+  const renderInformeCompletoJugador = (formActual, onCambiarDemarcacion, onCambiarItem, onCambiarDireccion) => {
+    const demarcacionSeleccionada = formActual.valoracion_items?.demarcacion || '';
+    const gruposDemarcacion = ITEMS_INFORME_COMPLETO_POR_DEMARCACION[demarcacionSeleccionada];
+    const direccionSeleccionada = formActual.valoracion_items?.direccion || '';
+
+    return (
+      <div className="space-y-5">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {renderCampoFormulario(camposFormularioPorClave.get('informe_realizado_por'))}
+          {renderCampoFormulario(camposFormularioPorClave.get('descripcion_jugador'))}
+        </div>
+
+        <div className="max-w-xs">
+          <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-club-black/55">Demarcacion</label>
+          <select
+            value={demarcacionSeleccionada}
+            onChange={(event) => onCambiarDemarcacion(event.target.value)}
+            className="block w-full min-w-0 box-border rounded-2xl border border-gray-300 bg-white px-3 py-2.5 text-base leading-6 text-club-black shadow-sm appearance-none pr-10 transition-colors focus:outline-none focus:ring-2 focus:ring-club-red"
+          >
+            <option value="">Seleccionar</option>
+            {INFORME_COMPLETO_DEMARCACIONES.map((opcion) => (
+              <option key={opcion} value={opcion}>
+                {opcion}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {!gruposDemarcacion ? (
+          <p className="text-sm text-club-black/55">Selecciona una demarcacion para valorar al jugador por posicion.</p>
+        ) : (
+          GRUPOS_INFORME_COMPLETO.map((grupo) => {
+            const items = gruposDemarcacion[grupo.key] || [];
+            if (!items.length) return null;
+
+            return (
+              <div key={grupo.key}>
+                <h5 className="mb-3 text-xs font-bold uppercase tracking-wide text-club-black/70">{grupo.label}</h5>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {items.map((item) => {
+                    const valorSeleccionado = formActual.valoracion_items?.[grupo.key]?.[item.key] || '';
+                    return (
+                      <div key={item.key} className="rounded-2xl border border-gray-200 bg-white p-3">
+                        <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-club-black/55">
+                          {item.label}
+                        </label>
+                        <div className="grid grid-cols-5 gap-2">
+                          {OPCIONES_VALORACION_ITEM.map((opcion) => {
+                            const seleccionado = String(valorSeleccionado) === String(opcion);
+                            return (
+                              <button
+                                key={opcion}
+                                type="button"
+                                onClick={() => onCambiarItem(grupo.key, item.key, opcion)}
+                                aria-pressed={seleccionado}
+                                aria-label={`${item.label} valoracion ${opcion}`}
+                                className={`inline-flex items-center justify-center rounded-2xl border px-3 py-2 text-sm font-bold transition-all focus:outline-none focus:ring-2 focus:ring-club-red focus:ring-offset-1 ${
+                                  seleccionado
+                                    ? 'border-club-red bg-club-red text-white shadow-sm'
+                                    : 'border-gray-300 bg-white text-club-black hover:border-club-red/40 hover:bg-red-50'
+                                }`}
+                              >
+                                {opcion}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })
+        )}
+
+        <div>
+          <h5 className="mb-3 text-xs font-bold uppercase tracking-wide text-club-black/70">Valoracion direccion</h5>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:max-w-lg">
+            {OPCIONES_VALORACION_DIRECCION.map((opcion) => {
+              const seleccionado = direccionSeleccionada === opcion.value;
+              return (
+                <button
+                  key={opcion.value}
+                  type="button"
+                  onClick={() => onCambiarDireccion(opcion.value)}
+                  aria-pressed={seleccionado}
+                  className={`inline-flex items-center justify-center rounded-2xl border px-4 py-2.5 text-sm font-bold uppercase tracking-wide transition-all focus:outline-none focus:ring-2 focus:ring-club-red focus:ring-offset-1 ${
+                    seleccionado ? opcion.activo : opcion.inactivo
+                  }`}
+                >
+                  {opcion.value}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
   };
 
   const asegurarResponsableAlta = (valor) => {
@@ -1279,8 +1829,8 @@ export default function Captacion() {
   const editarRegistro = (registro) => {
     asegurarResponsableAlta(registro.quien_da_alta);
     const fotoUrl = obtenerFotoJugadorUrl(registro);
-    setForm(
-      camposVisibles.reduce(
+    setForm({
+      ...camposVisibles.reduce(
         (acc, campo) => ({
           ...acc,
           [campo.key]:
@@ -1293,8 +1843,11 @@ export default function Captacion() {
                   : registro[campo.key] || '',
         }),
         {}
-      )
-    );
+      ),
+      valoracion_items: registro.valoracion_items?.demarcacion !== undefined
+        ? registro.valoracion_items
+        : crearValoracionItemsVacio(''),
+    });
     setEditandoId(registro.id);
     setMostrarFormulario(true);
     setFotoJugadorFile(null);
@@ -1338,6 +1891,7 @@ export default function Captacion() {
       // Mantener este campo explícito evita que una refactorización del listado
       // de campos vuelva a dejar fuera la etapa del payload de guardado.
       payload.etapa = String(formCalculado.etapa || '').trim();
+      payload.valoracion_items = formCalculado.valoracion_items || {};
 
       if (fotoJugadorFile) {
         payload.foto_jugador = await archivoADataUrl(fotoJugadorFile);
@@ -1373,7 +1927,6 @@ export default function Captacion() {
       if (key === 'club') {
         siguiente.equipo = '';
         siguiente.jugador_id = '';
-        siguiente.valoracion_items = {};
         CAMPOS_INFORME_JUGADOR.forEach((campo) => {
           siguiente[campo] = '';
         });
@@ -1381,7 +1934,6 @@ export default function Captacion() {
 
       if (key === 'equipo') {
         siguiente.jugador_id = '';
-        siguiente.valoracion_items = {};
         CAMPOS_INFORME_JUGADOR.forEach((campo) => {
           siguiente[campo] = '';
         });
@@ -1391,7 +1943,6 @@ export default function Captacion() {
         const jugador = registros.find((registro) => String(registro.id) === String(value));
         const datosJugador = jugador ? obtenerDatosJugadorParaInforme(jugador) : null;
 
-        siguiente.valoracion_items = {};
         CAMPOS_INFORME_JUGADOR.forEach((campo) => {
           siguiente[campo] = String(datosJugador?.[campo] || '').trim();
         });
@@ -1409,19 +1960,8 @@ export default function Captacion() {
         siguiente.partido = calcularPartidoInforme(siguiente);
       }
 
-      if (key === 'demarcacion_concreta' && prev.demarcacion_concreta !== value) {
-        siguiente.valoracion_items = {};
-      }
-
       return siguiente;
     });
-  };
-
-  const actualizarValoracionItemInforme = (itemKey, valor) => {
-    setFormInforme((prev) => ({
-      ...prev,
-      valoracion_items: { ...prev.valoracion_items, [itemKey]: valor },
-    }));
   };
 
   const cancelarFormularioInforme = () => {
@@ -1490,12 +2030,12 @@ export default function Captacion() {
         tipologia: String(formInforme.tipologia || '').trim(),
         lateralidad: String(formInforme.lateralidad || '').trim(),
         descripcion: String(formInforme.descripcion || '').trim(),
+        valoracion: String(formInforme.valoracion || '').trim(),
         demarcacion_concreta: String(formInforme.demarcacion_concreta || '').trim(),
         titularidad: String(formInforme.titularidad || '').trim(),
         minutos_jugados: String(formInforme.minutos_jugados || '').trim(),
         goles: String(formInforme.goles || '').trim(),
         goles_encajados: String(formInforme.goles_encajados || '').trim(),
-        valoracion_items: formInforme.valoracion_items || {},
       };
       const resultado = editandoInformeId
         ? await api.put(`/captacion/informes/${editandoInformeId}`, payload)
@@ -1674,6 +2214,33 @@ export default function Captacion() {
           className={inputClass}
         />
       );
+    } else if (campo === 'valoracion') {
+      const opcionesValoracion = [
+        { valor: 'BAJO', label: 'NIVEL BAJO', circulo: 'bg-red-500', seleccionado: 'border-red-400 bg-red-50 text-red-700' },
+        { valor: 'MEDIO', label: 'NIVEL MEDIO', circulo: 'bg-orange-500', seleccionado: 'border-orange-400 bg-orange-50 text-orange-700' },
+        { valor: 'ALTO', label: 'NIVEL ALTO', circulo: 'bg-green-500', seleccionado: 'border-green-400 bg-green-50 text-green-700' },
+      ];
+      control = (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {opcionesValoracion.map((opcion) => {
+            const seleccionado = valor === opcion.valor;
+            return (
+              <button
+                key={opcion.valor}
+                type="button"
+                onClick={() => actualizarCampoInforme(campo, opcion.valor)}
+                aria-pressed={seleccionado}
+                className={`flex items-center gap-2 rounded-2xl border px-3 py-2.5 text-sm font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-club-red focus:ring-offset-1 ${
+                  seleccionado ? `${opcion.seleccionado} shadow-sm` : 'border-gray-300 bg-white text-club-black hover:border-club-red/40 hover:bg-gray-50'
+                }`}
+              >
+                <span className={`h-3 w-3 shrink-0 rounded-full ${opcion.circulo}`} />
+                {opcion.label}
+              </button>
+            );
+          })}
+        </div>
+      );
     } else {
       control = (
         <input
@@ -1700,47 +2267,6 @@ export default function Captacion() {
             {control}
           </>
         )}
-      </div>
-    );
-  };
-
-  const renderItemsValoracionInforme = () => {
-    const items = ITEMS_VALORACION_POR_DEMARCACION[formInforme.demarcacion_concreta] || [];
-    if (!items.length) return null;
-
-    return (
-      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {items.map((item) => {
-          const valorSeleccionado = formInforme.valoracion_items?.[item.key] || '';
-          return (
-            <div key={item.key} className="rounded-2xl border border-gray-200 bg-white p-3">
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-club-black/55">
-                {item.label}
-              </label>
-              <div className="grid grid-cols-5 gap-2">
-                {OPCIONES_VALORACION_ITEM.map((opcion) => {
-                  const seleccionado = String(valorSeleccionado) === String(opcion);
-                  return (
-                    <button
-                      key={opcion}
-                      type="button"
-                      onClick={() => actualizarValoracionItemInforme(item.key, opcion)}
-                      aria-pressed={seleccionado}
-                      aria-label={`${item.label} valoracion ${opcion}`}
-                      className={`inline-flex items-center justify-center rounded-xl border px-2 py-2 text-sm font-bold transition-all focus:outline-none focus:ring-2 focus:ring-club-red focus:ring-offset-1 ${
-                        seleccionado
-                          ? 'border-club-red bg-club-red text-white shadow-sm'
-                          : 'border-gray-300 bg-white text-club-black hover:border-club-red/40 hover:bg-red-50'
-                      }`}
-                    >
-                      {opcion}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
       </div>
     );
   };
@@ -1799,47 +2325,41 @@ export default function Captacion() {
       );
     } else if (campo.type === 'clubSelect') {
       contenido = (
-        <select value={valor} onChange={(event) => actualizarCampo(campo.key, event.target.value)} className={selectClass}>
-          <option value="">Seleccionar</option>
-          {opcionesClubes.map((opcion) => (
-            <option key={opcion} value={opcion}>
-              {opcion}
-            </option>
-          ))}
-        </select>
+        <SelectBuscador
+          value={valor}
+          options={opcionesClubes}
+          emptyLabel={opcionesClubes.length > 0 ? 'Seleccionar club' : 'Sin opciones disponibles'}
+          onChange={(opcion) => actualizarCampo(campo.key, opcion)}
+          disabled={opcionesClubes.length === 0}
+        />
       );
     } else if (campo.key === 'equipo') {
+      const hayClubSeleccionado = Boolean(String(form.club || '').trim());
       contenido = (
-        <select
+        <SelectBuscador
           value={valor}
-          onChange={(event) => actualizarCampo(campo.key, event.target.value)}
-          disabled={!String(form.club || '').trim()}
-          className="w-full rounded-2xl border border-gray-300 bg-white px-3 py-2.5 text-sm text-club-black focus:outline-none focus:ring-2 focus:ring-club-red disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-club-black/50"
-        >
-          <option value="">
-            {String(form.club || '').trim()
-              ? opcionesEquipos.length > 0
-                ? 'Seleccionar'
+          options={opcionesEquipos}
+          emptyLabel={
+            !hayClubSeleccionado
+              ? 'Selecciona primero un club'
+              : opcionesEquipos.length > 0
+                ? 'Seleccionar equipo'
                 : 'Sin equipos disponibles'
-              : 'Selecciona primero un club'}
-          </option>
-          {opcionesEquipos.map((opcion) => (
-            <option key={opcion} value={opcion}>
-              {opcion}
-            </option>
-          ))}
-        </select>
+          }
+          onChange={(opcion) => actualizarCampo(campo.key, opcion)}
+          disabled={!hayClubSeleccionado}
+        />
       );
     } else if (campo.type === 'listaSelect') {
+      const opcionesLista = opcionesListas[campo.listaId] || [];
       contenido = (
-        <select value={valor} onChange={(event) => actualizarCampo(campo.key, event.target.value)} className={selectClass}>
-          <option value="">{(opcionesListas[campo.listaId] || []).length > 0 ? 'Seleccionar' : 'Sin opciones disponibles'}</option>
-          {(opcionesListas[campo.listaId] || []).map((opcion) => (
-            <option key={opcion} value={opcion}>
-              {opcion}
-            </option>
-          ))}
-        </select>
+        <SelectBuscador
+          value={valor}
+          options={opcionesLista}
+          emptyLabel={opcionesLista.length > 0 ? 'Seleccionar' : 'Sin opciones disponibles'}
+          onChange={(opcion) => actualizarCampo(campo.key, opcion)}
+          disabled={opcionesLista.length === 0}
+        />
       );
     } else if (campo.type === 'selectWithAdd') {
       contenido = (
@@ -2083,6 +2603,14 @@ export default function Captacion() {
               responsablesAltaFormulario={responsablesAlta}
               manejarCambioResponsableAltaFormulario={manejarCambioResponsableAlta}
               renderCampoFormulario={renderCampoFormulario}
+              renderItemsValoracionFormulario={() =>
+                renderInformeCompletoJugador(
+                  form,
+                  actualizarDemarcacionInformeCompleto,
+                  actualizarValoracionItemInformeCompleto,
+                  actualizarValoracionDireccionInformeCompleto
+                )
+              }
               setFotoJugadorPreviewError={setFotoJugadorPreviewError}
             />
           )}
@@ -2409,7 +2937,7 @@ export default function Captacion() {
             </table>
           </TableScroll>
         </>
-      ) : (
+      ) : seccionActiva === 'informes' ? (
         <div className="space-y-6">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div>
@@ -2425,6 +2953,69 @@ export default function Captacion() {
                 + Nuevo informe
               </button>
             )}
+          </div>
+
+          <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-col xl:flex-row xl:items-end gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-7 gap-3 flex-1">
+                <FiltroBuscador
+                  label="Club"
+                  value={filtrosInformes.club}
+                  options={opcionesFiltrosInformes.club}
+                  emptyLabel="Todos"
+                  onChange={(valor) => actualizarFiltroInforme('club', valor)}
+                />
+                <FiltroBuscador
+                  label="Etapa"
+                  value={filtrosInformes.etapa}
+                  options={opcionesFiltrosInformes.etapa}
+                  emptyLabel="Todas"
+                  onChange={(valor) => actualizarFiltroInforme('etapa', valor)}
+                />
+                <FiltroBuscador
+                  label="Categoría"
+                  value={filtrosInformes.categoria}
+                  options={opcionesFiltrosInformes.categoria}
+                  emptyLabel="Todas"
+                  onChange={(valor) => actualizarFiltroInforme('categoria', valor)}
+                />
+                <FiltroBuscador
+                  label="Categoría año"
+                  value={filtrosInformes.anio_nacimiento}
+                  options={opcionesFiltrosInformes.anio_nacimiento}
+                  emptyLabel="Todos"
+                  onChange={(valor) => actualizarFiltroInforme('anio_nacimiento', valor)}
+                />
+                <FiltroBuscador
+                  label="Lateralidad"
+                  value={filtrosInformes.lateralidad}
+                  options={opcionesFiltrosInformes.lateralidad}
+                  emptyLabel="Todas"
+                  onChange={(valor) => actualizarFiltroInforme('lateralidad', valor)}
+                />
+                <FiltroBuscador
+                  label="Demarcación"
+                  value={filtrosInformes.demarcacion}
+                  options={opcionesFiltrosInformes.demarcacion}
+                  emptyLabel="Todas"
+                  onChange={(valor) => actualizarFiltroInforme('demarcacion', valor)}
+                />
+                <FiltroBuscador
+                  label="Valoración"
+                  value={filtrosInformes.valoracion}
+                  options={opcionesFiltrosInformes.valoracion}
+                  emptyLabel="Todas"
+                  onChange={(valor) => actualizarFiltroInforme('valoracion', valor)}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={limpiarFiltrosInformes}
+                className="w-full xl:w-auto rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold text-club-black hover:bg-gray-50"
+              >
+                Limpiar filtros
+              </button>
+            </div>
           </div>
 
           {mostrarFormularioInforme && (
@@ -2458,8 +3049,7 @@ export default function Captacion() {
                     <div className={`mt-4 grid grid-cols-1 gap-4 ${bloque.gridClassName || 'sm:grid-cols-2 xl:grid-cols-3'}`}>
                       {bloque.fields.map((campo) => renderCampoInforme(campo))}
                     </div>
-                    {bloque.title === 'VALORACIÓN EN POSICIÓN' && renderItemsValoracionInforme()}
-                    </section>
+                  </section>
                 ))}
               </div>
             </form>
@@ -2592,6 +3182,43 @@ export default function Captacion() {
               </tbody>
             </table>
           </TableScroll>
+        </div>
+      ) : (
+        <div className="space-y-8">
+          <section>
+            <h3 className="text-lg font-bold text-club-black mb-3">Base de datos de captacion</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+              <TarjetaEstadistica etiqueta="Jugadores" valor={estadisticasJugadores.total} />
+              <TarjetaEstadistica etiqueta="Clubes" valor={estadisticasJugadores.porClub.length} />
+              <TarjetaEstadistica etiqueta="Etapas" valor={estadisticasJugadores.porEtapa.length} />
+              <TarjetaEstadistica etiqueta="Demarcaciones" valor={estadisticasJugadores.porDemarcacion.length} />
+            </div>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <GraficoBarras titulo="Jugadores por club" datos={estadisticasJugadores.porClub} />
+              <GraficoBarras titulo="Jugadores por etapa" datos={estadisticasJugadores.porEtapa} />
+              <GraficoBarras titulo="Jugadores por categoria" datos={estadisticasJugadores.porCategoria} />
+              <GraficoBarras titulo="Jugadores por demarcacion" datos={estadisticasJugadores.porDemarcacion} />
+              <GraficoBarras titulo="Jugadores por lateralidad" datos={estadisticasJugadores.porLateralidad} />
+              <GraficoBarras titulo="Jugadores por año de nacimiento" datos={estadisticasJugadores.porAnioNacimiento} />
+            </div>
+          </section>
+
+          <section>
+            <h3 className="text-lg font-bold text-club-black mb-3">Informes de partidos</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+              <TarjetaEstadistica etiqueta="Informes" valor={estadisticasInformes.total} />
+              <TarjetaEstadistica etiqueta="Observadores" valor={estadisticasInformes.porObservador.length} />
+              <TarjetaEstadistica etiqueta="Clubes observados" valor={estadisticasInformes.porClub.length} />
+              <TarjetaEstadistica etiqueta="Tipologias" valor={estadisticasInformes.porTipologia.length} />
+            </div>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <GraficoBarras titulo="Informes por valoracion" datos={estadisticasInformes.porValoracion} />
+              <GraficoBarras titulo="Informes por titularidad" datos={estadisticasInformes.porTitularidad} />
+              <GraficoBarras titulo="Informes por observador" datos={estadisticasInformes.porObservador} />
+              <GraficoBarras titulo="Informes por club" datos={estadisticasInformes.porClub} />
+              <GraficoBarras titulo="Informes por tipologia" datos={estadisticasInformes.porTipologia} />
+            </div>
+          </section>
         </div>
       )}
     </div>

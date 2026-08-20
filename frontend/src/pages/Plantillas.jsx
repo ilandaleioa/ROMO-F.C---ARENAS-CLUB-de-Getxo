@@ -1116,7 +1116,7 @@ export default function Plantillas({ soloGraficas = false }) {
           <div className="hidden md:block w-full lg:w-auto">
             {renderFiltrosDeportivos()}
           </div>
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="hidden md:flex md:flex-row md:items-center gap-3">
             <button
               onClick={handleActualizar}
               disabled={refrescando}
@@ -1222,7 +1222,7 @@ export default function Plantillas({ soloGraficas = false }) {
         </div>
       ) : (
         <div className="flex flex-col md:flex-row gap-6">
-          <div>
+          <div className="hidden md:block">
             {renderFiltroEquipos()}
           </div>
 

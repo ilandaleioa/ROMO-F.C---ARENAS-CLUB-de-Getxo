@@ -232,6 +232,13 @@ export default function ListaEditable({
     [lista.id, listaEquipos]
   );
 
+  const equiposClubEnEdicion = useMemo(() => {
+    if (lista.id !== 'clubes' || !editandoId || !filaOriginal) return [];
+    const clubNombre = textoLimpio(filaOriginal.nombre || filaOriginal.valor);
+    if (!clubNombre) return [];
+    return equiposPorClub.get(normalizarComparacion(clubNombre)) || [];
+  }, [lista.id, editandoId, filaOriginal, equiposPorClub]);
+
   const camposUnicos = lista.id === 'equipos' ? ['club', 'nombre'] : camposObligatorios(lista).map((columna) => columna.key);
 
   const opcionesClubFormulario = useMemo(() => {
@@ -665,6 +672,84 @@ export default function ListaEditable({
               );
             })}
           </div>
+
+          {lista.id === 'clubes' && editandoId && (
+            <div className="mt-4 border-t border-club-red/15 pt-4">
+              <h5 className="mb-2 text-xs font-bold uppercase tracking-wide text-club-black/70">
+                Equipos asociados
+              </h5>
+              {equiposClubEnEdicion.length === 0 ? (
+                <p className="text-sm text-club-black/50">Este club no tiene equipos asociados.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {equiposClubEnEdicion.map((equipo) => (
+                    <div
+                      key={`editar-club-equipo-${equipo.id || equipo.nombre}`}
+                      className="inline-flex items-center gap-2 rounded-full bg-club-red/10 px-3 py-1 text-xs font-semibold text-club-red"
+                    >
+                      {equipoEnEdicion?.id === equipo.id ? (
+                        <form
+                          onSubmit={(evento) =>
+                            guardarNombreEquipo(evento, textoLimpio(filaOriginal?.nombre || filaOriginal?.valor), equipo)
+                          }
+                          className="flex min-w-[230px] flex-wrap items-center gap-2"
+                        >
+                          <input
+                            type="text"
+                            value={nombreEquipoEditado}
+                            onChange={(evento) => {
+                              setNombreEquipoEditado(evento.target.value);
+                              setErrorEquipo('');
+                            }}
+                            className="min-w-[150px] flex-1 rounded-md border border-club-red/30 bg-white px-2 py-1 text-xs font-medium text-club-black outline-none focus:border-club-red focus:ring-1 focus:ring-club-red"
+                            aria-label={`Nuevo nombre de ${equipo.nombre}`}
+                            autoFocus
+                          />
+                          <button
+                            type="submit"
+                            className="rounded-full bg-club-red px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white hover:bg-club-redDark"
+                          >
+                            Guardar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelarEdicionEquipo}
+                            className="rounded-full border border-current px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide hover:bg-white/40"
+                          >
+                            Cancelar
+                          </button>
+                          {errorEquipo && (
+                            <span className="basis-full text-[10px] font-medium text-red-700">{errorEquipo}</span>
+                          )}
+                        </form>
+                      ) : (
+                        <>
+                          <span className="min-w-0">
+                            <span className="block truncate">{equipo.nombre}</span>
+                            {equipo.nombreFederacion && (
+                              <span className="block max-w-[220px] truncate text-[10px] font-normal text-club-black/55">
+                                Fed: {equipo.nombreFederacion}
+                              </span>
+                            )}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              abrirEdicionEquipo(textoLimpio(filaOriginal?.nombre || filaOriginal?.valor), equipo)
+                            }
+                            className="rounded-full border border-current px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide hover:bg-white/40"
+                            title={`Editar ${equipo.nombre}`}
+                          >
+                            Editar
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </form>
       )}
 

@@ -80,6 +80,8 @@ export default function MisEquipos() {
           return {
             ...metadato,
             ...fila,
+            nombre_federacion: fila.nombre_federacion || metadato.nombre_federacion || '',
+            abreviatura: fila.abreviatura || metadato.abreviatura || '',
             clubLabel: club.label,
           };
         })
