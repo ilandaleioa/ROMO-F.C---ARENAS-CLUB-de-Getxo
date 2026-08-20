@@ -32,6 +32,18 @@ function claveEquipo(club, nombre) {
 }
 
 function claveClub(valor) {
+  const clave = String(valor || '')
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/gi, '')
+    .toUpperCase();
+  if (clave.includes('ROMO')) return 'ROMO';
+  if (clave.includes('ARENAS')) return 'ARENAS';
+  return clave;
+}
+
+function claveNombreEquipo(valor) {
   return String(valor || '')
     .trim()
     .normalize('NFD')
@@ -58,7 +70,7 @@ export default function MisEquipos() {
     () => {
       const metadatos = new Map(
         CLUBES.flatMap((club) => obtenerMsEquiposPorClub(club.valor)).map((equipo) => [
-          `${equipo.club}|${equipo.nombre}`,
+          `${claveClub(equipo.club)}|${claveNombreEquipo(equipo.nombre)}`,
           equipo,
         ])
       );
@@ -74,7 +86,9 @@ export default function MisEquipos() {
         .filter((fila) => esClubMostrado(fila.club))
         .map((fila) => {
           const metadato =
-            metadatosPorId.get(fila.id) || metadatos.get(`${fila.club}|${fila.nombre}`) || {};
+            metadatosPorId.get(fila.id) ||
+            metadatos.get(`${claveClub(fila.club)}|${claveNombreEquipo(fila.nombre)}`) ||
+            {};
           const club = clubesPorClave.get(claveClub(fila.club)) || { label: fila.club };
 
           return {
