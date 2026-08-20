@@ -42,6 +42,13 @@ function ClubThemeSync() {
 function Layout({ children }) {
   const [sidebarAbierto, setSidebarAbierto] = useState(false);
   const [menuUsuarioAbierto, setMenuUsuarioAbierto] = useState(false);
+  const [sidebarColapsado, setSidebarColapsado] = useState(
+    () => localStorage.getItem('sidebarColapsado') === '1'
+  );
+
+  useEffect(() => {
+    localStorage.setItem('sidebarColapsado', sidebarColapsado ? '1' : '0');
+  }, [sidebarColapsado]);
 
   return (
     <div className="app-shell min-h-[100dvh] bg-gray-50 flex flex-col">
@@ -57,7 +64,12 @@ function Layout({ children }) {
         }}
       />
       <div className="flex flex-1 min-h-0">
-        <Sidebar isOpen={sidebarAbierto} onClose={() => setSidebarAbierto(false)} />
+        <Sidebar
+          isOpen={sidebarAbierto}
+          onClose={() => setSidebarAbierto(false)}
+          colapsado={sidebarColapsado}
+          onToggleColapsado={() => setSidebarColapsado((v) => !v)}
+        />
         <main className="app-main flex-1 min-w-0">{children}</main>
       </div>
     </div>

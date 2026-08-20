@@ -9,7 +9,7 @@ const linkClass = ({ isActive }) =>
     isActive ? 'bg-club-red text-white' : 'text-club-black/80 hover:bg-club-red/10 hover:text-club-black'
   }`;
 
-export default function Sidebar({ isOpen, onClose }) {
+export default function Sidebar({ isOpen, onClose, colapsado, onToggleColapsado }) {
   const { user } = useAuth();
   const { pathname } = useLocation();
   const { club, setClub } = useClub();
@@ -100,7 +100,27 @@ export default function Sidebar({ isOpen, onClose }) {
 
   return (
     <>
-      <aside className="no-print hidden w-56 shrink-0 border-r border-gray-200 bg-white lg:block">{nav}</aside>
+      <div className="no-print relative hidden shrink-0 lg:block">
+        <aside
+          className={`overflow-hidden border-r border-gray-200 bg-white transition-[width] duration-200 ${
+            colapsado ? 'w-0 border-r-0' : 'w-56'
+          }`}
+        >
+          <div className="w-56">{nav}</div>
+        </aside>
+        <button
+          type="button"
+          onClick={onToggleColapsado}
+          aria-label={colapsado ? 'Mostrar menú' : 'Ocultar menú'}
+          title={colapsado ? 'Mostrar menú' : 'Ocultar menú'}
+          className={`absolute top-4 z-10 flex h-9 w-9 max-w-none items-center justify-center rounded-full border-2 border-white bg-rose-400 text-white shadow-lg transition-[left,background-color,box-shadow] duration-200 hover:bg-rose-500 hover:shadow-xl ${
+            colapsado ? '' : '-translate-x-1/2'
+          }`}
+          style={{ left: colapsado ? '0.25rem' : '14rem' }}
+        >
+          <span aria-hidden="true" className="text-lg font-bold">{colapsado ? '›' : '‹'}</span>
+        </button>
+      </div>
 
       {isOpen && (
         <div className="fixed inset-0 z-40 flex lg:hidden" role="dialog" aria-modal="true" aria-label="Navegacion principal">

@@ -317,9 +317,11 @@ const CAMPOS_INFORME_TABLA = [
 const BLOQUES_INFORME_FORM = [
   { title: 'Datos basicos', fields: ['fecha', 'observador', 'club', 'equipo', 'jugador_id'], gridClassName: 'sm:grid-cols-2 xl:grid-cols-5' },
   { title: 'Partido', fields: ['etapa', 'categoria', 'local', 'visitante', 'partido'], gridClassName: 'sm:grid-cols-2 xl:grid-cols-5' },
-  { title: 'INFORME', fields: ['dorsal', 'tipologia', 'lateralidad', 'descripcion'], gridClassName: 'sm:grid-cols-2 xl:grid-cols-3' },
-  { title: 'VALORACION', fields: ['valoracion'], gridClassName: 'sm:grid-cols-2 xl:grid-cols-3' },
-  { title: 'DATOS PARTIDO', fields: ['titularidad', 'minutos_jugados', 'goles', 'goles_encajados'], gridClassName: 'sm:grid-cols-2 xl:grid-cols-3' },
+  {
+    title: 'INFORME',
+    fields: ['dorsal', 'tipologia', 'lateralidad', 'titularidad', 'minutos_jugados', 'goles', 'goles_encajados', 'valoracion', 'descripcion'],
+    gridClassName: 'sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-8',
+  },
 ];
 
 const ETIQUETAS_INFORME = {
@@ -1279,6 +1281,7 @@ export default function Captacion() {
   const [formInforme, setFormInforme] = useState(() => crearInformeVacio());
   const [editandoInformeId, setEditandoInformeId] = useState(null);
   const [mostrarFormularioInforme, setMostrarFormularioInforme] = useState(false);
+  const [informeSoloLectura, setInformeSoloLectura] = useState(false);
   const [guardandoInforme, setGuardandoInforme] = useState(false);
   const [jugadorInformesFiltro, setJugadorInformesFiltro] = useState(null);
   const camposVisibles = useMemo(() => {
@@ -1397,9 +1400,14 @@ export default function Captacion() {
     });
   }, [filtrosInformes, informesConDatos, jugadorInformesFiltro]);
 
-  function verInformesDeJugador(registro) {
+  function abrirFormularioInformeParaJugador(registro) {
+    const datosJugador = obtenerDatosJugadorParaInforme(registro);
+    setFormInforme(crearInformeNormalizado({ ...datosJugador, jugador_id: registro.id }));
+    setEditandoInformeId(null);
     setJugadorInformesFiltro({ id: registro.id, nombre: nombreCompleto(registro) || 'Jugador' });
     setSeccionActiva('informes');
+    setMostrarFormularioInforme(true);
+    setErrorInformes('');
   }
 
   function limpiarFiltroInformesPorJugador() {
@@ -1968,16 +1976,18 @@ export default function Captacion() {
     setFormInforme(crearInformeVacio());
     setEditandoInformeId(null);
     setMostrarFormularioInforme(false);
+    setInformeSoloLectura(false);
   };
 
   const nuevoInforme = () => {
     setFormInforme(crearInformeVacio());
     setEditandoInformeId(null);
     setMostrarFormularioInforme(true);
+    setInformeSoloLectura(false);
     setErrorInformes('');
   };
 
-  const editarInforme = (informe) => {
+  const cargarInformeEnFormulario = (informe, { soloLectura }) => {
     const normalizado = crearInformeNormalizado(informe);
     const jugador = registros.find((registro) => String(registro.id) === String(normalizado.jugador_id));
     const datosJugador = jugador ? obtenerDatosJugadorParaInforme(jugador) : {};
@@ -1993,8 +2003,13 @@ export default function Captacion() {
     asegurarObservador(informe?.observador);
     setEditandoInformeId(informe.id);
     setMostrarFormularioInforme(true);
+    setInformeSoloLectura(soloLectura);
     setErrorInformes('');
   };
+
+  const editarInforme = (informe) => cargarInformeEnFormulario(informe, { soloLectura: false });
+
+  const verInforme = (informe) => cargarInformeEnFormulario(informe, { soloLectura: true });
 
   const eliminarInforme = async (informe) => {
     if (!window.confirm('Eliminar este informe de captacion?')) return;
@@ -2198,8 +2213,8 @@ export default function Captacion() {
         <textarea
           value={valor}
           onChange={(event) => actualizarCampoInforme(campo, event.target.value)}
-          rows={5}
-          className={`${inputClass} min-h-[10rem] resize-y`}
+          rows={3}
+          className={`${inputClass} min-h-[6rem] resize-y`}
           placeholder="Describe aqui la observacion del informe"
         />
       );
@@ -2221,7 +2236,7 @@ export default function Captacion() {
         { valor: 'ALTO', label: 'NIVEL ALTO', circulo: 'bg-green-500', seleccionado: 'border-green-400 bg-green-50 text-green-700' },
       ];
       control = (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 gap-1">
           {opcionesValoracion.map((opcion) => {
             const seleccionado = valor === opcion.valor;
             return (
@@ -2230,12 +2245,13 @@ export default function Captacion() {
                 type="button"
                 onClick={() => actualizarCampoInforme(campo, opcion.valor)}
                 aria-pressed={seleccionado}
-                className={`flex items-center gap-2 rounded-2xl border px-3 py-2.5 text-sm font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-club-red focus:ring-offset-1 ${
+                title={opcion.label}
+                className={`flex items-center justify-center gap-1 rounded-md border px-1.5 py-2 text-xs font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-club-red focus:ring-offset-1 ${
                   seleccionado ? `${opcion.seleccionado} shadow-sm` : 'border-gray-300 bg-white text-club-black hover:border-club-red/40 hover:bg-gray-50'
                 }`}
               >
-                <span className={`h-3 w-3 shrink-0 rounded-full ${opcion.circulo}`} />
-                {opcion.label}
+                <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${opcion.circulo}`} />
+                {opcion.valor}
               </button>
             );
           })}
@@ -2255,7 +2271,13 @@ export default function Captacion() {
     return (
       <div
         key={campo}
-        className={`min-w-0 ${campo === 'partido' ? 'sm:col-span-2 xl:col-span-2' : campo === 'descripcion' ? 'sm:col-span-2 xl:col-span-3' : ''}`}
+        className={`min-w-0 ${
+          campo === 'partido'
+            ? 'sm:col-span-2 xl:col-span-2'
+            : campo === 'descripcion'
+              ? 'sm:col-span-2 md:col-span-4 xl:col-span-8'
+              : ''
+        }`}
       >
         {campo === 'local' || campo === 'visitante' ? (
           <div className="rounded-2xl border border-gray-200 bg-white p-4">{control}</div>
@@ -2850,8 +2872,8 @@ export default function Captacion() {
                           <button
                             type="button"
                             onClick={() => navigate(`/captacion/${registro.id}`)}
-                            title="Ver"
-                            aria-label="Ver"
+                            title="Añadir informe"
+                            aria-label="Añadir informe"
                             className="inline-flex h-9 w-9 items-center justify-center rounded-full text-club-black/60 transition-colors hover:bg-gray-100 hover:text-club-black"
                           >
                             <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5" aria-hidden="true">
@@ -2871,9 +2893,9 @@ export default function Captacion() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => verInformesDeJugador(registro)}
-                            title="Ver informes de este jugador"
-                            aria-label="Ver informes de este jugador"
+                            onClick={() => abrirFormularioInformeParaJugador(registro)}
+                            title="Añadir informe"
+                            aria-label="Añadir informe"
                             className="inline-flex h-9 w-9 items-center justify-center rounded-full text-club-black/60 transition-colors hover:bg-gray-100 hover:text-club-black"
                           >
                             <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5" aria-hidden="true">
@@ -3019,25 +3041,35 @@ export default function Captacion() {
           </div>
 
           {mostrarFormularioInforme && (
-            <form onSubmit={handleInformeSubmit} className="bg-white border border-gray-200 rounded-lg p-4 sm:p-6 shadow-sm space-y-4">
-              <h3 className="font-bold text-club-black">{editandoInformeId ? 'Editar informe' : 'Nuevo informe'}</h3>
+            <form
+              onSubmit={informeSoloLectura ? (event) => event.preventDefault() : handleInformeSubmit}
+              className="bg-white border border-gray-200 rounded-lg p-4 sm:p-6 shadow-sm space-y-4"
+            >
+              <h3 className="font-bold text-club-black">
+                {informeSoloLectura ? 'Ver informe' : editandoInformeId ? 'Editar informe' : 'Nuevo informe'}
+              </h3>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-center">
-                <button
-                  type="submit"
-                  disabled={guardandoInforme}
-                  className="w-full sm:w-auto bg-club-red hover:bg-club-redDark text-white font-semibold px-5 py-2 rounded-md transition-colors"
-                >
-                  {guardandoInforme ? 'Guardando...' : editandoInformeId ? 'Guardar cambios' : 'Crear informe'}
-                </button>
+                {!informeSoloLectura && (
+                  <button
+                    type="submit"
+                    disabled={guardandoInforme}
+                    className="w-full sm:w-auto bg-club-red hover:bg-club-redDark text-white font-semibold px-5 py-2 rounded-md transition-colors"
+                  >
+                    {guardandoInforme ? 'Guardando...' : editandoInformeId ? 'Guardar cambios' : 'Crear informe'}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={cancelarFormularioInforme}
                   className="w-full sm:w-auto px-5 py-2 rounded-md font-semibold text-club-black border border-gray-300 hover:bg-gray-50"
                 >
-                  Cancelar
+                  {informeSoloLectura ? 'Cerrar' : 'Cancelar'}
                 </button>
               </div>
-              <div className="grid gap-4 lg:grid-cols-2">
+              <div
+                className={`grid gap-4 lg:grid-cols-2 ${informeSoloLectura ? 'pointer-events-none opacity-80' : ''}`}
+                aria-disabled={informeSoloLectura || undefined}
+              >
                 {BLOQUES_INFORME_FORM.map((bloque) => (
                   <section
                     key={bloque.title}
@@ -3114,7 +3146,7 @@ export default function Captacion() {
                         <div className="flex items-center gap-1">
                           <button
                             type="button"
-                            onClick={() => navigate(`/captacion/${informe.jugador_id}`)}
+                            onClick={() => verInforme(informe)}
                             title="Ver"
                             aria-label="Ver"
                             className="inline-flex h-9 w-9 items-center justify-center rounded-full text-club-black/60 transition-colors hover:bg-gray-100 hover:text-club-black"

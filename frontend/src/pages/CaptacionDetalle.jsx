@@ -108,6 +108,20 @@ const GRUPOS_INFORME_COMPLETO = [
   { key: 'sinBalon', label: 'Sin balon' },
 ];
 
+const COLOR_VALORACION_INFORME_COMPLETO = {
+  1: '#d03b3b',
+  2: '#ec835a',
+  3: '#fab219',
+  4: '#8bc34a',
+  5: '#0ca30c',
+};
+
+const COLOR_NIVEL_VALORACION_INFORME = {
+  BAJO: { dot: '#dc2626', texto: 'text-red-700', fondo: 'bg-red-50', borde: 'border-red-200' },
+  MEDIO: { dot: '#ea580c', texto: 'text-orange-700', fondo: 'bg-orange-50', borde: 'border-orange-200' },
+  ALTO: { dot: '#16a34a', texto: 'text-green-700', fondo: 'bg-green-50', borde: 'border-green-200' },
+};
+
 function normalizarClaveItemInformeCompleto(texto) {
   return String(texto || '')
     .normalize('NFD')
@@ -671,25 +685,8 @@ export default function CaptacionDetalle() {
       ) : registro ? (
         <div className="space-y-6">
           <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 bg-gradient-to-r from-club-black to-club-red px-5 py-4 text-white">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/70">Ficha completa</p>
-                <h3 className="mt-1 text-2xl font-bold">{nombre}</h3>
-                <p className="text-sm text-white/80">{registro.club || 'Sin club asignado'}</p>
-              </div>
-              <a
-                href="#informes-vinculados"
-                onClick={(evento) => {
-                  evento.preventDefault();
-                  document.getElementById('informes-vinculados')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }}
-                className="inline-flex items-center gap-2 rounded-lg border border-white/25 bg-white/10 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/20"
-              >
-                <span className="rounded-full bg-white px-2 py-0.5 text-sm font-bold text-club-red tabular-nums">
-                  {loadingInformes ? '...' : informes.length}
-                </span>
-                <span>{informes.length === 1 ? 'Informe' : 'Informes'}</span>
-              </a>
+            <div className="border-b border-gray-100 bg-gradient-to-r from-club-black to-club-red px-5 py-3 text-white">
+              <h3 className="text-2xl font-bold">{nombre}</h3>
             </div>
 
             <div className="grid gap-6 p-5 lg:grid-cols-[240px_1fr]">
@@ -807,7 +804,7 @@ export default function CaptacionDetalle() {
                     return (
                       <section className="rounded-2xl border border-gray-200 bg-gray-50 p-4 lg:col-span-2">
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <h4 className="text-sm font-bold uppercase tracking-wide text-club-black">Informe completo</h4>
+                          <h4 className="text-sm font-bold uppercase tracking-wide text-club-black">Informe completo (Del 1 al 5)</h4>
                           {demarcacionInformeCompleto ? (
                             <span className="inline-flex items-center rounded-full border border-club-red/20 bg-club-red/5 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-club-red">
                               {demarcacionInformeCompleto}
@@ -827,14 +824,27 @@ export default function CaptacionDetalle() {
                               <div key={grupo.key} className="mt-4">
                                 <p className="text-[11px] font-semibold uppercase tracking-wide text-club-black/45">{grupo.label}</p>
                                 <div className="mt-2 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                                  {items.map((item) => (
-                                    <div key={item.key} className="rounded-xl border border-gray-200 bg-white p-4">
-                                      <p className="text-xs font-semibold uppercase tracking-wide text-club-black/45">{item.label}</p>
-                                      <p className="mt-2 text-sm font-medium text-club-black">
-                                        {valoracionItems[grupo.key]?.[item.key] ? `${valoracionItems[grupo.key][item.key]} / 5` : '-'}
-                                      </p>
-                                    </div>
-                                  ))}
+                                  {items.map((item) => {
+                                    const valor = valoracionItems[grupo.key]?.[item.key];
+                                    const color = COLOR_VALORACION_INFORME_COMPLETO[valor];
+                                    return (
+                                      <div key={item.key} className="rounded-xl border border-gray-200 bg-white p-4">
+                                        <p className="text-xs font-semibold uppercase tracking-wide text-club-black/45">{item.label}</p>
+                                        <div className="mt-2 flex items-center gap-2">
+                                          {valor ? (
+                                            <span
+                                              className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+                                              style={{ backgroundColor: color }}
+                                            >
+                                              {valor}
+                                            </span>
+                                          ) : (
+                                            <span className="text-sm font-medium text-club-black">-</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               </div>
                             );
@@ -852,7 +862,7 @@ export default function CaptacionDetalle() {
             <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-wide text-club-black/50">Actividad relacionada</p>
-                <h3 className="text-xl font-bold text-club-black">Informes vinculados</h3>
+                <h3 className="text-xl font-bold text-club-black">INFORMES</h3>
               </div>
               <div className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
                 <span className="text-lg font-bold text-club-red tabular-nums">{informes.length}</span>
@@ -1119,6 +1129,29 @@ export default function CaptacionDetalle() {
                           const valor = campo === 'partido'
                             ? formatearValorInforme(calcularPartidoInforme(informe) || informe.partido)
                             : formatearValorInforme(obtenerValorInforme(informe, campo));
+
+                          if (campo === 'valoracion') {
+                            const colorNivel = COLOR_NIVEL_VALORACION_INFORME[informe.valoracion || ''];
+                            return (
+                              <div
+                                key={campo}
+                                className={`rounded-lg border p-3 ${colorNivel ? `${colorNivel.borde} ${colorNivel.fondo}` : 'border-gray-200 bg-white'}`}
+                              >
+                                <p className="text-[11px] font-semibold uppercase tracking-wide text-club-black/45">
+                                  {ETIQUETAS_INFORME[campo]}
+                                </p>
+                                <p className={`mt-1 flex items-center gap-1.5 text-sm font-semibold ${colorNivel ? colorNivel.texto : 'text-club-black'}`}>
+                                  {colorNivel && (
+                                    <span
+                                      className="inline-block h-2.5 w-2.5 rounded-full"
+                                      style={{ backgroundColor: colorNivel.dot }}
+                                    />
+                                  )}
+                                  {valor === '-' ? valor : `NIVEL ${valor}`}
+                                </p>
+                              </div>
+                            );
+                          }
 
                           return (
                             <div key={campo} className="rounded-lg border border-gray-200 bg-white p-3">

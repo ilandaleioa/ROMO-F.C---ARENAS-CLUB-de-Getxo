@@ -32,6 +32,7 @@ const ESPACIOS_ACTIVIDAD = ['Entero', 'Medio'];
 const EQUIPOS_MAESTROS = EQUIPOS_MS.map((equipo) => `${equipo.club} - ${equipo.nombre}`);
 const EQUIPOS_ACTIVIDADES = ['Primer equipo', ...EQUIPOS_MAESTROS];
 const ACTIVIDADES_STORAGE_KEY = 'romofc.actividades';
+const ABREVIATURAS_VISIBLES_STORAGE_KEY = 'romofc.actividades.abreviaturasVisibles';
 const OPCIONES_EVENTO = ['Sesión', 'Partido'];
 
 function etiquetaInstalacionActividad(actividad, fallback = '') {
@@ -555,16 +556,26 @@ function nombreEquipoCalendarioConAbreviatura(valor, clubPreferido = '') {
   return `${abreviatura} ${nombre}`;
 }
 
+function generarAbreviaturaAutomatica(valor) {
+  const texto = String(valor || '').trim();
+  const palabras = texto.split(/[\s\-·|]+/).filter(p => p && /[a-z0-9]/i.test(p));
+  if (palabras.length === 0) return '';
+  if (palabras.length === 1) return palabras[0].slice(0, 2).toUpperCase();
+  const primera = palabras[0].charAt(0);
+  const segunda = palabras[1].charAt(0);
+  return `${primera}${segunda}`.toUpperCase();
+}
+
 function abreviaturaEquipoCalendario(valor, clubPreferido = '') {
   const equipo = buscarEquipoMaestroCalendario(valor, clubPreferido);
 
-  if (!equipo?.abreviatura) return '';
+  if (equipo?.abreviatura) {
+    return equipo.club === 'ARENAS' && equipo.nombre === 'JUVENIL A'
+      ? 'AJ'
+      : equipo.abreviatura;
+  }
 
-  // En la vista del calendario se usa la abreviatura solicitada para Arenas
-  // Juvenil A: "AJ Arenas Juvenil A".
-  return equipo.club === 'ARENAS' && equipo.nombre === 'JUVENIL A'
-    ? 'AJ'
-    : equipo.abreviatura;
+  return generarAbreviaturaAutomatica(valor);
 }
 
 function nombreClubLegible(valor, clubPreferido = '') {
@@ -610,6 +621,16 @@ function nombrePartidoCalendario(actividad, nombre, clubPreferido = '') {
   return esEquipoPropioPartido(actividad, nombre, clubPreferido)
     ? nombreEquipoCalendarioConAbreviatura(actividad?.equipo || nombre, clubPreferido)
     : nombreClubLegible(nombre, clubPreferido);
+}
+
+function nombrePartidoCompacto(actividad, nombre, clubPreferido = '') {
+  if (esEquipoPropioPartido(actividad, nombre, clubPreferido)) {
+    const abrev = abreviaturaEquipoCalendario(actividad?.equipo || nombre, clubPreferido);
+    if (abrev) return abrev;
+    const nombreLegible = nombreEquipoLegible(nombre, clubPreferido);
+    return nombreLegible.split(' ').slice(0, 2).join(' ');
+  }
+  return nombreClubLegible(nombre, clubPreferido);
 }
 
 function fechaClave(fecha) {
@@ -684,7 +705,7 @@ function obtenerRangoActividad(actividad) {
 
 const HORA_VISTA_INICIO_DEFAULT = 8;
 const HORA_VISTA_FIN_DEFAULT = 23;
-const ALTURA_HORA_VISTA = 70;
+const ALTURA_HORA_VISTA = 100;
 const MINUTO_VISTA_INICIO_DEFAULT = HORA_VISTA_INICIO_DEFAULT * 60;
 const MINUTO_VISTA_FIN_DEFAULT = HORA_VISTA_FIN_DEFAULT * 60;
 
@@ -1389,6 +1410,11 @@ function ActividadCalendario({ actividad, abierta, accionesCerradas, onVer, onEd
     const localVisible = nombrePartidoCalendario(actividad, localNombre, clubPreferido);
     const visitanteVisible = nombrePartidoCalendario(actividad, visitanteNombre, clubPreferido);
     const tituloVisible = partido.titulo || actividad.titulo || 'Partido';
+    const localCompacto = nombrePartidoCompacto(actividad, localNombre, clubPreferido);
+    const visitanteCompacto = nombrePartidoCompacto(actividad, visitanteNombre, clubPreferido);
+    const tituloCompacto = localCompacto && visitanteCompacto
+      ? `${localCompacto} - ${visitanteCompacto}`
+      : tituloVisible;
     const colorEquipo = obtenerColorEquipo(equipoCanonico);
 
     return (
@@ -1425,18 +1451,20 @@ function ActividadCalendario({ actividad, abierta, accionesCerradas, onVer, onEd
         {compacta ? (
           <div className="grid min-w-0 gap-1">
             <div className="flex min-w-0 items-center gap-1.5">
-              <div className="inline-flex shrink-0 items-center gap-1 rounded-md bg-white/75 px-1.5 py-0.5 text-[8px] font-black">
+              <div className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md bg-white/75 px-1.5 py-0.5 text-[8px] font-black">
                 <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-club-red text-[8px] leading-none text-white" aria-hidden="true">
                   P
                 </span>
                 <span>{formatearHora(actividad.fecha, actividad.hora, actividad.horaFin)}</span>
               </div>
+            </div>
+            <div className="flex min-w-0 items-center gap-1.5">
               <span className="shrink-0 rounded-md bg-white/75 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide" title={etiquetaInstalacionActividad(actividad, 'GOBELA')}>
                 {etiquetaInstalacionActividad(actividad, 'GOBELA')}
               </span>
             </div>
             <p className="min-w-0 text-[9px] font-black uppercase tracking-wide leading-tight line-clamp-2" title={tituloVisible}>
-              {tituloVisible}
+              {tituloCompacto}
             </p>
           </div>
         ) : (
@@ -1446,7 +1474,7 @@ function ActividadCalendario({ actividad, abierta, accionesCerradas, onVer, onEd
                 <IconoReloj />
                 <span>{formatearHora(actividad.fecha, actividad.hora, actividad.horaFin)}</span>
               </div>
-              <span className="inline-flex shrink-0 items-center rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide">
+              <span className="inline-flex shrink-0 items-center rounded-full bg-white/80 px-2 py-0.5 text-[9px] font-bold lowercase tracking-wide">
                 {etiquetaInstalacionActividad(actividad, 'GOBELA')}
               </span>
             </div>
@@ -1505,23 +1533,24 @@ function ActividadCalendario({ actividad, abierta, accionesCerradas, onVer, onEd
       {compacta ? (
         <div className="grid min-w-0 flex-1 gap-1">
           <div className="flex min-w-0 items-center gap-1">
-            <span className="inline-flex min-w-0 shrink items-center gap-1 rounded-md bg-white/75 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide">
+            <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md bg-white/75 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide">
             <IconoReloj />
             <span>{formatearHora(actividad.fecha, actividad.hora, actividad.horaFin)}</span>
             </span>
+          </div>
+          <div className="flex min-w-0 items-center gap-1">
+            {abreviaturaEquipoVisible ? (
+              <span className="shrink-0 rounded-md bg-white/75 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide" title={nombreEquipoVisible}>
+                {abreviaturaEquipoVisible}
+              </span>
+            ) : (
+              <p className="min-w-0 truncate text-[9px] font-bold opacity-80" title={nombreEquipoVisible}>
+                {nombreEquipoVisible}
+              </p>
+            )}
             <span className="min-w-0 truncate rounded-md bg-white/75 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide" title={etiquetaInstalacionActividad(actividad, 'Pendiente')}>
               {etiquetaInstalacionActividad(actividad, 'Pendiente')}
             </span>
-          </div>
-          <div className="flex min-w-0 items-center gap-1">
-            {abreviaturaEquipoVisible && (
-              <span className="shrink-0 rounded-md bg-white/75 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide" title={abreviaturaEquipoVisible}>
-                {abreviaturaEquipoVisible}
-              </span>
-            )}
-            <p className="min-w-0 truncate text-[9px] font-bold opacity-80" title={nombreEquipoVisible}>
-              {nombreEquipoVisible}
-            </p>
           </div>
         </div>
       ) : (
@@ -1793,7 +1822,7 @@ function SemanaView({
           <span className="text-xs font-semibold text-slate-400">Todos los eventos de la semana, mostrados en detalle</span>
         </div>
         <div className="actividades-calendario-weekdays overflow-x-auto border-b border-gray-100 bg-slate-50/80">
-          <div className="actividades-calendario-weekdays-grid grid min-w-[1050px] grid-cols-7">
+          <div className="actividades-calendario-weekdays-grid grid grid-cols-[repeat(7,minmax(110px,1fr))]">
             {DIAS_SEMANA.map((dia) => (
               <div key={dia} className="px-1 py-3 text-center text-[10px] font-extrabold uppercase tracking-wider text-club-black/45 sm:text-xs">
                 {dia}
@@ -1802,7 +1831,7 @@ function SemanaView({
           </div>
         </div>
         <div className="actividades-calendario-body overflow-x-auto bg-slate-50/70">
-          <div className="actividades-calendario-grid grid min-w-[1050px] grid-cols-7 gap-3 p-3 sm:gap-4 sm:p-4">
+          <div className="actividades-calendario-grid grid grid-cols-[repeat(7,minmax(110px,1fr))] gap-2 p-2 sm:gap-3 sm:p-3 lg:gap-4 lg:p-4">
             {actividadesSemana.map(({ dia, clave, actividades: actividadesDia }) => {
               const esHoy = clave === fechaClave(new Date());
 
@@ -1843,7 +1872,7 @@ function SemanaView({
                       </button>
                     </div>
                   )}
-                  <span className={`actividades-calendario-day-number absolute right-3 top-3 text-sm font-black ${esHoy ? 'text-club-red' : 'text-club-black/70'}`}>
+                  <span className={`actividades-calendario-day-number absolute right-3 top-3 text-xs font-black ${esHoy ? 'text-club-red' : 'text-club-black/70'}`}>
                     {dia.getDate()}
                   </span>
                   <div className="actividades-calendario-day-content flex flex-col justify-start gap-1 pt-12 min-h-0">
@@ -1900,7 +1929,7 @@ function SemanaView({
         </span>
       </div>
       <div className="overflow-x-auto bg-slate-50/70">
-        <div className="actividades-semana-grid grid min-w-[1480px] grid-cols-7 gap-4 p-4">
+        <div className="actividades-semana-grid grid grid-cols-[repeat(7,minmax(150px,1fr))] gap-2 p-2 sm:gap-3 sm:p-3 lg:gap-4 lg:p-4">
           {actividadesSemana.map(({ dia, clave, actividades: actividadesDia }) => {
             const esHoy = clave === fechaClave(new Date());
 
@@ -1917,7 +1946,7 @@ function SemanaView({
                       {dia.toLocaleDateString('es-ES', { weekday: 'long' })}
                     </p>
                     <h3 className={`${esMinimal ? 'text-lg' : 'mt-1 text-xl sm:text-2xl'} font-black capitalize leading-none text-club-black`}>
-                      {dia.getDate()} {MESES[dia.getMonth()]}
+                      {dia.getDate()}
                     </h3>
                   </div>
                   <div className="relative shrink-0">
@@ -2796,7 +2825,7 @@ function EquiposView({
       <div className="overflow-x-auto">
         <div className="min-w-[930px]">
           <div className="grid grid-cols-[190px_repeat(7,minmax(105px,1fr))] border-b border-slate-200 bg-slate-100/90 text-center text-[11px] font-extrabold uppercase tracking-[0.12em] text-slate-400">
-            <div className="flex items-end px-5 py-4 text-left">Equipo</div>
+            <div className="sticky left-0 z-20 flex items-end bg-slate-100 px-5 py-4 text-left">Equipo</div>
             {dias.map((dia) => (
               <div key={fechaClave(dia)} className={`border-l border-slate-200 px-2 py-3 ${fechaClave(dia) === fechaClave(new Date()) ? 'text-club-red' : ''}`}>
                 <div>{formatearDiaSemana(dia).split(' ')[0]}</div>
@@ -2807,7 +2836,7 @@ function EquiposView({
           {equipos.length > 0 ? (
             equipos.map((equipo) => (
               <div key={equipo} className="grid min-h-[92px] grid-cols-[190px_repeat(7,minmax(105px,1fr))] border-b border-slate-200 last:border-b-0">
-                <div className="flex items-center gap-3 px-5 text-sm font-black text-slate-700">
+                <div className="sticky left-0 z-10 flex items-center gap-3 bg-white px-5 text-sm font-black text-slate-700">
                   <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: obtenerColorEquipo(equipo).acento }} />
                   {equipo}
                 </div>
@@ -2947,7 +2976,7 @@ function HorasView({
       <div className="overflow-x-auto">
         <div className="min-w-[930px]">
           <div className="grid grid-cols-[72px_repeat(7,minmax(120px,1fr))] border-b border-slate-200 bg-slate-100/90 text-center text-[10px] font-extrabold uppercase tracking-[0.12em] text-slate-400">
-            <div className="px-2 py-4">Hora</div>
+            <div className="sticky left-0 z-20 bg-slate-100 px-2 py-4">Hora</div>
             {dias.map((dia) => (
               <div key={fechaClave(dia)} className="border-l border-slate-200 px-2 py-4">
                 {formatearDiaSemana(dia)}
@@ -2957,7 +2986,7 @@ function HorasView({
 
           <div className="grid grid-cols-[72px_repeat(7,minmax(120px,1fr))]">
             <div
-              className="relative border-r border-slate-200 bg-slate-50"
+              className="sticky left-0 z-10 relative border-r border-slate-200 bg-slate-50"
               style={{
                 height: `${horasVista.length * ALTURA_HORA_VISTA}px`,
                 backgroundImage:
@@ -3076,6 +3105,14 @@ export default function Actividades() {
   const [mesVisible, setMesVisible] = useState(() => new Date(hoy.getFullYear(), hoy.getMonth(), 1));
   const [vista, setVista] = useState('semana');
   const [modoCalendario, setModoCalendario] = useState('minimal');
+  const [mostrarAbreviaturasEquipos, setMostrarAbreviaturasEquipos] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return window.localStorage.getItem(ABREVIATURAS_VISIBLES_STORAGE_KEY) !== 'false';
+  });
+
+  useEffect(() => {
+    window.localStorage.setItem(ABREVIATURAS_VISIBLES_STORAGE_KEY, mostrarAbreviaturasEquipos ? 'true' : 'false');
+  }, [mostrarAbreviaturasEquipos]);
   const [semanaVisible, setSemanaVisible] = useState(() => obtenerInicioSemana(hoy));
   const [fechaSeleccionada, setFechaSeleccionada] = useState(() => fechaClave(hoy));
   const [filtros, setFiltros] = useState({
@@ -3869,7 +3906,7 @@ export default function Actividades() {
                   </div>
                 </div>
                 <div className="actividades-calendario-weekdays overflow-x-auto border-b border-gray-100 bg-slate-50/80">
-                  <div className="actividades-calendario-weekdays-grid grid min-w-[1050px] grid-cols-7">
+                  <div className="actividades-calendario-weekdays-grid grid grid-cols-[repeat(7,minmax(110px,1fr))]">
                     {DIAS_SEMANA.map((dia) => (
                       <div key={dia} className="px-1 py-3 text-center text-[10px] font-extrabold uppercase tracking-wider text-club-black/45 sm:text-xs">
                         {dia}
@@ -3878,7 +3915,7 @@ export default function Actividades() {
                   </div>
                 </div>
                 <div className={`actividades-calendario-body overflow-x-auto bg-slate-50/70 ${calendarioPantallaCompleta ? 'flex-1 min-h-0' : ''}`}>
-                  <div className="actividades-calendario-grid grid min-w-[1050px] grid-cols-7 gap-3 p-3 sm:gap-4 sm:p-4">
+                  <div className="actividades-calendario-grid grid grid-cols-[repeat(7,minmax(110px,1fr))] gap-2 p-2 sm:gap-3 sm:p-3 lg:gap-4 lg:p-4">
                     {celdas.map((fecha, indice) => {
                       const clave = fechaClave(fecha);
                       const actividadesDelDia = (actividadesPorDia.get(clave) || []).slice().sort(ordenarActividades);
@@ -3987,16 +4024,39 @@ export default function Actividades() {
             </div>
           </div>
 
-          {abreviaturasEquipos.length > 0 && (
+          {abreviaturasEquipos.length > 0 && !mostrarAbreviaturasEquipos && (
+            <div className="no-print actividades-abreviaturas mb-3 hidden rounded-2xl border border-slate-200 bg-white px-4 py-2 shadow-sm sm:block">
+              <button
+                type="button"
+                onClick={() => setMostrarAbreviaturasEquipos(true)}
+                className="flex w-full items-center justify-between text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-400 hover:text-slate-600"
+              >
+                <span>Colores y abreviaturas de equipos</span>
+                <span className="text-slate-400">Mostrar</span>
+              </button>
+            </div>
+          )}
+
+          {abreviaturasEquipos.length > 0 && mostrarAbreviaturasEquipos && (
             <div className="no-print actividades-abreviaturas mb-3 hidden rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm sm:block">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-slate-400">Colores y abreviaturas de equipos</p>
                   <p className="mt-1 text-sm font-semibold text-slate-500">Cada equipo conserva este color en sus sesiones y partidos.</p>
                 </div>
-                <span className="inline-flex w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">
-                  {abreviaturasEquipos.length} códigos
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">
+                    {abreviaturasEquipos.length} códigos
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setMostrarAbreviaturasEquipos(false)}
+                    className="inline-flex w-fit items-center rounded-full border border-slate-200 px-3 py-1 text-xs font-bold text-slate-500 hover:bg-slate-100"
+                    title="Ocultar este apartado"
+                  >
+                    Ocultar
+                  </button>
+                </div>
               </div>
               <div className="mt-3 flex flex-col gap-2">
                 {['ROMO', 'ARENAS'].map((club) => {
@@ -4081,7 +4141,7 @@ export default function Actividades() {
                   </div>
                 </div>
                 <div className="actividades-calendario-weekdays overflow-x-auto border-b border-gray-100 bg-slate-50/80">
-                  <div className="actividades-calendario-weekdays-grid grid min-w-[1050px] grid-cols-7">
+                  <div className="actividades-calendario-weekdays-grid grid grid-cols-[repeat(7,minmax(110px,1fr))]">
                     {DIAS_SEMANA.map((dia) => (
                       <div key={dia} className="px-1 py-3 text-center text-[10px] font-extrabold uppercase tracking-wider text-club-black/45 sm:text-xs">
                         {dia}
@@ -4090,7 +4150,7 @@ export default function Actividades() {
                   </div>
                 </div>
                 <div className={`actividades-calendario-body overflow-x-auto bg-slate-50/70 ${calendarioPantallaCompleta ? 'flex-1 min-h-0' : ''}`}>
-                  <div className="actividades-calendario-grid grid min-w-[1050px] grid-cols-7 gap-3 p-3 sm:gap-4 sm:p-4">
+                  <div className="actividades-calendario-grid grid grid-cols-[repeat(7,minmax(110px,1fr))] gap-2 p-2 sm:gap-3 sm:p-3 lg:gap-4 lg:p-4">
                     {celdas.map((fecha, indice) => {
                       const clave = fechaClave(fecha);
                       const actividadesDelDia = (actividadesPorDia.get(clave) || []).slice().sort(ordenarActividades);
