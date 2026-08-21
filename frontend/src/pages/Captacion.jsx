@@ -1,4 +1,4 @@
-﻿import { Link, useNavigate } from 'react-router-dom';
+﻿import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useClub } from '../context/ClubContext';
@@ -42,13 +42,15 @@ const CAMPOS = [
   { key: 'fecha_nacimiento', label: 'FECHA DE NACIMIENTO', type: 'date' },
   { key: 'anio_nacimiento', label: 'ANO DE NACIMIENTO', type: 'number' },
   { key: 'edad', label: 'EDAD', type: 'number' },
-  { key: 'demarcacion', label: 'DEMARCACION', type: 'select', options: ['PORTERO', 'LATERAL', 'CENTRAL', 'MEDIO', 'MEDIA PUNTA', 'EXTREMO', 'DELANTERO'] },
-  { key: 'demarcacion_concreta', label: 'DEMARCACION CONCRETA', type: 'select', options: DEMARCACION_CONCRETA_OPCIONES },
-  { key: 'otra_demarcacion', label: 'OTRA DEMARCACION -', type: 'select', options: ['PORTERO', 'LATERAL', 'CENTRAL', 'MEDIO', 'MEDIA PUNTA', 'EXTREMO', 'DELANTERO'] },
-  { key: 'valoracion_general', label: 'VALORACION GENERAL', type: 'ratingButtons' },
+  { key: 'demarcacion_concreta', label: 'POSICION', type: 'select', options: DEMARCACION_CONCRETA_OPCIONES },
+  { key: 'otra_demarcacion', label: 'OTRA POSICION', type: 'select', options: DEMARCACION_CONCRETA_OPCIONES },
+  { key: 'valoracion_general', label: 'VALORACION RESPONSABLES', type: 'ratingButtons' },
   { key: 'informe_realizado_por', label: 'INFORME REALIZADO POR', type: 'select', options: ['Mikel Exposito', 'Adrian Alvite', 'Alex'] },
   { key: 'descripcion_jugador', label: 'DESCRIPCION DEL JUGADOR', type: 'textarea' },
   { key: 'observaciones', label: 'OBSERVACIONES', type: 'textarea' },
+  { key: 'tutor_nombre', label: 'NOMBRE DEL TUTOR', type: 'text' },
+  { key: 'tutor_telefono', label: 'TELEFONO DEL TUTOR', type: 'tel' },
+  { key: 'telefono_jugador', label: 'TELEFONO DEL JUGADOR', type: 'tel' },
 ];
 
 const VALORACION_GENERAL_OPCIONES = [1, 2, 3, 4, 5];
@@ -66,26 +68,36 @@ const SECCIONES_CAPTACION = [
   { id: 'informes', label: 'INFORMES PARTIDOS' },
   { id: 'graficas', label: 'GRAFICAS' },
 ];
+const SECCION_ACTIVA_STORAGE_KEY = 'captacion.seccionActiva';
+const INFORME_VISTA_STORAGE_KEY = 'captacion.informeVista';
+
+function leerSeccionActivaGuardada() {
+  if (typeof window === 'undefined') {
+    return 'base-datos';
+  }
+
+  try {
+    const guardada = window.localStorage.getItem(SECCION_ACTIVA_STORAGE_KEY);
+    return SECCIONES_CAPTACION.some((seccion) => seccion.id === guardada) ? guardada : 'base-datos';
+  } catch {
+    return 'base-datos';
+  }
+}
+
+function leerInformeVistaGuardada() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    const guardada = JSON.parse(window.localStorage.getItem(INFORME_VISTA_STORAGE_KEY) || 'null');
+    return guardada?.editandoInformeId ? guardada : null;
+  } catch {
+    return null;
+  }
+}
 
 const OPCIONES_VALORACION_ITEM = [1, 2, 3, 4, 5];
-
-const OPCIONES_VALORACION_DIRECCION = [
-  {
-    value: 'DESCARTAR',
-    activo: 'border-red-600 bg-red-600 text-white shadow-sm',
-    inactivo: 'border-red-300 bg-white text-red-600 hover:border-red-500 hover:bg-red-50',
-  },
-  {
-    value: 'SEGUIR',
-    activo: 'border-amber-500 bg-amber-500 text-white shadow-sm',
-    inactivo: 'border-amber-300 bg-white text-amber-600 hover:border-amber-500 hover:bg-amber-50',
-  },
-  {
-    value: 'POTENCIAL',
-    activo: 'border-green-600 bg-green-600 text-white shadow-sm',
-    inactivo: 'border-green-300 bg-white text-green-600 hover:border-green-500 hover:bg-green-50',
-  },
-];
 
 const INFORME_COMPLETO_DEMARCACIONES = [
   'PORTERO',
@@ -315,12 +327,12 @@ const CAMPOS_INFORME_TABLA = [
   { key: 'goles_encajados', label: 'GOLES ENCAJADOS' },
 ];
 const BLOQUES_INFORME_FORM = [
-  { title: 'Datos basicos', fields: ['fecha', 'observador', 'club', 'equipo', 'jugador_id'], gridClassName: 'sm:grid-cols-2 xl:grid-cols-5' },
-  { title: 'Partido', fields: ['etapa', 'categoria', 'local', 'visitante', 'partido'], gridClassName: 'sm:grid-cols-2 xl:grid-cols-5' },
+  { title: 'Datos basicos', fields: ['fecha', 'observador', 'club', 'equipo', 'jugador_id'], gridClassName: 'sm:grid-cols-3 md:grid-cols-5 xl:grid-cols-5' },
+  { title: 'Partido', fields: ['etapa', 'categoria', 'local', 'visitante', 'partido'], gridClassName: 'sm:grid-cols-3 md:grid-cols-5 xl:grid-cols-5' },
   {
     title: 'INFORME',
     fields: ['dorsal', 'tipologia', 'lateralidad', 'titularidad', 'minutos_jugados', 'goles', 'goles_encajados', 'valoracion', 'descripcion'],
-    gridClassName: 'sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-8',
+    gridClassName: 'sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-9',
   },
 ];
 
@@ -357,11 +369,15 @@ const BLOQUES_FORMULARIO_CAPTACION = [
   },
   {
     title: 'Perfil del jugador',
-    fields: ['nombre', 'primer_apellido', 'nombre_completo', 'segundo_apellido', 'dorsal', 'altura', 'lateralidad', 'fecha_nacimiento', 'anio_nacimiento', 'edad', 'demarcacion', 'demarcacion_concreta', 'otra_demarcacion', 'valoracion_general'],
+    fields: ['nombre', 'primer_apellido', 'nombre_completo', 'segundo_apellido', 'dorsal', 'altura', 'lateralidad', 'fecha_nacimiento', 'anio_nacimiento', 'edad', 'demarcacion_concreta', 'otra_demarcacion', 'valoracion_general'],
   },
   {
     title: 'Informe completo',
     fields: [],
+  },
+  {
+    title: 'Contacto',
+    fields: ['tutor_nombre', 'tutor_telefono', 'telefono_jugador'],
   },
   {
     title: 'Observaciones',
@@ -369,7 +385,7 @@ const BLOQUES_FORMULARIO_CAPTACION = [
   },
 ];
 
-const CAMPOS_CHIPS_RESUMEN = ['club', 'equipo', 'etapa', 'categoria', 'grupo', 'demarcacion', 'lateralidad'];
+const CAMPOS_CHIPS_RESUMEN = ['club', 'equipo', 'etapa', 'categoria', 'grupo', 'lateralidad'];
 const CAMPOS_TABLA_PRIORITARIOS = ['nombre_completo', 'foto_jugador', 'dorsal'];
 
 function crearInformeVacio() {
@@ -664,7 +680,7 @@ function CaptacionFormulario({
   const nombreFormulario = [formActual.nombre, formActual.primer_apellido].filter(Boolean).join(' ');
 
   return (
-    <form onSubmit={handleSubmitActual} className="mb-6">
+    <form onSubmit={handleSubmitActual} className="mx-auto mb-6 w-full max-w-7xl">
       <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
         <div className="border-b border-gray-100 bg-gradient-to-r from-club-black to-club-red px-5 py-4 text-white">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/70">Ficha completa</p>
@@ -1152,13 +1168,13 @@ function FiltroBuscador({ label, value, options, emptyLabel, onChange }) {
 
   return (
     <div ref={rootRef} className="relative min-w-0">
-      <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-club-black/50">{label}</span>
+      <span className="mb-0.5 block text-[10px] font-semibold uppercase tracking-wide text-club-black/50">{label}</span>
       <button
         type="button"
         onClick={() => setAbierto((prev) => !prev)}
         aria-haspopup="listbox"
         aria-expanded={abierto}
-        className={`flex w-full items-center justify-between rounded-md border px-3 py-2 text-left text-sm text-club-black shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-club-red ${
+        className={`flex w-full items-center justify-between rounded-md border px-2 py-1.5 text-left text-sm text-club-black shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-club-red ${
           valorEsRomo
             ? 'border-club-red/40 bg-gradient-to-r from-red-50 to-white hover:border-club-red'
             : 'border-gray-300 bg-white hover:border-club-red/40'
@@ -1243,6 +1259,7 @@ export default function Captacion() {
   const { user } = useAuth();
   const { club } = useClub();
   const navigate = useNavigate();
+  const location = useLocation();
   const [registros, setRegistros] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -1270,7 +1287,7 @@ export default function Captacion() {
     demarcacion: '',
     valoracion: '',
   });
-  const [seccionActiva, setSeccionActiva] = useState('base-datos');
+  const [seccionActiva, setSeccionActiva] = useState(() => leerSeccionActivaGuardada());
   const [fotoJugadorFile, setFotoJugadorFile] = useState(null);
   const [fotoJugadorBaseUrl, setFotoJugadorBaseUrl] = useState('');
   const [fotoJugadorPreview, setFotoJugadorPreview] = useState('');
@@ -1284,6 +1301,8 @@ export default function Captacion() {
   const [informeSoloLectura, setInformeSoloLectura] = useState(false);
   const [guardandoInforme, setGuardandoInforme] = useState(false);
   const [jugadorInformesFiltro, setJugadorInformesFiltro] = useState(null);
+  const [busquedaInformes, setBusquedaInformes] = useState('');
+  const informeVistaRestauradaRef = useRef(false);
   const camposVisibles = useMemo(() => {
     const prioritarios = CAMPOS_TABLA_PRIORITARIOS.map((key) => CAMPOS.find((campo) => campo.key === key)).filter(Boolean);
     const resto = CAMPOS.filter((campo) => !CAMPOS_TABLA_PRIORITARIOS.includes(campo.key));
@@ -1342,6 +1361,42 @@ export default function Captacion() {
   }, [club]);
 
   useEffect(() => {
+    try {
+      window.localStorage.setItem(SECCION_ACTIVA_STORAGE_KEY, seccionActiva);
+    } catch {
+      // Si localStorage no esta disponible, seguimos sin persistencia.
+    }
+  }, [seccionActiva]);
+
+  useEffect(() => {
+    try {
+      if (mostrarFormularioInforme && editandoInformeId) {
+        window.localStorage.setItem(
+          INFORME_VISTA_STORAGE_KEY,
+          JSON.stringify({ editandoInformeId, soloLectura: informeSoloLectura })
+        );
+      } else if (!mostrarFormularioInforme) {
+        window.localStorage.removeItem(INFORME_VISTA_STORAGE_KEY);
+      }
+    } catch {
+      // Si localStorage no esta disponible, seguimos sin persistencia.
+    }
+  }, [mostrarFormularioInforme, editandoInformeId, informeSoloLectura]);
+
+  useEffect(() => {
+    if (loadingInformes || informeVistaRestauradaRef.current) return;
+    informeVistaRestauradaRef.current = true;
+
+    const guardada = leerInformeVistaGuardada();
+    if (!guardada) return;
+
+    const informe = informes.find((item) => String(item.id) === String(guardada.editandoInformeId));
+    if (informe) {
+      cargarInformeEnFormulario(informe, { soloLectura: !!guardada.soloLectura });
+    }
+  }, [loadingInformes, informes]);
+
+  useEffect(() => {
     guardarResponsablesAlta(responsablesAlta);
   }, [responsablesAlta]);
 
@@ -1390,15 +1445,35 @@ export default function Captacion() {
 
   const informesFiltrados = useMemo(() => {
     const filtrosActivos = Object.entries(filtrosInformes).filter(([, valor]) => String(valor || '').trim());
+    const texto = busquedaInformes.trim().toLowerCase();
 
     return informesConDatos.filter((informe) => {
       if (jugadorInformesFiltro && String(informe?.jugador_id || '') !== String(jugadorInformesFiltro.id || '')) {
         return false;
       }
 
-      return filtrosActivos.every(([clave, valorSeleccionado]) => normalizarComparacion(informe?.[clave]) === normalizarComparacion(valorSeleccionado));
+      if (!filtrosActivos.every(([clave, valorSeleccionado]) => normalizarComparacion(informe?.[clave]) === normalizarComparacion(valorSeleccionado))) {
+        return false;
+      }
+
+      if (!texto) return true;
+
+      const partido = calcularPartidoInforme(informe) || informe.partido;
+      const camposTexto = [
+        nombreCompleto(informe?.jugador),
+        informe?.observador,
+        informe?.club,
+        informe?.equipo,
+        informe?.local,
+        informe?.visitante,
+        partido,
+        informe?.descripcion,
+        informe?.tipologia,
+      ];
+
+      return camposTexto.some((valor) => String(valor || '').toLowerCase().includes(texto));
     });
-  }, [filtrosInformes, informesConDatos, jugadorInformesFiltro]);
+  }, [busquedaInformes, filtrosInformes, informesConDatos, jugadorInformesFiltro]);
 
   function abrirFormularioInformeParaJugador(registro) {
     const datosJugador = obtenerDatosJugadorParaInforme(registro);
@@ -1545,7 +1620,7 @@ export default function Captacion() {
       anio_nacimiento: obtenerOpcionesFiltroDependientes(informesConDatos, filtrosInformes, 'anio_nacimiento'),
       lateralidad: obtenerOpcionesFiltroDependientes(informesConDatos, filtrosInformes, 'lateralidad', ['Diestro', 'Zurdo', 'Ambas']),
       demarcacion: obtenerOpcionesFiltroDependientes(informesConDatos, filtrosInformes, 'demarcacion', DEMARCACION_CONCRETA_OPCIONES),
-      valoracion: obtenerOpcionesFiltroDependientes(informesConDatos, filtrosInformes, 'valoracion', ['BAJO', 'MEDIO', 'ALTO']),
+      valoracion: obtenerOpcionesFiltroDependientes(informesConDatos, filtrosInformes, 'valoracion', ['1', '2', '3', '4', '5']),
     }),
     [clubes, filtrosInformes, informesConDatos, opcionesListas.categorias, opcionesListas.etapas]
   );
@@ -1628,20 +1703,10 @@ export default function Captacion() {
     }));
   };
 
-  const actualizarValoracionDireccionInformeCompleto = (valor) => {
-    setForm((prev) => ({
-      ...prev,
-      valoracion_items: {
-        ...prev.valoracion_items,
-        direccion: prev.valoracion_items?.direccion === valor ? '' : valor,
-      },
-    }));
-  };
 
-  const renderInformeCompletoJugador = (formActual, onCambiarDemarcacion, onCambiarItem, onCambiarDireccion) => {
+  const renderInformeCompletoJugador = (formActual, onCambiarDemarcacion, onCambiarItem) => {
     const demarcacionSeleccionada = formActual.valoracion_items?.demarcacion || '';
     const gruposDemarcacion = ITEMS_INFORME_COMPLETO_POR_DEMARCACION[demarcacionSeleccionada];
-    const direccionSeleccionada = formActual.valoracion_items?.direccion || '';
 
     return (
       <div className="space-y-5">
@@ -1714,27 +1779,6 @@ export default function Captacion() {
           })
         )}
 
-        <div>
-          <h5 className="mb-3 text-xs font-bold uppercase tracking-wide text-club-black/70">Valoracion direccion</h5>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:max-w-lg">
-            {OPCIONES_VALORACION_DIRECCION.map((opcion) => {
-              const seleccionado = direccionSeleccionada === opcion.value;
-              return (
-                <button
-                  key={opcion.value}
-                  type="button"
-                  onClick={() => onCambiarDireccion(opcion.value)}
-                  aria-pressed={seleccionado}
-                  className={`inline-flex items-center justify-center rounded-2xl border px-4 py-2.5 text-sm font-bold uppercase tracking-wide transition-all focus:outline-none focus:ring-2 focus:ring-club-red focus:ring-offset-1 ${
-                    seleccionado ? opcion.activo : opcion.inactivo
-                  }`}
-                >
-                  {opcion.value}
-                </button>
-              );
-            })}
-          </div>
-        </div>
       </div>
     );
   };
@@ -1863,6 +1907,16 @@ export default function Captacion() {
     setFotoJugadorPreview(fotoUrl);
     setFotoJugadorPreviewError(false);
   };
+
+  useEffect(() => {
+    const idEditar = new URLSearchParams(location.search).get('editar');
+    if (!idEditar || registros.length === 0) return;
+
+    const registro = registros.find((item) => String(item.id) === idEditar);
+    if (registro) editarRegistro(registro);
+
+    navigate(location.pathname, { replace: true });
+  }, [location.search, registros]);
 
   const eliminarRegistro = async (registro) => {
     if (!window.confirm(`Eliminar el registro de ${nombreCompleto(registro) || 'captacion'}?`)) return;
@@ -2075,11 +2129,11 @@ export default function Captacion() {
   const renderCampoInforme = (campo) => {
     const valor = campo === 'partido' ? calcularPartidoInforme(formInforme) : formInforme[campo] || '';
     const inputClass =
-      'block w-full min-w-0 box-border rounded-2xl border border-gray-300 bg-white px-3 py-2.5 text-base leading-6 text-club-black shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-club-red';
+      'block w-full min-w-0 box-border rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm leading-5 text-club-black shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-club-red';
     const readOnlyClass =
-      'block w-full min-w-0 box-border rounded-2xl border border-gray-300 bg-gray-100 px-3 py-2.5 text-base leading-6 text-club-black/70 shadow-sm cursor-not-allowed';
+      'block w-full min-w-0 box-border rounded-lg border border-gray-300 bg-gray-100 px-2 py-1.5 text-sm leading-5 text-club-black/70 shadow-sm cursor-not-allowed';
     const selectClass =
-      'block w-full min-w-0 box-border rounded-2xl border border-gray-300 bg-white px-3 py-2.5 text-base leading-6 text-club-black shadow-sm appearance-none pr-10 transition-colors focus:outline-none focus:ring-2 focus:ring-club-red';
+      'block w-full min-w-0 box-border rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm leading-5 text-club-black shadow-sm appearance-none pr-8 transition-colors focus:outline-none focus:ring-2 focus:ring-club-red';
 
     let control = null;
     if (campo === 'fecha') {
@@ -2231,14 +2285,16 @@ export default function Captacion() {
       );
     } else if (campo === 'valoracion') {
       const opcionesValoracion = [
-        { valor: 'BAJO', label: 'NIVEL BAJO', circulo: 'bg-red-500', seleccionado: 'border-red-400 bg-red-50 text-red-700' },
-        { valor: 'MEDIO', label: 'NIVEL MEDIO', circulo: 'bg-orange-500', seleccionado: 'border-orange-400 bg-orange-50 text-orange-700' },
-        { valor: 'ALTO', label: 'NIVEL ALTO', circulo: 'bg-green-500', seleccionado: 'border-green-400 bg-green-50 text-green-700' },
+        { valor: '1', label: '1 - Muy bajo', circulo: 'bg-red-600', seleccionado: 'border-red-600 bg-red-50 text-red-700' },
+        { valor: '2', label: '2 - Bajo', circulo: 'bg-orange-500', seleccionado: 'border-orange-500 bg-orange-50 text-orange-700' },
+        { valor: '3', label: '3 - Medio', circulo: 'bg-amber-400', seleccionado: 'border-amber-400 bg-amber-50 text-amber-700' },
+        { valor: '4', label: '4 - Alto', circulo: 'bg-lime-500', seleccionado: 'border-lime-500 bg-lime-50 text-lime-700' },
+        { valor: '5', label: '5 - Muy alto', circulo: 'bg-green-600', seleccionado: 'border-green-600 bg-green-50 text-green-700' },
       ];
       control = (
-        <div className="grid grid-cols-3 gap-1">
+        <div className="grid grid-cols-5 gap-1">
           {opcionesValoracion.map((opcion) => {
-            const seleccionado = valor === opcion.valor;
+            const seleccionado = String(valor) === opcion.valor;
             return (
               <button
                 key={opcion.valor}
@@ -2273,17 +2329,17 @@ export default function Captacion() {
         key={campo}
         className={`min-w-0 ${
           campo === 'partido'
-            ? 'sm:col-span-2 xl:col-span-2'
+            ? 'col-span-2 sm:col-span-1'
             : campo === 'descripcion'
-              ? 'sm:col-span-2 md:col-span-4 xl:col-span-8'
+              ? 'col-span-2 sm:col-span-4 md:col-span-6 xl:col-span-9'
               : ''
         }`}
       >
         {campo === 'local' || campo === 'visitante' ? (
-          <div className="rounded-2xl border border-gray-200 bg-white p-4">{control}</div>
+          <div className="rounded-lg border border-gray-200 bg-white p-2">{control}</div>
         ) : (
           <>
-            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-club-black/55">
+            <label className="mb-0.5 block text-[10px] font-semibold uppercase tracking-wide text-club-black/55">
               {ETIQUETAS_INFORME[campo] || campo.toUpperCase()}
             </label>
             {control}
@@ -2319,11 +2375,19 @@ export default function Captacion() {
         />
       );
     } else if (campo.type === 'ratingButtons') {
+      const colorValoracionGeneral = {
+        '1': { bg: 'bg-red-600', border: 'border-red-600', text: 'text-white', hoverBg: 'hover:bg-red-700', hoverBorder: 'hover:border-red-700' },
+        '2': { bg: 'bg-orange-500', border: 'border-orange-500', text: 'text-white', hoverBg: 'hover:bg-orange-600', hoverBorder: 'hover:border-orange-600' },
+        '3': { bg: 'bg-amber-400', border: 'border-amber-400', text: 'text-gray-900', hoverBg: 'hover:bg-amber-500', hoverBorder: 'hover:border-amber-500' },
+        '4': { bg: 'bg-lime-500', border: 'border-lime-500', text: 'text-white', hoverBg: 'hover:bg-lime-600', hoverBorder: 'hover:border-lime-600' },
+        '5': { bg: 'bg-green-600', border: 'border-green-600', text: 'text-white', hoverBg: 'hover:bg-green-700', hoverBorder: 'hover:border-green-700' },
+      };
       contenido = (
         <div className="space-y-2">
           <div className="grid grid-cols-5 gap-2">
             {VALORACION_GENERAL_OPCIONES.map((opcion) => {
               const seleccionado = String(valor) === String(opcion);
+              const colorOpcion = colorValoracionGeneral[String(opcion)];
               return (
                 <button
                   key={opcion}
@@ -2331,10 +2395,10 @@ export default function Captacion() {
                   onClick={() => actualizarCampo(campo.key, String(opcion))}
                   aria-pressed={seleccionado}
                   aria-label={`Valoracion ${opcion}`}
-                  className={`inline-flex items-center justify-center rounded-2xl border px-3 py-2 text-sm font-bold transition-all focus:outline-none focus:ring-2 focus:ring-club-red focus:ring-offset-1 ${
+                  className={`inline-flex items-center justify-center rounded-2xl border px-3 py-2 text-sm font-bold transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 ${
                     seleccionado
-                      ? 'border-club-red bg-club-red text-white shadow-sm'
-                      : 'border-gray-300 bg-white text-club-black hover:border-club-red/40 hover:bg-red-50'
+                      ? `${colorOpcion.border} ${colorOpcion.bg} ${colorOpcion.text} shadow-md focus:ring-gray-400`
+                      : `border-gray-300 bg-white text-club-black hover:border-gray-400 hover:bg-gray-100 ${colorOpcion.hoverBg}`
                   }`}
                 >
                   {opcion}
@@ -2587,12 +2651,6 @@ export default function Captacion() {
                   options={opcionesFiltros.lateralidad}
                   emptyLabel="Todas"
                   onChange={(valor) => actualizarFiltro('lateralidad', valor)}
-                />                <FiltroBuscador
-                  label="Demarcación"
-                  value={filtros.demarcacion}
-                  options={opcionesFiltros.demarcacion}
-                  emptyLabel="Todas"
-                  onChange={(valor) => actualizarFiltro('demarcacion', valor)}
                 />
               </div>
               <button
@@ -2629,8 +2687,7 @@ export default function Captacion() {
                 renderInformeCompletoJugador(
                   form,
                   actualizarDemarcacionInformeCompleto,
-                  actualizarValoracionItemInformeCompleto,
-                  actualizarValoracionDireccionInformeCompleto
+                  actualizarValoracionItemInformeCompleto
                 )
               }
               setFotoJugadorPreviewError={setFotoJugadorPreviewError}
@@ -2966,15 +3023,24 @@ export default function Captacion() {
               <h3 className="text-lg font-bold text-club-black">Informes de seguimiento</h3>
               <p className="text-sm text-club-black/60 mt-1">Cada informe queda vinculado a un jugador de la base de datos de captacion.</p>
             </div>
-            {!mostrarFormularioInforme && (
-              <button
-                type="button"
-                onClick={nuevoInforme}
-                className="w-full lg:w-auto bg-club-red hover:bg-club-redDark text-white font-semibold px-4 py-2 rounded-md transition-colors"
-              >
-                + Nuevo informe
-              </button>
-            )}
+            <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+              <input
+                type="text"
+                placeholder="Buscar jugador, club, equipo, partido..."
+                value={busquedaInformes}
+                onChange={(event) => setBusquedaInformes(event.target.value)}
+                className="w-full sm:w-72 rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
+              />
+              {!mostrarFormularioInforme && (
+                <button
+                  type="button"
+                  onClick={nuevoInforme}
+                  className="w-full sm:w-auto bg-club-red hover:bg-club-redDark text-white font-semibold px-4 py-2 rounded-md transition-colors"
+                >
+                  + Nuevo informe
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
@@ -3014,13 +3080,6 @@ export default function Captacion() {
                   options={opcionesFiltrosInformes.lateralidad}
                   emptyLabel="Todas"
                   onChange={(valor) => actualizarFiltroInforme('lateralidad', valor)}
-                />
-                <FiltroBuscador
-                  label="Demarcación"
-                  value={filtrosInformes.demarcacion}
-                  options={opcionesFiltrosInformes.demarcacion}
-                  emptyLabel="Todas"
-                  onChange={(valor) => actualizarFiltroInforme('demarcacion', valor)}
                 />
                 <FiltroBuscador
                   label="Valoración"
@@ -3067,18 +3126,18 @@ export default function Captacion() {
                 </button>
               </div>
               <div
-                className={`grid gap-4 lg:grid-cols-2 ${informeSoloLectura ? 'pointer-events-none opacity-80' : ''}`}
+                className={`grid gap-2 lg:grid-cols-2 ${informeSoloLectura ? 'pointer-events-none opacity-80' : ''}`}
                 aria-disabled={informeSoloLectura || undefined}
               >
                 {BLOQUES_INFORME_FORM.map((bloque) => (
                   <section
                     key={bloque.title}
-                    className={`rounded-lg border border-gray-200 bg-gray-50 p-4 ${
+                    className={`rounded-lg border border-gray-200 bg-gray-50 p-2 ${
                       ['Datos basicos', 'Partido', 'INFORME'].includes(bloque.title) ? 'lg:col-span-2' : ''
                     }`}
                   >
-                    <h4 className="text-sm font-bold uppercase tracking-wide text-club-black">{bloque.title}</h4>
-                    <div className={`mt-4 grid grid-cols-1 gap-4 ${bloque.gridClassName || 'sm:grid-cols-2 xl:grid-cols-3'}`}>
+                    <h4 className="text-xs font-bold uppercase tracking-wide text-club-black">{bloque.title}</h4>
+                    <div className={`mt-2 grid grid-cols-2 gap-2 ${bloque.gridClassName || 'sm:grid-cols-3 xl:grid-cols-4'}`}>
                       {bloque.fields.map((campo) => renderCampoInforme(campo))}
                     </div>
                   </section>
@@ -3187,24 +3246,44 @@ export default function Captacion() {
                             : formatearValorInforme(informe[campo.key]);
 
                         return (
-                          <td key={campo.key} className="px-4 py-3 text-club-black/80 max-w-[220px] truncate" title={valor}>
+                          <td key={campo.key} className={campo.key === 'jugador' ? 'px-4 py-3 text-club-black/80' : 'px-4 py-3 text-club-black/80 max-w-[220px] truncate'} title={campo.key === 'jugador' ? undefined : valor}>
                             {campo.key === 'jugador' ? (
-                              informe?.jugador?.id ? (
-                                <Link
-                                  to={`/captacion/${informe.jugador.id}`}
-                                  className="font-semibold text-club-black hover:text-club-red hover:underline"
-                                >
-                                  {valor}
-                                </Link>
-                              ) : (
-                                valor
-                              )
+                              <div className="flex items-center gap-2">
+                                {informe?.jugador ? (
+                                  (() => {
+                                    const fotoUrl = obtenerFotoJugadorUrl(informe.jugador);
+                                    return fotoUrl ? (
+                                      <img
+                                        src={fotoUrl}
+                                        alt={valor}
+                                        className="h-8 w-8 rounded-full object-cover flex-shrink-0 border border-gray-200"
+                                      />
+                                    ) : (
+                                      <div className="h-8 w-8 rounded-full bg-gray-200 flex-shrink-0 flex items-center justify-center text-xs font-bold text-club-black/60">
+                                        {valor.charAt(0).toUpperCase()}
+                                      </div>
+                                    );
+                                  })()
+                                ) : null}
+                                <div className="min-w-0">
+                                  {informe?.jugador?.id ? (
+                                    <Link
+                                      to={`/captacion/${informe.jugador.id}`}
+                                      className="font-semibold text-club-black hover:text-club-red hover:underline block truncate"
+                                    >
+                                      {valor}
+                                    </Link>
+                                  ) : (
+                                    <span className="block truncate">{valor}</span>
+                                  )}
+                                  {informe?.jugador?.club ? (
+                                    <span className="block text-xs text-club-black/50 truncate">{informe.jugador.club}</span>
+                                  ) : null}
+                                </div>
+                              </div>
                             ) : (
                               valor
                             )}
-                            {campo.key === 'jugador' && informe?.jugador?.club ? (
-                              <span className="block text-xs text-club-black/50">{informe.jugador.club}</span>
-                            ) : null}
                           </td>
                         );
                       })}
@@ -3219,17 +3298,15 @@ export default function Captacion() {
         <div className="space-y-8">
           <section>
             <h3 className="text-lg font-bold text-club-black mb-3">Base de datos de captacion</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+            <div className="grid grid-cols-3 gap-3 mb-4">
               <TarjetaEstadistica etiqueta="Jugadores" valor={estadisticasJugadores.total} />
               <TarjetaEstadistica etiqueta="Clubes" valor={estadisticasJugadores.porClub.length} />
               <TarjetaEstadistica etiqueta="Etapas" valor={estadisticasJugadores.porEtapa.length} />
-              <TarjetaEstadistica etiqueta="Demarcaciones" valor={estadisticasJugadores.porDemarcacion.length} />
             </div>
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               <GraficoBarras titulo="Jugadores por club" datos={estadisticasJugadores.porClub} />
               <GraficoBarras titulo="Jugadores por etapa" datos={estadisticasJugadores.porEtapa} />
               <GraficoBarras titulo="Jugadores por categoria" datos={estadisticasJugadores.porCategoria} />
-              <GraficoBarras titulo="Jugadores por demarcacion" datos={estadisticasJugadores.porDemarcacion} />
               <GraficoBarras titulo="Jugadores por lateralidad" datos={estadisticasJugadores.porLateralidad} />
               <GraficoBarras titulo="Jugadores por año de nacimiento" datos={estadisticasJugadores.porAnioNacimiento} />
             </div>

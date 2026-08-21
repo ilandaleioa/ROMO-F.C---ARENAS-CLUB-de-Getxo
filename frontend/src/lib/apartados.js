@@ -2,7 +2,8 @@ export const TODOS_APARTADOS = 'Todos';
 
 export const APARTADOS_APP = [
   { key: 'actividades', label: 'ACTIVIDADES', path: '/actividades' },
-  { key: 'inicio', label: 'PLANTILLAS', path: '/plantillas' },
+  { key: 'inicio', label: 'ROMO FC', path: '/plantillas' },
+  { key: 'inicio_arenas', label: 'ARENAS CLUB', path: '/plantillas' },
   { key: 'equipos', label: 'MIS EQUIPOS', path: '/equipos' },
   { key: 'graficas', label: 'GRAFICAS', path: '/graficas' },
   { key: 'campogramas', label: 'Campogramas', path: '/campogramas' },

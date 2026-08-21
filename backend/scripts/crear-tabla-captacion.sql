@@ -26,11 +26,14 @@ create table if not exists public."Captación_ Base de datos" (
   demarcacion text not null default '',
   otra_demarcacion text not null default '',
   demarcacion_concreta text not null default '',
+  valoracion_responsable text not null default '',
   valoracion_general text not null default '',
-  informe_realizado_por text not null default '',
   descripcion_jugador text not null default '',
   observaciones text not null default '',
   valoracion_items jsonb not null default '{}'::jsonb,
+  tutor_nombre text not null default '',
+  tutor_telefono text not null default '',
+  telefono_jugador text not null default '',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -50,7 +53,16 @@ alter table public."Captación_ Base de datos"
   add column if not exists valoracion_items jsonb not null default '{}'::jsonb;
 
 alter table public."Captación_ Base de datos"
-  add column if not exists informe_realizado_por text not null default '';
+  add column if not exists valoracion_responsable text not null default '';
+
+alter table public."Captación_ Base de datos"
+  add column if not exists tutor_nombre text not null default '';
+
+alter table public."Captación_ Base de datos"
+  add column if not exists tutor_telefono text not null default '';
+
+alter table public."Captación_ Base de datos"
+  add column if not exists telefono_jugador text not null default '';
 
 create index if not exists captacion_fecha_alta_idx
   on public."Captación_ Base de datos" (fecha_alta desc);

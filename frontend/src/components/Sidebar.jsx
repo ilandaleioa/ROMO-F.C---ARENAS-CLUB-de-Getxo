@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { CLUBES, useClub } from '../context/ClubContext';
 import { APARTADOS_APP, usuarioPuedeVerItem } from '../lib/apartados';
@@ -12,6 +12,7 @@ const linkClass = ({ isActive }) =>
 export default function Sidebar({ isOpen, onClose, colapsado, onToggleColapsado }) {
   const { user } = useAuth();
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const { club, setClub } = useClub();
   const apartadosOcultosEnSidebar = ['equipos', 'usuarios', 'listas', 'clubes_maestros', 'hojas_calculo', 'competiciones'];
 
@@ -32,9 +33,25 @@ export default function Sidebar({ isOpen, onClose, colapsado, onToggleColapsado 
       !['campogramas', 'graficas', ...apartadosOcultosEnSidebar].includes(item.key) && usuarioPuedeVerItem(user, item)
   );
   const actividadesItem = navItems.find((item) => item.key === 'actividades');
-  const plantillasItem = navItems.find((item) => item.key === 'inicio');
+  const romoItem = puedeCambiarClub || user.club === 'ROMO' ? navItems.find((item) => item.key === 'inicio') : null;
+  const arenasItem =
+    puedeCambiarClub || user.club === 'ARENAS' ? navItems.find((item) => item.key === 'inicio_arenas') : null;
   const configuracionItem = navItems.find((item) => item.key === 'configuracion');
-  const restoNavItems = navItems.filter((item) => !['actividades', 'inicio', 'configuracion'].includes(item.key));
+  const restoNavItems = navItems.filter(
+    (item) => !['actividades', 'inicio', 'inicio_arenas', 'configuracion'].includes(item.key)
+  );
+  const seccionPlantillasActiva = ['/plantillas', '/graficas', '/campogramas'].includes(pathname);
+  const [plantillasAbierto, setPlantillasAbierto] = useState(seccionPlantillasActiva);
+
+  useEffect(() => {
+    if (seccionPlantillasActiva) setPlantillasAbierto(true);
+  }, [seccionPlantillasActiva]);
+
+  const irAPlantillasDeClub = (valorClub) => {
+    setClub(valorClub);
+    navigate('/plantillas');
+    onClose();
+  };
 
   const nav = (
     <nav className="flex flex-col gap-1 p-3">
@@ -63,19 +80,48 @@ export default function Sidebar({ isOpen, onClose, colapsado, onToggleColapsado 
         </NavLink>
       )}
 
-      {plantillasItem && (
-        <NavLink
-          to={plantillasItem.path}
-          end
-          className={() =>
-            linkClass({
-              isActive: ['/plantillas', '/graficas', '/campogramas'].includes(pathname),
-            })
-          }
-          onClick={onClose}
-        >
-          {plantillasItem.label}
-        </NavLink>
+      {(romoItem || arenasItem) && (
+        <div>
+          <button
+            type="button"
+            onClick={() => setPlantillasAbierto((abierto) => !abierto)}
+            className={`flex w-full items-center justify-between px-4 py-2.5 rounded-md text-sm font-semibold transition-colors ${
+              seccionPlantillasActiva
+                ? 'text-club-red'
+                : 'text-club-black/80 hover:bg-club-red/10 hover:text-club-black'
+            }`}
+            aria-expanded={plantillasAbierto}
+          >
+            PLANTILLAS
+            <span aria-hidden="true" className={`text-xs transition-transform ${plantillasAbierto ? 'rotate-90' : ''}`}>
+              ›
+            </span>
+          </button>
+
+          {plantillasAbierto && (
+            <div className="ml-3 flex flex-col gap-1 border-l border-gray-200 pl-2">
+              {romoItem && (
+                <button
+                  type="button"
+                  onClick={() => irAPlantillasDeClub('ROMO')}
+                  className={linkClass({ isActive: seccionPlantillasActiva && club === 'ROMO' })}
+                >
+                  {romoItem.label}
+                </button>
+              )}
+
+              {arenasItem && (
+                <button
+                  type="button"
+                  onClick={() => irAPlantillasDeClub('ARENAS')}
+                  className={linkClass({ isActive: seccionPlantillasActiva && club === 'ARENAS' })}
+                >
+                  {arenasItem.label}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       )}
 
       {restoNavItems.map((item) => (

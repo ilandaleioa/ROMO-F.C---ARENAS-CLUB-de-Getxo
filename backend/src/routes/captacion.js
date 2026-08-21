@@ -12,7 +12,8 @@ const CAMPOS = [
   'id_jugador', 'fecha_alta', 'quien_da_alta', 'club', 'equipo', 'etapa', 'categoria', 'grupo', 'enlace',
   'nombre', 'primer_apellido', 'segundo_apellido', 'dorsal', 'altura', 'lateralidad',
   'foto_jugador', 'fecha_nacimiento', 'anio_nacimiento', 'edad', 'demarcacion', 'otra_demarcacion', 'demarcacion_concreta',
-  'valoracion_general', 'informe_realizado_por', 'descripcion_jugador', 'observaciones', 'valoracion_items',
+  'valoracion_responsable', 'valoracion_general', 'descripcion_jugador', 'observaciones', 'valoracion_items',
+  'tutor_nombre', 'tutor_telefono', 'telefono_jugador',
 ];
 
 const CAMPOS_INFORMES = [
