@@ -587,49 +587,49 @@ function InformeCompletoBody({ registro }) {
 
   return (
     <>
-      <div className="mb-4 flex flex-col items-center gap-3">
-        <h4 className="text-2xl font-bold uppercase tracking-wider text-club-red">Informe responsable</h4>
+      <div className="mb-3 flex flex-col items-center gap-2">
+        <h4 className="text-xl font-bold uppercase tracking-wider text-club-red">Informe responsable</h4>
         {opcionDireccion ? (
-          <span className={`inline-flex items-center rounded-full border px-4 py-1.5 text-sm font-bold uppercase tracking-wide shadow-md ${opcionDireccion.clase}`}>
+          <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-wide shadow-md ${opcionDireccion.clase}`}>
             {opcionDireccion.value}
           </span>
         ) : null}
       </div>
-      <div className="mt-3 flex items-center gap-3 max-w-6xl mx-auto">
-        <div className="flex-1 min-w-0 rounded-xl border border-gray-200 bg-white p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-club-black/45 text-center">
+      <div className="mt-3 grid gap-2 md:grid-cols-3">
+        <div className="rounded-lg border border-gray-200 bg-white p-3">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-club-black/45 text-center">
             {ETIQUETAS.informe_realizado_por}
           </p>
-          <div className="mt-2 text-sm text-club-black/80 break-words text-center font-semibold">
+          <div className="mt-1 text-sm font-bold text-club-red break-words text-center">
             {renderValor(registro, 'informe_realizado_por')}
           </div>
         </div>
-        <div className="flex-1 min-w-0 flex items-center justify-between gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2.5">
-          <p className="text-xs font-semibold uppercase tracking-wide text-club-black/45">
+        <div className="rounded-lg border border-gray-200 bg-white p-3 flex items-center justify-between gap-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-club-black/45 flex-1">
             {ETIQUETAS.valoracion_responsable}
           </p>
           {registro.valoracion_general ? (
             <span
-              className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+              className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
               style={{ backgroundColor: COLOR_VALORACION_INFORME_COMPLETO[registro.valoracion_general] }}
             >
               {registro.valoracion_general}
             </span>
           ) : (
-            <span className="text-sm font-medium text-club-black">-</span>
+            <span className="text-[10px] font-medium text-club-black flex-shrink-0">-</span>
           )}
         </div>
-        <div className="flex-[2] min-w-0 rounded-xl border border-gray-200 bg-white p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-club-black/45">
+        <div className="rounded-lg border border-gray-200 bg-white p-3">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-club-black/45">
             {ETIQUETAS.descripcion_jugador}
           </p>
-          <div className="mt-2 whitespace-pre-line leading-6 text-sm text-club-black/80">
+          <div className="mt-1 whitespace-pre-line leading-4 text-[10px] text-club-black/80 line-clamp-3">
             {renderValor(registro, 'descripcion_jugador')}
           </div>
         </div>
       </div>
       {!gruposDemarcacion ? (
-        <p className="mt-3 text-sm text-club-black/55">
+        <p className="mt-2 text-xs text-club-black/55">
           El jugador todavia no tiene una demarcacion de informe completo asignada.
         </p>
       ) : (
@@ -638,34 +638,34 @@ function InformeCompletoBody({ registro }) {
           if (!items.length) return null;
 
           return (
-            <div key={grupo.key} className="mt-4">
+            <div key={grupo.key} className="mt-3">
               {grupo.key === 'conBalon' && demarcacionInformeCompleto ? (
-                <div className="mb-3 flex justify-center">
-                  <span className="inline-flex items-center rounded-full border border-club-red bg-club-red px-3 py-0.5 text-xs font-semibold uppercase tracking-wide text-white shadow-sm">
+                <div className="mb-2 flex justify-center">
+                  <span className="inline-flex items-center rounded-full border border-club-red bg-club-red px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white shadow-sm">
                     {demarcacionInformeCompleto}
                   </span>
                 </div>
               ) : null}
-              <p className="text-sm font-bold uppercase tracking-wide text-club-red">{grupo.label}</p>
-              <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              <p className="text-xs font-bold uppercase tracking-wide text-club-red mb-2">{grupo.label}</p>
+              <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {items.map((item) => {
                   const valor = valoracionItems[grupo.key]?.[item.key];
                   const color = COLOR_VALORACION_INFORME_COMPLETO[valor];
                   return (
                     <div
                       key={item.key}
-                      className="flex items-center justify-between gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2.5"
+                      className="flex items-center justify-between gap-1.5 rounded-lg border border-gray-200 bg-white px-2 py-2"
                     >
-                      <p className="text-xs font-semibold uppercase tracking-wide text-club-black/45">{item.label}</p>
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-club-black/45 flex-1 line-clamp-2">{item.label}</p>
                       {valor ? (
                         <span
-                          className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+                          className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
                           style={{ backgroundColor: color }}
                         >
                           {valor}
                         </span>
                       ) : (
-                        <span className="text-sm font-medium text-club-black">-</span>
+                        <span className="text-[10px] font-medium text-club-black flex-shrink-0">-</span>
                       )}
                     </div>
                   );
@@ -1534,11 +1534,31 @@ export default function CaptacionDetalle() {
                   <span className="text-lg font-bold text-club-red tabular-nums">{mediaValoracion}</span>
                   <span className="text-sm text-club-black/70">media valoración</span>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => alternarBloque('INFORME EN PARTIDOS')}
+                  title={bloquesOcultos['INFORME EN PARTIDOS'] ? 'Mostrar sección' : 'Ocultar sección'}
+                  aria-label={bloquesOcultos['INFORME EN PARTIDOS'] ? 'Mostrar sección' : 'Ocultar sección'}
+                  className="text-club-black/40 hover:text-club-red"
+                >
+                  {bloquesOcultos['INFORME EN PARTIDOS'] ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                      <path d="M10 3.5c-4.5 0-7.5 3.5-8.5 6.5 1 3 4 6.5 8.5 6.5s7.5-3.5 8.5-6.5c-1-3-4-6.5-8.5-6.5zm0 10.5a4 4 0 1 1 0-8 4 4 0 0 1 0 8z" />
+                      <circle cx="10" cy="10" r="2" />
+                    </svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                      <path d="M2.28 2.22a.75.75 0 0 0-1.06 1.06l1.86 1.86C1.68 6.53.66 8.06.1 9.15a.75.75 0 0 0 0 .7c1 2 4 6.65 9.9 6.65 1.93 0 3.55-.5 4.89-1.24l2.13 2.13a.75.75 0 1 0 1.06-1.06L2.28 2.22zM10 15c-4.5 0-7.03-3.6-7.98-5.5.5-.98 1.42-2.31 2.79-3.42l1.6 1.6a4 4 0 0 0 5.4 5.4l1.36 1.36c-.96.36-2.03.56-3.17.56zm3.98-3.36-5.6-5.6A4 4 0 0 1 14 9.99c0 .6-.13 1.16-.02 1.65zm4.61 1.86-1.11-1.11c.5-.75.89-1.5 1.15-2.09-.95-1.9-3.48-5.5-7.98-5.5-.7 0-1.35.08-1.97.22L7.36 3.7A9.9 9.9 0 0 1 10 3.35c5.9 0 8.9 4.65 9.9 6.65a.75.75 0 0 1 0 .7c-.34.68-.98 1.77-1.9 2.9z" />
+                    </svg>
+                  )}
+                </button>
               </div>
             </div>
 
-            {editandoInformeId && informeEditando ? (
-              <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4">
+            {bloquesOcultos['INFORME EN PARTIDOS'] ? null : (
+              <>
+                {editandoInformeId && informeEditando && (
+                <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
                   <h4 className="text-sm font-bold text-club-black">Editando informe del {formatearFecha(informeEditando.fecha)}</h4>
                   {errorGuardarInforme ? (
@@ -1761,9 +1781,9 @@ export default function CaptacionDetalle() {
                   </button>
                 </div>
               </div>
-            ) : null}
+                )}
 
-            <div className="mt-4">
+                <div className="mt-4">
               {loadingInformes ? (
                 <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-6 text-center text-club-black/60">
                   Cargando informes...
@@ -1847,7 +1867,9 @@ export default function CaptacionDetalle() {
                   ))}
                 </div>
               )}
-            </div>
+                </div>
+              </>
+            )}
           </section>
         </div>
       ) : (

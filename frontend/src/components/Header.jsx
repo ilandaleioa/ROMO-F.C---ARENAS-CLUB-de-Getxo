@@ -1,41 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useFiltroEquipos } from '../context/FiltroEquiposContext';
-import { CLUBES, useClub } from '../context/ClubContext';
-import { usuarioLimitadoAUnEquipo } from '../lib/equiposAsignados';
+import { useClub } from '../context/ClubContext';
 import ClubLogo from './ClubLogo';
-
-function SelectorClub({ grande = false }) {
-  const { club, setClub } = useClub();
-
-  return (
-    <div
-      className={`rounded-md border border-white/20 overflow-hidden ${
-        grande ? 'flex w-full' : 'inline-flex shrink-0'
-      }`}
-    >
-      {CLUBES.map((c) => (
-        <button
-          key={c.valor}
-          type="button"
-          onClick={() => setClub(c.valor)}
-          className={`font-bold tracking-wide transition-colors ${
-            grande ? 'flex-1 px-3 py-3 text-sm' : 'px-3 py-2 text-xs sm:text-sm'
-          } ${
-            club === c.valor
-              ? c.valor === 'ARENAS'
-                ? 'bg-club-red text-black'
-                : 'bg-club-red text-white'
-              : 'bg-white/5 text-white/70 hover:bg-white/15 hover:text-white'
-          }`}
-        >
-          {c.label}
-        </button>
-      ))}
-    </div>
-  );
-}
 
 const ROLE_LABELS = {
   administrador: 'Administrador',
@@ -43,136 +10,6 @@ const ROLE_LABELS = {
   responsable: 'Responsable',
   tecnico: 'Tecnico',
 };
-
-function FiltroEquiposSelector() {
-  const { equiposDisponibles, equiposSeleccionados, toggleEquipo, limpiarSeleccion } = useFiltroEquipos();
-  const [abierto, setAbierto] = useState(false);
-  const contenedorRef = useRef(null);
-
-  useEffect(() => {
-    const handleClickFuera = (e) => {
-      if (contenedorRef.current && !contenedorRef.current.contains(e.target)) {
-        setAbierto(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickFuera);
-    return () => document.removeEventListener('mousedown', handleClickFuera);
-  }, []);
-
-  if (equiposDisponibles.length === 0) return null;
-
-  const etiqueta =
-    equiposSeleccionados.length === 0
-      ? 'Todos los equipos'
-      : equiposSeleccionados.length === 1
-      ? equiposSeleccionados[0]
-      : `${equiposSeleccionados.length} equipos`;
-
-  return (
-    <div className="relative" ref={contenedorRef}>
-      <button
-        type="button"
-        onClick={() => setAbierto((v) => !v)}
-        className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-semibold bg-white/10 hover:bg-white/20 text-white transition-colors max-w-[12rem]"
-      >
-        <span className="truncate">Equipos: {etiqueta}</span>
-        <span className="text-white/60">▾</span>
-      </button>
-
-      {abierto && (
-        <div className="absolute right-0 mt-2 w-64 max-h-80 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg z-50 text-club-black">
-          <button
-            type="button"
-            onClick={limpiarSeleccion}
-            className="w-full text-left px-4 py-2 text-sm font-semibold border-b border-gray-100 hover:bg-red-50/60"
-          >
-            Todos los equipos
-          </button>
-          {equiposDisponibles.map((eq) => (
-            <label
-              key={eq}
-              className="flex items-center gap-2 px-4 py-2 text-sm border-b border-gray-100 last:border-b-0 hover:bg-red-50/60 cursor-pointer"
-            >
-              <input
-                type="checkbox"
-                checked={equiposSeleccionados.includes(eq)}
-                onChange={() => toggleEquipo(eq)}
-                className="h-4 w-4 accent-club-red"
-              />
-              {eq}
-            </label>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function FiltroEquiposSelectorCentro() {
-  const { equiposDisponibles, equiposSeleccionados, toggleEquipo, limpiarSeleccion } = useFiltroEquipos();
-  const [abierto, setAbierto] = useState(false);
-  const contenedorRef = useRef(null);
-
-  useEffect(() => {
-    const handleClickFuera = (e) => {
-      if (contenedorRef.current && !contenedorRef.current.contains(e.target)) {
-        setAbierto(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickFuera);
-    return () => document.removeEventListener('mousedown', handleClickFuera);
-  }, []);
-
-  if (equiposDisponibles.length === 0) return null;
-
-  const etiqueta =
-    equiposSeleccionados.length === 0
-      ? 'Todos los equipos'
-      : equiposSeleccionados.length === 1
-      ? equiposSeleccionados[0]
-      : `${equiposSeleccionados.length} equipos`;
-
-  return (
-    <div className="relative" ref={contenedorRef}>
-      <button
-        type="button"
-        onClick={() => setAbierto((v) => !v)}
-        className="flex min-w-[16rem] max-w-[min(24rem,100vw-2rem)] items-center justify-between gap-2 rounded-md bg-club-black px-4 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-black"
-      >
-        <span className="truncate">Equipos: {etiqueta}</span>
-        <svg viewBox="0 0 10 6" className="h-3 w-3 shrink-0" aria-hidden="true" fill="currentColor">
-          <path d="M5 6 0 0h10L5 6Z" />
-        </svg>
-      </button>
-
-      {abierto && (
-        <div className="absolute left-1/2 mt-2 w-64 max-h-80 -translate-x-1/2 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg z-50 text-club-black">
-          <button
-            type="button"
-            onClick={limpiarSeleccion}
-            className="w-full border-b border-gray-100 px-4 py-2 text-left text-sm font-semibold hover:bg-red-50/60"
-          >
-            Todos los equipos
-          </button>
-          {equiposDisponibles.map((eq) => (
-            <label
-              key={eq}
-              className="flex cursor-pointer items-center gap-2 border-b border-gray-100 px-4 py-2 text-sm last:border-b-0 hover:bg-red-50/60"
-            >
-              <input
-                type="checkbox"
-                checked={equiposSeleccionados.includes(eq)}
-                onChange={() => toggleEquipo(eq)}
-                className="h-4 w-4 accent-club-red"
-              />
-              {eq}
-            </label>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 function BotonPantallaCompleta() {
   const [esPantallaCompleta, setEsPantallaCompleta] = useState(Boolean(document.fullscreenElement));
@@ -293,17 +130,10 @@ function BotonesHistorial() {
 
 export default function Header({ onToggleSidebar, menuAbierto, onToggleMenu }) {
   const { user, logout } = useAuth();
-  const { club, setClub } = useClub();
-  const puedeCambiarClub = user && (!user.club || user.club === 'TODOS');
-  const mostrarFiltroEquipos = user && !usuarioLimitadoAUnEquipo(user);
+  const { club } = useClub();
   const headerBgClass = club === 'ARENAS' ? 'bg-club-red' : 'bg-club-black';
-  const nombreClub = CLUBES.find((item) => item.valor === club)?.label || (club === 'ARENAS' ? 'ARENAS CLUB' : 'ROMO F.C.');
+  const nombreClub = club === 'ARENAS' ? 'ARENAS CLUB' : 'ROMO FC. - ARENAS CLUB';
 
-  useEffect(() => {
-    if (user && user.club && user.club !== 'TODOS') {
-      setClub(user.club);
-    }
-  }, [user, setClub]);
 
   return (
     <header className={`app-header no-print sticky top-0 z-50 text-white shadow-md ${headerBgClass}`}>
@@ -328,13 +158,6 @@ export default function Header({ onToggleSidebar, menuAbierto, onToggleMenu }) {
             </h1>
           </div>
         </div>
-
-        {user && (
-          <div className="hidden lg:flex items-center gap-2">
-            {puedeCambiarClub && <SelectorClub />}
-            <BotonesHistorial />
-          </div>
-        )}
 
         {user && (
           <div className="hidden lg:flex items-center gap-3 text-sm">
@@ -377,18 +200,9 @@ export default function Header({ onToggleSidebar, menuAbierto, onToggleMenu }) {
         )}
       </div>
 
-      {user && mostrarFiltroEquipos && (
-        <div className="hidden lg:flex justify-center border-t border-black/10 bg-gray-100 px-3 sm:px-4 py-3">
-          <FiltroEquiposSelectorCentro />
-        </div>
-      )}
-
       {user && menuAbierto && (
         <div className="lg:hidden border-t border-white/10 px-4 py-3 flex flex-col gap-3">
-          {puedeCambiarClub && <SelectorClub grande />}
-
-          <div className="grid grid-cols-2 items-center gap-2 border-t border-white/10 pt-3">
-            {mostrarFiltroEquipos && <FiltroEquiposSelector />}
+          <div className="grid grid-cols-2 items-center gap-2">
             <BotonesHistorial />
             <PwaInstallButton />
             <BotonPantallaCompleta />

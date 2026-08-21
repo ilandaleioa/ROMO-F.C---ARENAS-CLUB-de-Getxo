@@ -633,6 +633,19 @@ function nombrePartidoCompacto(actividad, nombre, clubPreferido = '') {
   return nombreClubLegible(nombre, clubPreferido);
 }
 
+function tituloPartidoCompacto(actividad, clubPreferido = '') {
+  const partido = descomponerPartidoActividad(actividad);
+  const equipoCanonico = obtenerEquipoCanonico(actividad?.equipo, clubPreferido);
+  const localNombre = partido.local || actividad?.local || equipoCanonico;
+  const visitanteNombre = partido.visitante || actividad?.visitante || actividad?.rival;
+  const localCompacto = nombrePartidoCompacto(actividad, localNombre, clubPreferido);
+  const visitanteCompacto = nombrePartidoCompacto(actividad, visitanteNombre, clubPreferido);
+
+  return localCompacto && visitanteCompacto
+    ? `${localCompacto} - ${visitanteCompacto}`
+    : partido.titulo || actividad?.titulo || 'Partido';
+}
+
 function fechaClave(fecha) {
   const year = fecha.getFullYear();
   const month = String(fecha.getMonth() + 1).padStart(2, '0');
@@ -1410,11 +1423,7 @@ function ActividadCalendario({ actividad, abierta, accionesCerradas, onVer, onEd
     const localVisible = nombrePartidoCalendario(actividad, localNombre, clubPreferido);
     const visitanteVisible = nombrePartidoCalendario(actividad, visitanteNombre, clubPreferido);
     const tituloVisible = partido.titulo || actividad.titulo || 'Partido';
-    const localCompacto = nombrePartidoCompacto(actividad, localNombre, clubPreferido);
-    const visitanteCompacto = nombrePartidoCompacto(actividad, visitanteNombre, clubPreferido);
-    const tituloCompacto = localCompacto && visitanteCompacto
-      ? `${localCompacto} - ${visitanteCompacto}`
-      : tituloVisible;
+    const tituloCompacto = tituloPartidoCompacto(actividad, clubPreferido);
     const colorEquipo = obtenerColorEquipo(equipoCanonico);
 
     return (
@@ -3070,8 +3079,16 @@ function HorasView({
                                   onCerrar={() => onCerrarAccionesActividad?.(actividad)}
                                 />
                                 <span className="block font-black">{formatearHora(actividad.fecha, actividad.hora, actividad.horaFin)}</span>
-                                <span className="mt-0.5 block line-clamp-2">{actividad.tipo === 'partido' ? tituloPartidoActividad(actividad) : actividad.titulo}</span>
-                                <span className={`${modo === 'detalle' ? 'mt-1' : 'mt-0.5'} block truncate font-semibold opacity-70`}>{obtenerEquipoCanonico(actividad.equipo, actividad.club)}</span>
+                                <span className="mt-0.5 block line-clamp-2">
+                                  {modo === 'minimal'
+                                    ? (actividad.tipo === 'partido' ? tituloPartidoCompacto(actividad, actividad.club) : actividad.titulo)
+                                    : (actividad.tipo === 'partido' ? tituloPartidoActividad(actividad) : actividad.titulo)}
+                                </span>
+                                <span className={`${modo === 'detalle' ? 'mt-1' : 'mt-0.5'} block truncate font-semibold opacity-70`}>
+                                  {modo === 'minimal'
+                                    ? (abreviaturaEquipoCalendario(actividad.equipo, actividad.club) || obtenerEquipoCanonico(actividad.equipo, actividad.club))
+                                    : obtenerEquipoCanonico(actividad.equipo, actividad.club)}
+                                </span>
                                 {modo === 'detalle' && (
                                   <span className="mt-1 block truncate text-[9px] font-semibold opacity-60">
                                     {[etiquetaInstalacionActividad(actividad), actividad.competicion].filter(Boolean).join(' · ') || 'Sin información adicional'}

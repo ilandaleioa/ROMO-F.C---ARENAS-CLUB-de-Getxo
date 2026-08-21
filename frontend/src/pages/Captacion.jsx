@@ -54,6 +54,32 @@ const CAMPOS = [
 ];
 
 const VALORACION_GENERAL_OPCIONES = [1, 2, 3, 4, 5];
+
+const COLORES_VALORACION = {
+  1: 'bg-red-600 text-white',
+  2: 'bg-orange-500 text-white',
+  3: 'bg-amber-400 text-club-black',
+  4: 'bg-lime-500 text-club-black',
+  5: 'bg-green-600 text-white',
+};
+
+function obtenerColorValoracion(valor) {
+  const numero = Number(valor);
+  if (!numero || Number.isNaN(numero)) return null;
+  const redondeado = Math.min(5, Math.max(1, Math.round(numero)));
+  return COLORES_VALORACION[redondeado] || null;
+}
+
+function BadgeValoracion({ valor }) {
+  if (valor === null || valor === undefined || valor === '') return '-';
+  const color = obtenerColorValoracion(valor);
+  if (!color) return valor;
+  return (
+    <span className={`inline-flex min-w-[2.25rem] items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold ${color}`}>
+      {valor}
+    </span>
+  );
+}
 const RESPONSABLES_ALTA_INICIALES = ['Adrian', 'Alex', 'Mikel Exposito'];
 const RESPONSABLES_ALTA_STORAGE_KEY = 'captacion.responsablesAlta';
 const RESPONSABLES_ALTA_NUEVO_VALUE = '__nueva_opcion_responsable_alta__';
@@ -308,6 +334,7 @@ const CAMPOS_INFORME_JUGADOR = ['etapa', 'categoria', 'dorsal', 'lateralidad', '
 const CAMPOS_INFORME_TABLA = [
   { key: 'fecha', label: 'FECHA' },
   { key: 'observador', label: 'OBSERVADOR' },
+  { key: 'foto_jugador', label: 'FOTO' },
   { key: 'jugador', label: 'JUGADOR' },
   { key: 'club', label: 'CLUB' },
   { key: 'equipo', label: 'EQUIPO' },
@@ -387,6 +414,7 @@ const BLOQUES_FORMULARIO_CAPTACION = [
 
 const CAMPOS_CHIPS_RESUMEN = ['club', 'equipo', 'etapa', 'categoria', 'grupo', 'lateralidad'];
 const CAMPOS_TABLA_PRIORITARIOS = ['nombre_completo', 'foto_jugador', 'dorsal'];
+const CAMPOS_TABLA_OCULTOS = ['nombre', 'primer_apellido', 'segundo_apellido', 'tutor_nombre', 'tutor_telefono', 'telefono_jugador'];
 
 function crearInformeVacio() {
   return {
@@ -1277,6 +1305,8 @@ export default function Captacion() {
     anio_nacimiento: '',
     lateralidad: '',
     demarcacion: '',
+    valoracion_general: '',
+    media_valoracion_partidos: '',
   });
   const [filtrosInformes, setFiltrosInformes] = useState({
     club: '',
@@ -1305,7 +1335,7 @@ export default function Captacion() {
   const informeVistaRestauradaRef = useRef(false);
   const camposVisibles = useMemo(() => {
     const prioritarios = CAMPOS_TABLA_PRIORITARIOS.map((key) => CAMPOS.find((campo) => campo.key === key)).filter(Boolean);
-    const resto = CAMPOS.filter((campo) => !CAMPOS_TABLA_PRIORITARIOS.includes(campo.key));
+    const resto = CAMPOS.filter((campo) => !CAMPOS_TABLA_PRIORITARIOS.includes(campo.key) && !CAMPOS_TABLA_OCULTOS.includes(campo.key));
     return [...prioritarios, ...resto];
   }, []);
 
@@ -1411,6 +1441,25 @@ export default function Captacion() {
     guardarObservadores(observadores);
   }, [observadores]);
 
+  const estadisticasInformesPorJugador = useMemo(() => {
+    const mapa = new Map();
+    informes.forEach((informe) => {
+      const jugadorId = String(informe?.jugador_id || '');
+      if (!jugadorId) return;
+      if (!mapa.has(jugadorId)) {
+        mapa.set(jugadorId, { total: 0, sumaValoracion: 0, countValoracion: 0 });
+      }
+      const entrada = mapa.get(jugadorId);
+      entrada.total += 1;
+      const valor = Number(informe?.valoracion);
+      if (!Number.isNaN(valor) && valor > 0) {
+        entrada.sumaValoracion += valor;
+        entrada.countValoracion += 1;
+      }
+    });
+    return mapa;
+  }, [informes]);
+
   const registrosFiltrados = useMemo(() => {
     const texto = busqueda.trim().toLowerCase();
     const filtrosActivos = Object.entries(filtros).filter(([, valor]) => String(valor || '').trim());
@@ -1424,11 +1473,19 @@ export default function Captacion() {
       if (!coincideTexto) return false;
 
       return filtrosActivos.every(([clave, valorSeleccionado]) => {
+        if (clave === 'media_valoracion_partidos') {
+          const estadisticas = estadisticasInformesPorJugador.get(String(registro.id || ''));
+          const mediaValoracion = estadisticas && estadisticas.countValoracion > 0
+            ? Math.round(estadisticas.sumaValoracion / estadisticas.countValoracion)
+            : 0;
+          return String(mediaValoracion) === String(valorSeleccionado);
+        }
+
         const valorRegistro = String(registro[clave] || '').trim();
         return normalizarComparacion(valorRegistro) === normalizarComparacion(valorSeleccionado);
       });
     });
-  }, [busqueda, camposVisibles, filtros, registros]);
+  }, [busqueda, camposVisibles, filtros, registros, estadisticasInformesPorJugador]);
 
   const informesConDatos = useMemo(() => {
     const registrosPorId = new Map(registros.map((registro) => [String(registro?.id || ''), registro]));
@@ -1559,6 +1616,8 @@ export default function Captacion() {
         'Extremo',
         'Delantero',
       ]),
+      valoracion_general: obtenerOpcionesFiltroDependientes(registros, filtros, 'valoracion_general', ['1', '2', '3', '4', '5']),
+      media_valoracion_partidos: obtenerOpcionesFiltroDependientes(registros, filtros, 'media_valoracion_partidos', ['1', '2', '3', '4', '5']),
     }),
     [clubes, filtros, opcionesListas.categorias, opcionesListas.etapas, registros]
   );
@@ -1602,6 +1661,8 @@ export default function Captacion() {
       anio_nacimiento: '',
       lateralidad: '',
       demarcacion: '',
+      valoracion_general: '',
+      media_valoracion_partidos: '',
     });
   };
 
@@ -2621,7 +2682,7 @@ export default function Captacion() {
 
           <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
             <div className="flex flex-col xl:flex-row xl:items-end gap-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-3 flex-1">                <FiltroBuscador
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-8 gap-3 flex-1">                <FiltroBuscador
                   label="Club"
                   value={filtros.club}
                   options={opcionesFiltros.club}
@@ -2651,6 +2712,18 @@ export default function Captacion() {
                   options={opcionesFiltros.lateralidad}
                   emptyLabel="Todas"
                   onChange={(valor) => actualizarFiltro('lateralidad', valor)}
+                />                <FiltroBuscador
+                  label="Valoración Resp"
+                  value={filtros.valoracion_general}
+                  options={opcionesFiltros.valoracion_general}
+                  emptyLabel="Todas"
+                  onChange={(valor) => actualizarFiltro('valoracion_general', valor)}
+                />                <FiltroBuscador
+                  label="Media Val Partidos"
+                  value={filtros.media_valoracion_partidos}
+                  options={opcionesFiltros.media_valoracion_partidos}
+                  emptyLabel="Todas"
+                  onChange={(valor) => actualizarFiltro('media_valoracion_partidos', valor)}
                 />
               </div>
               <button
@@ -2901,23 +2974,35 @@ export default function Captacion() {
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide sticky left-0 z-20 bg-club-black">
                     Acciones
                   </th>
-                  {camposVisibles.map((campo) => (
-                    <th key={campo.key} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">
-                      {campo.label}
-                    </th>
-                  ))}
+                  {camposVisibles.flatMap((campo) => {
+                    const th = (
+                      <th key={campo.key} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">
+                        {campo.label}
+                      </th>
+                    );
+                    if (campo.key !== 'valoracion_general') return [th];
+                    return [
+                      th,
+                      <th key="numero_informes" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">
+                        NUMERO DE INFORMES
+                      </th>,
+                      <th key="media_valoracion_partidos" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">
+                        MEDIA VALORACION PARTIDOS
+                      </th>,
+                    ];
+                  })}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {loading ? (
                   <tr>
-                    <td colSpan={camposVisibles.length + 1} className="px-4 py-6 text-center text-club-black/60">
+                    <td colSpan={camposVisibles.length + 3} className="px-4 py-6 text-center text-club-black/60">
                       Cargando registros de captacion...
                     </td>
                   </tr>
                 ) : registrosFiltrados.length === 0 ? (
                   <tr>
-                    <td colSpan={camposVisibles.length + 1} className="px-4 py-6 text-center text-club-black/60">
+                    <td colSpan={camposVisibles.length + 3} className="px-4 py-6 text-center text-club-black/60">
                       No se han encontrado registros de captacion.
                     </td>
                   </tr>
@@ -2972,43 +3057,64 @@ export default function Captacion() {
                           </button>
                         </div>
                       </td>
-                      {camposVisibles.map((campo) => (
-                        <td
-                          key={campo.key}
-                          className="px-4 py-3 text-club-black/80 max-w-[220px] truncate"
-                          title={campo.key === 'nombre_completo' ? nombreCompleto(registro) : registro[campo.key] || ''}
-                        >
-                          {campo.key === 'enlace' || campo.key === 'foto_jugador' ? (
-                            (campo.key === 'foto_jugador' ? obtenerFotoJugadorUrl(registro) : registro[campo.key]) ? (
-                              <a
-                                href={campo.key === 'foto_jugador' ? obtenerFotoJugadorUrl(registro) : registro[campo.key]}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className={campo.key === 'foto_jugador'
-                                  ? 'inline-flex rounded-md focus:outline-none focus:ring-2 focus:ring-club-red focus:ring-offset-1'
-                                  : 'text-club-red font-semibold hover:underline'}
-                                aria-label={campo.key === 'foto_jugador' ? `Abrir foto de ${nombreCompleto(registro) || 'jugador'}` : undefined}
-                              >
-                                {campo.key === 'foto_jugador' ? (
-                                  <img
-                                    src={obtenerFotoJugadorUrl(registro)}
-                                    alt={`Foto de ${nombreCompleto(registro) || 'jugador'}`}
-                                    className="h-12 w-12 rounded-md border border-gray-200 bg-gray-100 object-cover transition-transform hover:scale-105"
-                                  />
-                                ) : (
-                                  'Abrir'
-                                )}
-                              </a>
+                      {camposVisibles.flatMap((campo) => {
+                        const td = (
+                          <td
+                            key={campo.key}
+                            className="px-4 py-3 text-club-black/80 max-w-[220px] truncate"
+                            title={campo.key === 'nombre_completo' ? nombreCompleto(registro) : registro[campo.key] || ''}
+                          >
+                            {campo.key === 'enlace' || campo.key === 'foto_jugador' ? (
+                              (campo.key === 'foto_jugador' ? obtenerFotoJugadorUrl(registro) : registro[campo.key]) ? (
+                                <a
+                                  href={campo.key === 'foto_jugador' ? obtenerFotoJugadorUrl(registro) : registro[campo.key]}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className={campo.key === 'foto_jugador'
+                                    ? 'inline-flex rounded-md focus:outline-none focus:ring-2 focus:ring-club-red focus:ring-offset-1'
+                                    : 'text-club-red font-semibold hover:underline'}
+                                  aria-label={campo.key === 'foto_jugador' ? `Abrir foto de ${nombreCompleto(registro) || 'jugador'}` : undefined}
+                                >
+                                  {campo.key === 'foto_jugador' ? (
+                                    <img
+                                      src={obtenerFotoJugadorUrl(registro)}
+                                      alt={`Foto de ${nombreCompleto(registro) || 'jugador'}`}
+                                      className="h-12 w-12 rounded-md border border-gray-200 bg-gray-100 object-cover transition-transform hover:scale-105"
+                                    />
+                                  ) : (
+                                    'Abrir'
+                                  )}
+                                </a>
+                              ) : (
+                                '-'
+                              )
+                            ) : campo.key === 'nombre_completo' ? (
+                              nombreCompleto(registro) || '-'
+                            ) : campo.key === 'valoracion_general' ? (
+                              <BadgeValoracion valor={registro[campo.key]} />
                             ) : (
-                              '-'
-                            )
-                          ) : campo.key === 'nombre_completo' ? (
-                            nombreCompleto(registro) || '-'
-                          ) : (
-                            registro[campo.key] || '-'
-                          )}
-                        </td>
-                      ))}
+                              registro[campo.key] || '-'
+                            )}
+                          </td>
+                        );
+
+                        if (campo.key !== 'valoracion_general') return [td];
+
+                        const estadisticas = estadisticasInformesPorJugador.get(String(registro.id || ''));
+                        const mediaValoracion = estadisticas && estadisticas.countValoracion > 0
+                          ? (estadisticas.sumaValoracion / estadisticas.countValoracion).toFixed(1)
+                          : null;
+
+                        return [
+                          td,
+                          <td key="numero_informes" className="px-4 py-3 text-club-black/80">
+                            {estadisticas?.total || 0}
+                          </td>,
+                          <td key="media_valoracion_partidos" className="px-4 py-3 text-club-black/80">
+                            <BadgeValoracion valor={mediaValoracion} />
+                          </td>,
+                        ];
+                      })}
                     </tr>
                   ))
                 )}
@@ -3245,41 +3351,43 @@ export default function Captacion() {
                             ? nombreCompleto(informe?.jugador) || 'Jugador no disponible'
                             : formatearValorInforme(informe[campo.key]);
 
+                        if (campo.key === 'foto_jugador') {
+                          const fotoUrl = informe?.jugador ? obtenerFotoJugadorUrl(informe.jugador) : null;
+                          const nombreJugador = nombreCompleto(informe?.jugador) || '';
+                          return (
+                            <td key={campo.key} className="px-4 py-3">
+                              {fotoUrl ? (
+                                <img
+                                  src={fotoUrl}
+                                  alt={nombreJugador}
+                                  className="h-8 w-8 rounded-full object-cover flex-shrink-0 border border-gray-200"
+                                />
+                              ) : (
+                                <div className="h-8 w-8 rounded-full bg-gray-200 flex-shrink-0 flex items-center justify-center text-xs font-bold text-club-black/60">
+                                  {nombreJugador.charAt(0).toUpperCase()}
+                                </div>
+                              )}
+                            </td>
+                          );
+                        }
+
                         return (
                           <td key={campo.key} className={campo.key === 'jugador' ? 'px-4 py-3 text-club-black/80' : 'px-4 py-3 text-club-black/80 max-w-[220px] truncate'} title={campo.key === 'jugador' ? undefined : valor}>
                             {campo.key === 'jugador' ? (
-                              <div className="flex items-center gap-2">
-                                {informe?.jugador ? (
-                                  (() => {
-                                    const fotoUrl = obtenerFotoJugadorUrl(informe.jugador);
-                                    return fotoUrl ? (
-                                      <img
-                                        src={fotoUrl}
-                                        alt={valor}
-                                        className="h-8 w-8 rounded-full object-cover flex-shrink-0 border border-gray-200"
-                                      />
-                                    ) : (
-                                      <div className="h-8 w-8 rounded-full bg-gray-200 flex-shrink-0 flex items-center justify-center text-xs font-bold text-club-black/60">
-                                        {valor.charAt(0).toUpperCase()}
-                                      </div>
-                                    );
-                                  })()
+                              <div className="min-w-0">
+                                {informe?.jugador?.id ? (
+                                  <Link
+                                    to={`/captacion/${informe.jugador.id}`}
+                                    className="font-semibold text-club-black hover:text-club-red hover:underline block truncate"
+                                  >
+                                    {valor}
+                                  </Link>
+                                ) : (
+                                  <span className="block truncate">{valor}</span>
+                                )}
+                                {informe?.jugador?.club ? (
+                                  <span className="block text-xs text-club-black/50 truncate">{informe.jugador.club}</span>
                                 ) : null}
-                                <div className="min-w-0">
-                                  {informe?.jugador?.id ? (
-                                    <Link
-                                      to={`/captacion/${informe.jugador.id}`}
-                                      className="font-semibold text-club-black hover:text-club-red hover:underline block truncate"
-                                    >
-                                      {valor}
-                                    </Link>
-                                  ) : (
-                                    <span className="block truncate">{valor}</span>
-                                  )}
-                                  {informe?.jugador?.club ? (
-                                    <span className="block text-xs text-club-black/50 truncate">{informe.jugador.club}</span>
-                                  ) : null}
-                                </div>
                               </div>
                             ) : (
                               valor
