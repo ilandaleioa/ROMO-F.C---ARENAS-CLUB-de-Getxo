@@ -426,7 +426,7 @@ export default function FichaJugador() {
                 </div>
 
                 <div className="space-y-4">
-                  {SECCIONES_FICHA.map((seccion) => {
+                  {SECCIONES_FICHA.filter((seccion) => !['Contacto', 'Otros datos'].includes(seccion.titulo)).map((seccion) => {
                     const camposDisponibles = seccion.campos.filter((campo) => tieneDatoCampo(jugador, campo));
                     if (camposDisponibles.length === 0) return null;
                     const esDeportivo = seccion.titulo === 'Datos deportivos';

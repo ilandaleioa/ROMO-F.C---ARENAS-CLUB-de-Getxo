@@ -101,6 +101,8 @@ export default function Plantillas({ soloGraficas = false }) {
     useFiltroEquipos();
 
   const [busqueda, setBusqueda] = useState('');
+  const [filtroClub, setFiltroClub] = useState('todos');
+  const [filtroEquipo, setFiltroEquipo] = useState('todos');
   const [filtroLateralidad, setFiltroLateralidad] = useState([]);
   const [filtroDemarcacion, setFiltroDemarcacion] = useState([]);
   const [filtroAnio, setFiltroAnio] = useState([]);
@@ -320,8 +322,48 @@ export default function Plantillas({ soloGraficas = false }) {
     return edad;
   };
 
+  const clubesDisponibles = useMemo(() => {
+    const clubes = new Set(
+      jugadores
+        .map((jugador) => String(jugador?.club || '').trim())
+        .filter(Boolean)
+    );
+    return Array.from(clubes).sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+  }, [jugadores]);
+
+  const equiposPorClub = useMemo(() => {
+    const mapa = new Map();
+    jugadores.forEach((jugador) => {
+      const club = String(jugador?.club || '').trim();
+      const equipo = String(jugador?.equipo || '').trim();
+      if (!club || !equipo) return;
+      if (!mapa.has(club)) mapa.set(club, new Set());
+      mapa.get(club).add(equipo);
+    });
+
+    return Array.from(mapa.entries()).reduce((resultado, [club, equipos]) => {
+      resultado[club] = Array.from(equipos).sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+      return resultado;
+    }, {});
+  }, [jugadores]);
+
+  useEffect(() => {
+    if (filtroClub !== 'todos' && filtroEquipo !== 'todos') {
+      const equiposDelClub = equiposPorClub[filtroClub] || [];
+      if (!equiposDelClub.includes(filtroEquipo)) {
+        setFiltroEquipo('todos');
+      }
+    }
+  }, [equiposPorClub, filtroClub, filtroEquipo]);
+
   const jugadoresFiltrados = ordenarJugadoresAlfabeticamente(
     jugadores.filter((j) => {
+      const clubJugador = String(j?.club || '').trim();
+      const equipoJugador = String(j?.equipo || '').trim();
+
+      if (filtroClub !== 'todos' && clubJugador !== filtroClub) return false;
+      if (filtroEquipo !== 'todos' && equipoJugador !== filtroEquipo) return false;
+      if (equiposSeleccionados.length > 0 && !equiposSeleccionados.includes(equipoJugador)) return false;
       if (filtroLateralidad.length > 0 && !filtroLateralidad.includes(j.lateralidad)) return false;
       if (filtroDemarcacion.length > 0 && !filtroDemarcacion.includes(j.demarcacion)) return false;
       if (filtroAnio.length > 0 && !filtroAnio.includes(String(anioNacimiento(j.fecha_nacimiento) || ''))) {
@@ -1001,6 +1043,22 @@ export default function Plantillas({ soloGraficas = false }) {
     );
   };
 
+  const renderFiltroSimpleSelect = ({ label, value, onChange, opciones, emptyLabel }) => (
+    <div className="w-full sm:w-48 flex flex-col gap-1">
+      <label className="text-xs font-semibold text-club-black/60 uppercase tracking-wide">{label}</label>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
+      >
+        <option value="todos">{emptyLabel}</option>
+        {opciones.map((opcion) => (
+          <option key={opcion} value={opcion}>{opcion}</option>
+        ))}
+      </select>
+    </div>
+  );
+
   const renderFiltroMultiseleccion = ({ id, etiquetaTodos, opciones, seleccionados, setSeleccionados }) => {
     const abierto = filtroDeportivoAbierto === id;
     const etiqueta =
@@ -1070,10 +1128,32 @@ export default function Plantillas({ soloGraficas = false }) {
   };
 
   const renderFiltrosDeportivos = () => (
-    <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+    <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-wrap">
+      {renderFiltroSimpleSelect({
+        label: 'Club',
+        value: filtroClub,
+        onChange: (valor) => {
+          setFiltroClub(valor);
+          if (valor !== 'todos') {
+            const equiposDelClub = equiposPorClub[valor] || [];
+            if (filtroEquipo !== 'todos' && !equiposDelClub.includes(filtroEquipo)) {
+              setFiltroEquipo('todos');
+            }
+          }
+        },
+        opciones: clubesDisponibles,
+        emptyLabel: 'Todos los clubes',
+      })}
+      {renderFiltroSimpleSelect({
+        label: 'Equipo',
+        value: filtroEquipo,
+        onChange: setFiltroEquipo,
+        opciones: filtroClub === 'todos' ? [...new Set(jugadores.map((jugador) => String(jugador?.equipo || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' })) : (equiposPorClub[filtroClub] || []),
+        emptyLabel: 'Todos los equipos',
+      })}
       <div className="w-full sm:w-48 flex flex-col gap-1">
         <label htmlFor="filtro-jugadores" className="text-xs font-semibold text-club-black/60 uppercase tracking-wide">
-          Jugadores
+          Jugador
         </label>
         <input
           id="filtro-jugadores"

@@ -76,10 +76,6 @@ export const SECCIONES_FICHA = [
     ],
   },
   {
-    titulo: 'Contacto',
-    campos: ['telefono_jugador', 'email_jugador'],
-  },
-  {
     titulo: 'Nacimiento',
     campos: ['fecha_nacimiento', 'anio_nacimiento', 'edad'],
   },
@@ -98,9 +94,5 @@ export const SECCIONES_FICHA = [
   {
     titulo: 'Datos de la madre',
     campos: ['nombre_ama', 'primer_apellido_ama', 'segundo_apellido_ama', 'dni_ama', 'telefono_ama', 'email_ama'],
-  },
-  {
-    titulo: 'Otros datos',
-    campos: ['observaciones'],
   },
 ];

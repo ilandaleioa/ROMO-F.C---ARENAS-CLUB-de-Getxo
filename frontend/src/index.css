@@ -145,6 +145,34 @@ canvas {
   height: 1px;
 }
 
+.pdf-export-clone {
+  width: 100% !important;
+  max-width: none !important;
+  font-size: 12px !important;
+  line-height: 1.4 !important;
+  letter-spacing: 0.01em;
+  color: rgb(17 17 17) !important;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.pdf-export-clone > * {
+  width: 100% !important;
+  max-width: none !important;
+}
+
+.pdf-export-clone p,
+.pdf-export-clone span,
+.pdf-export-clone div,
+.pdf-export-clone h1,
+.pdf-export-clone h2,
+.pdf-export-clone h3,
+.pdf-export-clone h4,
+.pdf-export-clone h5,
+.pdf-export-clone h6 {
+  text-rendering: optimizeLegibility;
+}
+
 @page {
   size: A4 landscape;
   margin: 8mm;

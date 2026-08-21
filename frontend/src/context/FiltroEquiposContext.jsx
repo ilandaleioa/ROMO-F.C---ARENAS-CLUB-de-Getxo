@@ -27,11 +27,11 @@ export function FiltroEquiposProvider({ children }) {
 
   useEffect(() => {
     if (user) {
-      setEquiposSeleccionados([]);
+      setEquiposSeleccionados((actuales) => (actuales.length === 0 ? actuales : []));
       cargarEquipos();
     } else {
       setEquiposDisponibles([]);
-      setEquiposSeleccionados([]);
+      setEquiposSeleccionados((actuales) => (actuales.length === 0 ? actuales : []));
     }
   }, [user, club, cargarEquipos]);
 

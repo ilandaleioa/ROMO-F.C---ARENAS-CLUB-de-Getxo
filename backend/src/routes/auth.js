@@ -8,8 +8,8 @@ const { construirSelect, ejecutarConFallback } = require('../lib/usuarioColumns'
 
 const router = express.Router();
 const RETRY_DELAY_MS = 250;
-const CAMPOS_LOGIN_BASE = ['id', 'username', 'password_hash', 'rol', 'equipo_asignado', 'club', 'activo'];
-const CAMPOS_LOGIN_OPCIONALES = ['apartados_visibles'];
+const CAMPOS_LOGIN_BASE = ['id', 'username', 'password_hash', 'rol', 'equipo_asignado'];
+const CAMPOS_LOGIN_OPCIONALES = ['club', 'activo', 'apartados_visibles'];
 
 async function consultarUsuarioLogin(username) {
   // El login solo necesita los campos imprescindibles. `apartados_visibles`

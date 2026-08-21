@@ -23,7 +23,7 @@ const DEMARCACION_CONCRETA_OPCIONES = [
 ];
 
 const CAMPOS = [
-  { key: 'fecha_alta', label: 'FECHA ALTA', type: 'date' },
+  { key: 'fecha_alta', label: 'FECHA DE ALTA', type: 'date' },
   { key: 'quien_da_alta', label: 'QUIEN DA ALTA', type: 'selectWithAdd' },
   { key: 'club', label: 'CLUB', type: 'clubSelect' },
   { key: 'equipo', label: 'EQUIPO', type: 'text' },
@@ -1039,12 +1039,20 @@ function obtenerOpcionesUnicas(...listados) {
   return opciones;
 }
 
+function obtenerValorFiltroRegistro(registro, clave) {
+  if (clave === 'jugador') return nombreCompleto(registro);
+  return registro?.[clave];
+}
+
 function filtrarRegistrosPorFiltros(registros, filtros, claveExcluida = '') {
   const criterios = Object.entries(filtros).filter(([clave, valor]) => clave !== claveExcluida && String(valor || '').trim());
   if (criterios.length === 0) return registros;
 
   return registros.filter((registro) =>
-    criterios.every(([clave, valorSeleccionado]) => normalizarComparacion(registro?.[clave]) === normalizarComparacion(valorSeleccionado))
+    criterios.every(([clave, valorSeleccionado]) => {
+      const valorRegistro = obtenerValorFiltroRegistro(registro, clave);
+      return normalizarComparacion(valorRegistro) === normalizarComparacion(valorSeleccionado);
+    })
   );
 }
 
@@ -1053,10 +1061,12 @@ function obtenerOpcionesFiltroDependientes(registros, filtros, clave, opcionesBa
   const valorActual = String(filtros?.[clave] || '').trim();
   const opcionesDesdeBase = Array.isArray(opcionesBase) && opcionesBase.length > 0
     ? opcionesBase.filter((opcion) =>
-        registrosFiltrados.some((registro) => normalizarComparacion(registro?.[clave]) === normalizarComparacion(opcion))
+        registrosFiltrados.some((registro) => normalizarComparacion(obtenerValorFiltroRegistro(registro, clave)) === normalizarComparacion(opcion))
       )
     : [];
-  const opcionesDesdeRegistros = registrosFiltrados.map((registro) => registro?.[clave]);
+  const opcionesDesdeRegistros = registrosFiltrados
+    .map((registro) => obtenerValorFiltroRegistro(registro, clave))
+    .filter((valor) => String(valor || '').trim());
 
   return obtenerOpcionesUnicas(opcionesDesdeBase, opcionesDesdeRegistros, valorActual ? [valorActual] : []);
 }
@@ -1300,6 +1310,8 @@ export default function Captacion() {
   const [busqueda, setBusqueda] = useState('');
   const [filtros, setFiltros] = useState({
     club: '',
+    equipo: '',
+    jugador: '',
     etapa: '',
     categoria: '',
     anio_nacimiento: '',
@@ -1310,6 +1322,8 @@ export default function Captacion() {
   });
   const [filtrosInformes, setFiltrosInformes] = useState({
     club: '',
+    equipo: '',
+    jugador: '',
     etapa: '',
     categoria: '',
     anio_nacimiento: '',
@@ -1318,6 +1332,7 @@ export default function Captacion() {
     valoracion: '',
   });
   const [seccionActiva, setSeccionActiva] = useState(() => leerSeccionActivaGuardada());
+  const [vistaBaseDatos, setVistaBaseDatos] = useState('listado');
   const [fotoJugadorFile, setFotoJugadorFile] = useState(null);
   const [fotoJugadorBaseUrl, setFotoJugadorBaseUrl] = useState('');
   const [fotoJugadorPreview, setFotoJugadorPreview] = useState('');
@@ -1491,11 +1506,12 @@ export default function Captacion() {
     const registrosPorId = new Map(registros.map((registro) => [String(registro?.id || ''), registro]));
 
     return informes.map((informe) => {
-      const jugador = registrosPorId.get(String(informe?.jugador_id || ''));
+      const jugador = registrosPorId.get(String(informe?.jugador_id || '')) || informe?.jugador;
       return {
         ...informe,
         demarcacion: String(informe?.demarcacion_concreta || '').trim(),
         anio_nacimiento: String(jugador?.anio_nacimiento || '').trim(),
+        jugador,
       };
     });
   }, [informes, registros]);
@@ -1603,6 +1619,8 @@ export default function Captacion() {
   const opcionesFiltros = useMemo(
     () => ({
       club: obtenerOpcionesFiltroDependientes(registros, filtros, 'club', clubes),
+      equipo: obtenerOpcionesFiltroDependientes(registros, filtros, 'equipo'),
+      jugador: obtenerOpcionesFiltroDependientes(registros, filtros, 'jugador'),
       etapa: obtenerOpcionesFiltroDependientes(registros, filtros, 'etapa', opcionesListas.etapas),
       categoria: obtenerOpcionesFiltroDependientes(registros, filtros, 'categoria', opcionesListas.categorias),
       anio_nacimiento: obtenerOpcionesFiltroDependientes(registros, filtros, 'anio_nacimiento'),
@@ -1656,6 +1674,8 @@ export default function Captacion() {
   const limpiarFiltros = () => {
     setFiltros({
       club: '',
+      equipo: '',
+      jugador: '',
       etapa: '',
       categoria: '',
       anio_nacimiento: '',
@@ -1676,6 +1696,8 @@ export default function Captacion() {
   const opcionesFiltrosInformes = useMemo(
     () => ({
       club: obtenerOpcionesFiltroDependientes(informesConDatos, filtrosInformes, 'club', clubes),
+      equipo: obtenerOpcionesFiltroDependientes(informesConDatos, filtrosInformes, 'equipo'),
+      jugador: obtenerOpcionesFiltroDependientes(informesConDatos, filtrosInformes, 'jugador'),
       etapa: obtenerOpcionesFiltroDependientes(informesConDatos, filtrosInformes, 'etapa', opcionesListas.etapas),
       categoria: obtenerOpcionesFiltroDependientes(informesConDatos, filtrosInformes, 'categoria', opcionesListas.categorias),
       anio_nacimiento: obtenerOpcionesFiltroDependientes(informesConDatos, filtrosInformes, 'anio_nacimiento'),
@@ -1689,6 +1711,8 @@ export default function Captacion() {
   const limpiarFiltrosInformes = () => {
     setFiltrosInformes({
       club: '',
+      equipo: '',
+      jugador: '',
       etapa: '',
       categoria: '',
       anio_nacimiento: '',
@@ -1706,8 +1730,13 @@ export default function Captacion() {
   };
 
   const camposFormulario = useMemo(
-    () =>
-      camposVisibles.map((campo) =>
+    () => {
+      // Siempre incluir nombre y primer_apellido en el formulario, aunque estén ocultos en tabla
+      const camposFormularioBase = CAMPOS_TABLA_OCULTOS.includes('nombre')
+        ? CAMPOS.filter((campo) => campo.key === 'nombre' || campo.key === 'primer_apellido').concat(camposVisibles)
+        : camposVisibles;
+
+      return camposFormularioBase.map((campo) =>
         campo.key === 'categoria'
           ? {
               ...campo,
@@ -1715,7 +1744,8 @@ export default function Captacion() {
               options: opcionesListas.categorias,
             }
           : campo
-      ),
+      );
+    },
     [camposVisibles, opcionesListas.categorias]
   );
 
@@ -1943,7 +1973,7 @@ export default function Captacion() {
     asegurarResponsableAlta(registro.quien_da_alta);
     const fotoUrl = obtenerFotoJugadorUrl(registro);
     setForm({
-      ...camposVisibles.reduce(
+      ...camposFormulario.reduce(
         (acc, campo) => ({
           ...acc,
           [campo.key]:
@@ -1994,6 +2024,15 @@ export default function Captacion() {
   const handleSubmit = async (event) => {
     event.preventDefault();
 
+    // Validar campos requeridos
+    const nombre = String(form.nombre || '').trim();
+    const primer_apellido = String(form.primer_apellido || '').trim();
+    
+    if (!nombre || !primer_apellido) {
+      setError('El nombre y primer apellido son obligatorios.');
+      return;
+    }
+
     setGuardando(true);
     setError('');
     try {
@@ -2011,8 +2050,11 @@ export default function Captacion() {
           {}
         ),
       };
-      // Mantener este campo explícito evita que una refactorización del listado
-      // de campos vuelva a dejar fuera la etapa del payload de guardado.
+      // Mantener estos campos explícitos evita que refactorización del listado
+      // de campos vuelva a dejar fuera nombre, primer_apellido, etapa del payload.
+      // nombre y primer_apellido son obligatorios en el backend.
+      payload.nombre = String(formCalculado.nombre || '').trim();
+      payload.primer_apellido = String(formCalculado.primer_apellido || '').trim();
       payload.etapa = String(formCalculado.etapa || '').trim();
       payload.valoracion_items = formCalculado.valoracion_items || {};
 
@@ -2632,6 +2674,74 @@ export default function Captacion() {
     </section>
   );
 
+  const renderModoJugadorBaseDatos = () => (
+    <div className="space-y-4">
+      {registrosFiltrados.length === 0 ? (
+        <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-club-black/60">
+          No se han encontrado jugadores.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          {registrosFiltrados.map((registro) => {
+            const nombre = nombreCompleto(registro) || 'Jugador sin nombre';
+            const foto = obtenerFotoJugadorUrl(registro);
+            const datosNacimiento = calcularDatosNacimiento(registro.fecha_nacimiento);
+            const edad = datosNacimiento?.edad || '-';
+
+            return (
+              <button
+                key={registro.id}
+                type="button"
+                onClick={() => navigate(`/captacion/${registro.id}`)}
+                className="flex w-full overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-sm transition hover:border-club-red/40 hover:shadow-md"
+              >
+                <div className="w-36 shrink-0 border-r border-gray-200 bg-gray-50 p-3">
+                  {foto ? (
+                    <img src={foto} alt={nombre} className="h-full w-full rounded-xl object-cover" />
+                  ) : (
+                    <div className="flex h-full min-h-[120px] w-full items-center justify-center rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 text-center text-xs font-semibold text-club-black/40">
+                      Sin foto
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-club-black/50">Jugador</p>
+                      <h3 className="mt-1 text-xl font-black text-club-black">{nombre}</h3>
+                    </div>
+                    <span className="rounded-full border border-club-red/20 bg-club-red/5 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-club-red">
+                      {registro.club || 'Sin club'}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-sm text-club-black/75">
+                    <div className="rounded-md border border-gray-200 bg-gray-50 p-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-club-black/45">Equipo</p>
+                      <p className="mt-1 font-semibold text-club-black">{registro.equipo || '-'}</p>
+                    </div>
+                    <div className="rounded-md border border-gray-200 bg-gray-50 p-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-club-black/45">Dorsal</p>
+                      <p className="mt-1 font-semibold text-club-black">{registro.dorsal || '-'}</p>
+                    </div>
+                    <div className="rounded-md border border-gray-200 bg-gray-50 p-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-club-black/45">Edad</p>
+                      <p className="mt-1 font-semibold text-club-black">{edad !== '-' ? `${edad} años` : '-'}</p>
+                    </div>
+                    <div className="rounded-md border border-gray-200 bg-gray-50 p-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-club-black/45">Valoración</p>
+                      <p className="mt-1 font-semibold text-club-black">{registro.valoracion_general || '-'}</p>
+                    </div>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="w-full px-4 sm:px-6 py-6">
       <div className="flex flex-col gap-4 mb-6">
@@ -2664,304 +2774,327 @@ export default function Captacion() {
             <input
               type="text"
               placeholder="Buscar jugador, club, equipo..."
-                value={busqueda}
-                onChange={(event) => setBusqueda(event.target.value)}
-                className="w-full sm:w-72 rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
-              />
-              {!mostrarFormulario && (
-                <button
-                  type="button"
-                  onClick={nuevoRegistro}
-                  className="w-full sm:w-auto bg-club-red hover:bg-club-redDark text-white font-semibold px-4 py-2 rounded-md transition-colors"
-                >
-                  + Nuevo jugador
-                </button>
-              )}
-            </div>
-          </div>
-
-          <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-            <div className="flex flex-col xl:flex-row xl:items-end gap-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-8 gap-3 flex-1">                <FiltroBuscador
-                  label="Club"
-                  value={filtros.club}
-                  options={opcionesFiltros.club}
-                  emptyLabel="Todos"
-                  onChange={(valor) => actualizarFiltro('club', valor)}
-                />                <FiltroBuscador
-                  label="Etapa"
-                  value={filtros.etapa}
-                  options={opcionesFiltros.etapa}
-                  emptyLabel="Todas"
-                  onChange={(valor) => actualizarFiltro('etapa', valor)}
-                />                <FiltroBuscador
-                  label="Categoría"
-                  value={filtros.categoria}
-                  options={opcionesFiltros.categoria}
-                  emptyLabel="Todas"
-                  onChange={(valor) => actualizarFiltro('categoria', valor)}
-                />                <FiltroBuscador
-                  label="Categoría año"
-                  value={filtros.anio_nacimiento}
-                  options={opcionesFiltros.anio_nacimiento}
-                  emptyLabel="Todos"
-                  onChange={(valor) => actualizarFiltro('anio_nacimiento', valor)}
-                />                <FiltroBuscador
-                  label="Lateralidad"
-                  value={filtros.lateralidad}
-                  options={opcionesFiltros.lateralidad}
-                  emptyLabel="Todas"
-                  onChange={(valor) => actualizarFiltro('lateralidad', valor)}
-                />                <FiltroBuscador
-                  label="Valoración Resp"
-                  value={filtros.valoracion_general}
-                  options={opcionesFiltros.valoracion_general}
-                  emptyLabel="Todas"
-                  onChange={(valor) => actualizarFiltro('valoracion_general', valor)}
-                />                <FiltroBuscador
-                  label="Media Val Partidos"
-                  value={filtros.media_valoracion_partidos}
-                  options={opcionesFiltros.media_valoracion_partidos}
-                  emptyLabel="Todas"
-                  onChange={(valor) => actualizarFiltro('media_valoracion_partidos', valor)}
-                />
-              </div>
+              value={busqueda}
+              onChange={(event) => setBusqueda(event.target.value)}
+              className="w-full sm:w-72 rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
+            />
+            {!mostrarFormulario && (
               <button
                 type="button"
-                onClick={limpiarFiltros}
-                className="w-full xl:w-auto rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold text-club-black hover:bg-gray-50"
+                onClick={nuevoRegistro}
+                className="w-full sm:w-auto bg-club-red hover:bg-club-redDark text-white font-semibold px-4 py-2 rounded-md transition-colors"
               >
-                Limpiar filtros
+                + Nuevo jugador
               </button>
-            </div>
+            )}
           </div>
-
-          {mostrarFormulario && (
-            <CaptacionFormulario
-              formActual={form}
-              fotoJugadorPreviewActual={fotoJugadorPreview}
-              fotoJugadorPreviewError={fotoJugadorPreviewError}
-              fotoJugadorFileActual={fotoJugadorFile}
-              editandoIdActual={editandoId}
-              guardandoActual={guardando}
-              cancelarFormularioActual={cancelarFormulario}
-              manejarCambioFotoJugadorActual={manejarCambioFotoJugador}
-              handleSubmitActual={handleSubmit}
-              camposFormularioDetalleActual={camposFormularioDetalle}
-              camposFormularioPorClaveActual={camposFormularioPorClave}
-              actualizarCampoFormulario={actualizarCampo}
-              opcionesClubesFormulario={opcionesClubes}
-              opcionesEquiposFormulario={opcionesEquipos}
-              opcionesListasFormulario={opcionesListas}
-              responsablesAltaFormulario={responsablesAlta}
-              manejarCambioResponsableAltaFormulario={manejarCambioResponsableAlta}
-              renderCampoFormulario={renderCampoFormulario}
-              renderItemsValoracionFormulario={() =>
-                renderInformeCompletoJugador(
-                  form,
-                  actualizarDemarcacionInformeCompleto,
-                  actualizarValoracionItemInformeCompleto
-                )
-              }
-              setFotoJugadorPreviewError={setFotoJugadorPreviewError}
-            />
-          )}
-
-          {false && (
-            <form
-              onSubmit={handleSubmit}
-              className="bg-white border border-gray-200 rounded-lg p-4 sm:p-6 mb-6 shadow-sm space-y-4"
+          <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-white p-1 shadow-sm">
+            <button
+              type="button"
+              onClick={() => setVistaBaseDatos('listado')}
+              className={`rounded-md px-3 py-1.5 text-xs font-bold uppercase tracking-wide transition-colors ${
+                vistaBaseDatos === 'listado'
+                  ? 'bg-club-red text-white'
+                  : 'text-club-black/70 hover:bg-red-50 hover:text-club-red'
+              }`}
             >
-              <h3 className="font-bold text-club-black">{editandoId ? 'Editar registro' : 'Nuevo registro'}</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {camposFormulario.map((campo) => (
-                  <div key={campo.key} className={campo.type === 'textarea' ? 'sm:col-span-2' : ''}>
-                    <label className="block text-xs font-semibold text-club-black/70 mb-1">{campo.label}</label>
-                    {campo.type === 'textarea' ? (
-                      <textarea
-                        value={form[campo.key]}
-                        onChange={(event) => actualizarCampo(campo.key, event.target.value)}
-                        rows={3}
-                        className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
-                      />
-                    ) : campo.type === 'ratingButtons' ? (
-                      <div className="space-y-2 sm:col-span-2 lg:col-span-2">
-                        <div className="grid grid-cols-5 gap-2">
-                          {VALORACION_GENERAL_OPCIONES.map((valor) => {
-                            const seleccionado = String(form[campo.key]) === String(valor);
-                            return (
-                              <button
-                                key={valor}
-                                type="button"
-                                onClick={() => actualizarCampo(campo.key, String(valor))}
-                                aria-pressed={seleccionado}
-                                aria-label={`Valoracion ${valor}`}
-                                className={`inline-flex items-center justify-center rounded-md border px-3 py-2 text-sm font-bold transition-all focus:outline-none focus:ring-2 focus:ring-club-red focus:ring-offset-1 ${
-                                  seleccionado
-                                    ? 'border-club-red bg-club-red text-white shadow-sm'
-                                    : 'border-gray-300 bg-white text-club-black hover:border-club-red/40 hover:bg-red-50'
-                                }`}
-                              >
-                                {valor}
-                              </button>
-                            );
-                          })}
-                        </div>
-                        <p className="text-xs text-club-black/45">Selecciona una puntuacion del 1 al 5.</p>
-                      </div>
-                    ) : campo.type === 'clubSelect' ? (
-                      <select
-                        value={form[campo.key]}
-                        onChange={(event) => actualizarCampo(campo.key, event.target.value)}
-                        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
-                      >
-                        <option value="">Seleccionar</option>
-                        {opcionesClubes.map((opcion) => (
-                          <option key={opcion} value={opcion}>
-                            {opcion}
-                          </option>
-                        ))}
-                      </select>
-                    ) : campo.key === 'equipo' ? (
-                      <select
-                        value={form[campo.key]}
-                        onChange={(event) => actualizarCampo(campo.key, event.target.value)}
-                        disabled={!String(form.club || '').trim()}
-                        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-club-black/50"
-                      >
-                        <option value="">
-                          {String(form.club || '').trim()
-                            ? opcionesEquipos.length > 0
-                              ? 'Seleccionar'
-                              : 'Sin equipos disponibles'
-                            : 'Selecciona primero un club'}
-                        </option>
-                        {opcionesEquipos.map((opcion) => (
-                          <option key={opcion} value={opcion}>
-                            {opcion}
-                          </option>
-                        ))}
-                      </select>
-                    ) : campo.type === 'listaSelect' ? (
-                      <select
-                        value={form[campo.key]}
-                        onChange={(event) => actualizarCampo(campo.key, event.target.value)}
-                        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
-                      >
-                        <option value="">{(opcionesListas[campo.listaId] || []).length > 0 ? 'Seleccionar' : 'Sin opciones disponibles'}</option>
-                        {(opcionesListas[campo.listaId] || []).map((opcion) => (
-                          <option key={opcion} value={opcion}>
-                            {opcion}
-                          </option>
-                        ))}
-                      </select>
-                    ) : campo.type === 'selectWithAdd' ? (
-                      <div className="flex flex-col sm:flex-row gap-2">
-                        <select
-                          value={form[campo.key]}
-                          onChange={(event) => manejarCambioResponsableAlta(event.target.value)}
-                          className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
-                        >
-                          <option value="">Seleccionar</option>
-                          {responsablesAlta.map((responsable) => (
-                            <option key={responsable} value={responsable}>
-                              {responsable}
-                            </option>
-                          ))}
-                          <option value={RESPONSABLES_ALTA_NUEVO_VALUE}>+ Anadir nuevo...</option>
-                        </select>
-                      </div>
-                    ) : campo.type === 'imageUpload' ? (
-                      <div className="space-y-3">
-                        <input
-                          type="file"
-                          accept="image/jpeg,image/png,image/webp"
-                          onChange={manejarCambioFotoJugador}
-                          className="block w-full text-sm text-club-black file:mr-4 file:rounded-md file:border-0 file:bg-club-red file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-club-redDark"
-                        />
-                        <p className="text-xs text-club-black/50">JPG, PNG o WEBP. Se guardará como imagen privada.</p>
-                        {fotoJugadorPreview ? (
-                          <div className="flex items-center gap-3 rounded-md border border-gray-200 bg-gray-50 p-2">
-                            <img
-                              src={fotoJugadorPreview}
-                              alt="Vista previa de la foto del jugador"
-                              className="h-16 w-16 rounded-md object-cover border border-gray-200 bg-white"
-                            />
-                            <div className="text-xs text-club-black/60">
-                              <p className="font-semibold text-club-black/80">
-                                {fotoJugadorFile ? 'Nueva imagen seleccionada' : 'Imagen actual'}
-                              </p>
-                              <p>La foto se actualizará al guardar.</p>
-                            </div>
-                          </div>
-                        ) : (
-                          <p className="text-xs text-club-black/40">Todavía no hay foto cargada.</p>
-                        )}
-                      </div>
-                    ) : campo.type === 'computed' ? (
-                      <input
-                        type="text"
-                        value={nombreCompleto(form)}
-                        readOnly
-                        className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 py-2 text-club-black/70 cursor-not-allowed"
-                      />
-                    ) : campo.key === 'anio_nacimiento' || campo.key === 'edad' ? (
-                      <input
-                        type="text"
-                        value={form[campo.key]}
-                        readOnly
-                        className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 py-2 text-club-black/70 cursor-not-allowed"
-                      />
-                    ) : campo.type === 'select' ? (
-                      <select
-                        value={form[campo.key]}
-                        onChange={(event) => actualizarCampo(campo.key, event.target.value)}
-                        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
-                      >
-                        <option value="">Seleccionar</option>
-                        {obtenerOpcionesSelect(campo, form[campo.key]).map((opcion) => (
-                          <option key={opcion} value={opcion}>
-                            {opcion}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <input
-                        type={campo.type}
-                        required={campo.required}
-                        value={form[campo.key]}
-                        onChange={(event) => actualizarCampo(campo.key, event.target.value)}
-                        className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
-                      />
-                    )}
-                  </div>
-                ))}
-              </div>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <button
-                  type="submit"
-                  disabled={guardando}
-                  className="w-full sm:w-auto bg-club-red hover:bg-club-redDark text-white font-semibold px-5 py-2 rounded-md transition-colors"
-                >
-                  {guardando ? 'Guardando...' : editandoId ? 'Guardar cambios' : 'Crear registro'}
-                </button>
-                <button
-                  type="button"
-                  onClick={cancelarFormulario}
-                  className="w-full sm:w-auto px-5 py-2 rounded-md font-semibold text-club-black border border-gray-300 hover:bg-gray-50"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </form>
-          )}
+              Modo listado
+            </button>
+            <button
+              type="button"
+              onClick={() => setVistaBaseDatos('jugador')}
+              className={`rounded-md px-3 py-1.5 text-xs font-bold uppercase tracking-wide transition-colors ${
+                vistaBaseDatos === 'jugador'
+                  ? 'bg-club-red text-white'
+                  : 'text-club-black/70 hover:bg-red-50 hover:text-club-red'
+              }`}
+            >
+              Modo jugador
+            </button>
+          </div>
+        </div>
 
+        <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-col xl:flex-row xl:items-end gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-10 gap-3 flex-1">
+              <FiltroBuscador
+                label="Club"
+                value={filtros.club}
+                options={opcionesFiltros.club}
+                emptyLabel="Todos"
+                onChange={(valor) => actualizarFiltro('club', valor)}
+              />
+              <FiltroBuscador
+                label="Equipo"
+                value={filtros.equipo}
+                options={opcionesFiltros.equipo}
+                emptyLabel="Todos"
+                onChange={(valor) => actualizarFiltro('equipo', valor)}
+              />
+              <FiltroBuscador
+                label="Jugador"
+                value={filtros.jugador}
+                options={opcionesFiltros.jugador}
+                emptyLabel="Todos"
+                onChange={(valor) => actualizarFiltro('jugador', valor)}
+              />
+              <FiltroBuscador
+                label="Etapa"
+                value={filtros.etapa}
+                options={opcionesFiltros.etapa}
+                emptyLabel="Todas"
+                onChange={(valor) => actualizarFiltro('etapa', valor)}
+              />
+              <FiltroBuscador
+                label="Categoría"
+                value={filtros.categoria}
+                options={opcionesFiltros.categoria}
+                emptyLabel="Todas"
+                onChange={(valor) => actualizarFiltro('categoria', valor)}
+              />
+              <FiltroBuscador
+                label="Categoría año"
+                value={filtros.anio_nacimiento}
+                options={opcionesFiltros.anio_nacimiento}
+                emptyLabel="Todos"
+                onChange={(valor) => actualizarFiltro('anio_nacimiento', valor)}
+              />
+              <FiltroBuscador
+                label="Lateralidad"
+                value={filtros.lateralidad}
+                options={opcionesFiltros.lateralidad}
+                emptyLabel="Todas"
+                onChange={(valor) => actualizarFiltro('lateralidad', valor)}
+              />
+              <FiltroBuscador
+                label="Valoración Resp"
+                value={filtros.valoracion_general}
+                options={opcionesFiltros.valoracion_general}
+                emptyLabel="Todas"
+                onChange={(valor) => actualizarFiltro('valoracion_general', valor)}
+              />
+              <FiltroBuscador
+                label="Media Val Partidos"
+                value={filtros.media_valoracion_partidos}
+                options={opcionesFiltros.media_valoracion_partidos}
+                emptyLabel="Todas"
+                onChange={(valor) => actualizarFiltro('media_valoracion_partidos', valor)}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={limpiarFiltros}
+              className="w-full xl:w-auto rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold text-club-black hover:bg-gray-50"
+            >
+              Limpiar filtros
+            </button>
+          </div>
+        </div>
+
+        {mostrarFormulario && (
+          <CaptacionFormulario
+            formActual={form}
+            fotoJugadorPreviewActual={fotoJugadorPreview}
+            fotoJugadorPreviewError={fotoJugadorPreviewError}
+            fotoJugadorFileActual={fotoJugadorFile}
+            editandoIdActual={editandoId}
+            guardandoActual={guardando}
+            cancelarFormularioActual={cancelarFormulario}
+            manejarCambioFotoJugadorActual={manejarCambioFotoJugador}
+            handleSubmitActual={handleSubmit}
+            camposFormularioDetalleActual={camposFormularioDetalle}
+            camposFormularioPorClaveActual={camposFormularioPorClave}
+            actualizarCampoFormulario={actualizarCampo}
+            opcionesClubesFormulario={opcionesClubes}
+            opcionesEquiposFormulario={opcionesEquipos}
+            opcionesListasFormulario={opcionesListas}
+            responsablesAltaFormulario={responsablesAlta}
+            manejarCambioResponsableAltaFormulario={manejarCambioResponsableAlta}
+            renderCampoFormulario={renderCampoFormulario}
+            renderItemsValoracionFormulario={() =>
+              renderInformeCompletoJugador(
+                form,
+                actualizarDemarcacionInformeCompleto,
+                actualizarValoracionItemInformeCompleto
+              )
+            }
+            setFotoJugadorPreviewError={setFotoJugadorPreviewError}
+          />
+        )}
+
+          {vistaBaseDatos === 'jugador' ? (
+            renderModoJugadorBaseDatos()
+          ) : (
+            <>
+              <div className="mb-4 inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5">
+                <span className="text-2xl font-bold text-club-red tabular-nums">{registrosFiltrados.length}</span>
+                <span className="text-sm font-medium text-club-black/70">{registrosFiltrados.length === 1 ? 'registro' : 'registros'}</span>
+              </div>
+
+              <TableScroll className="overflow-x-auto overflow-y-auto max-h-[70vh] rounded-lg border border-gray-200">
+                <table className="min-w-[2600px] divide-y divide-gray-200 bg-white text-sm">
+                  <thead className="bg-club-black text-white sticky top-0 z-10">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide sticky left-0 z-20 bg-club-black">
+                        Acciones
+                      </th>
+                      {camposVisibles.flatMap((campo) => {
+                        const th = (
+                          <th key={campo.key} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">
+                            {campo.label}
+                          </th>
+                        );
+                        if (campo.key !== 'valoracion_general') return [th];
+                        return [
+                          th,
+                          <th key="numero_informes" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">
+                            NUMERO DE INFORMES
+                          </th>,
+                          <th key="media_valoracion_partidos" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">
+                            MEDIA VALORACION PARTIDOS
+                          </th>,
+                        ];
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {loading ? (
+                      <tr>
+                        <td colSpan={camposVisibles.length + 3} className="px-4 py-6 text-center text-club-black/60">
+                          Cargando registros de captacion...
+                        </td>
+                      </tr>
+                    ) : registrosFiltrados.length === 0 ? (
+                      <tr>
+                        <td colSpan={camposVisibles.length + 3} className="px-4 py-6 text-center text-club-black/60">
+                          No se han encontrado registros de captacion.
+                        </td>
+                      </tr>
+                    ) : (
+                      registrosFiltrados.map((registro) => (
+                        <tr key={registro.id} className="hover:bg-red-50/40 transition-colors">
+                          <td className="px-4 py-3 sticky left-0 bg-white whitespace-nowrap">
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => navigate(`/captacion/${registro.id}`)}
+                                title="Añadir informe"
+                                aria-label="Añadir informe"
+                                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-club-black/60 transition-colors hover:bg-gray-100 hover:text-club-black"
+                              >
+                                <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5" aria-hidden="true">
+                                  <path d="M10 4.5c3.8 0 6.9 2.3 8.1 5.5C16.9 13.2 13.8 15.5 10 15.5S3.1 13.2 1.9 10C3.1 6.8 6.2 4.5 10 4.5Zm0 1.5c-2.9 0-5.3 1.7-6.3 4 1 2.3 3.4 4 6.3 4s5.3-1.7 6.3-4c-1-2.3-3.4-4-6.3-4Zm0 1.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5Z" />
+                                </svg>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => editarRegistro(registro)}
+                                title="Editar"
+                                aria-label="Editar"
+                                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-club-red transition-colors hover:bg-red-50 hover:text-club-redDark"
+                              >
+                                <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5" aria-hidden="true">
+                                  <path d="M13.9 2.9a2 2 0 0 1 2.8 2.8l-.8.8-2.8-2.8.8-.8Zm-2 2L4 12.8V16h3.2l7.9-7.9-3.2-3.2Z" />
+                                </svg>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => abrirFormularioInformeParaJugador(registro)}
+                                title="Añadir informe"
+                                aria-label="Añadir informe"
+                                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-club-black/60 transition-colors hover:bg-gray-100 hover:text-club-black"
+                              >
+                                <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5" aria-hidden="true">
+                                  <path d="M5 2.5A1.5 1.5 0 0 1 6.5 1h4.086a1.5 1.5 0 0 1 1.06.44l2.914 2.914a1.5 1.5 0 0 1 .44 1.06V17.5A1.5 1.5 0 0 1 13.5 19h-7A1.5 1.5 0 0 1 5 17.5v-15ZM7 9a.75.75 0 0 0 0 1.5h6a.75.75 0 0 0 0-1.5H7Zm0 3a.75.75 0 0 0 0 1.5h6a.75.75 0 0 0 0-1.5H7Zm0 3a.75.75 0 0 0 0 1.5h3a.75.75 0 0 0 0-1.5H7Z" />
+                                </svg>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => eliminarRegistro(registro)}
+                                title="Eliminar"
+                                aria-label="Eliminar"
+                                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-club-black/60 transition-colors hover:bg-red-50 hover:text-club-red"
+                              >
+                                <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5" aria-hidden="true">
+                                  <path d="M7 3.5A1.5 1.5 0 0 1 8.5 2h3A1.5 1.5 0 0 1 13 3.5V4h3a1 1 0 1 1 0 2h-1v9.5A2.5 2.5 0 0 1 12.5 18h-5A2.5 2.5 0 0 1 5 15.5V6H4a1 1 0 1 1 0-2h3v-.5ZM8.5 4h3v-.5h-3V4ZM7 6v9.5c0 .3.2.5.5.5h5a.5.5 0 0 0 .5-.5V6H7Zm2 2a1 1 0 0 1 1 1v4a1 1 0 1 1-2 0V9a1 1 0 0 1 1-1Zm3 0a1 1 0 0 1 1 1v4a1 1 0 1 1-2 0V9a1 1 0 0 1 1-1Z" />
+                                </svg>
+                              </button>
+                            </div>
+                          </td>
+                          {camposVisibles.flatMap((campo) => {
+                            const td = (
+                              <td
+                                key={campo.key}
+                                className="px-4 py-3 text-club-black/80 max-w-[220px] truncate"
+                                title={campo.key === 'nombre_completo' ? nombreCompleto(registro) : registro[campo.key] || ''}
+                              >
+                                {campo.key === 'enlace' || campo.key === 'foto_jugador' ? (
+                                  (campo.key === 'foto_jugador' ? obtenerFotoJugadorUrl(registro) : registro[campo.key]) ? (
+                                    <a
+                                      href={campo.key === 'foto_jugador' ? obtenerFotoJugadorUrl(registro) : registro[campo.key]}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className={campo.key === 'foto_jugador'
+                                        ? 'inline-flex rounded-md focus:outline-none focus:ring-2 focus:ring-club-red focus:ring-offset-1'
+                                        : 'text-club-red font-semibold hover:underline'}
+                                      aria-label={campo.key === 'foto_jugador' ? `Abrir foto de ${nombreCompleto(registro) || 'jugador'}` : undefined}
+                                    >
+                                      {campo.key === 'foto_jugador' ? (
+                                        <img
+                                          src={obtenerFotoJugadorUrl(registro)}
+                                          alt={`Foto de ${nombreCompleto(registro) || 'jugador'}`}
+                                          className="h-12 w-12 rounded-md border border-gray-200 bg-gray-100 object-cover transition-transform hover:scale-105"
+                                        />
+                                      ) : (
+                                        'Abrir'
+                                      )}
+                                    </a>
+                                  ) : (
+                                    '-'
+                                  )
+                                ) : campo.key === 'nombre_completo' ? (
+                                  nombreCompleto(registro) || '-'
+                                ) : campo.key === 'valoracion_general' ? (
+                                  <BadgeValoracion valor={registro[campo.key]} />
+                                ) : (
+                                  registro[campo.key] || '-'
+                                )}
+                              </td>
+                            );
+
+                            if (campo.key !== 'valoracion_general') return [td];
+
+                            const estadisticas = estadisticasInformesPorJugador.get(String(registro.id || ''));
+                            const mediaValoracion = estadisticas && estadisticas.countValoracion > 0
+                              ? (estadisticas.sumaValoracion / estadisticas.countValoracion).toFixed(1)
+                              : null;
+
+                            return [
+                              td,
+                              <td key="numero_informes" className="px-4 py-3 text-club-black/80">
+                                {estadisticas?.total || 0}
+                              </td>,
+                              <td key="media_valoracion_partidos" className="px-4 py-3 text-club-black/80">
+                                <BadgeValoracion valor={mediaValoracion} />
+                              </td>,
+                            ];
+                          })}
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </TableScroll>
+            </>
+          )}
+         
           {error && (
             <p className="text-sm text-club-red font-medium bg-red-50 border border-club-red/30 rounded-md px-3 py-2 mb-4">
               {error}
             </p>
           )}
 
+          {false && (<>
           <div className="mb-4 inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5">
             <span className="text-2xl font-bold text-club-red tabular-nums">{registrosFiltrados.length}</span>
             <span className="text-sm font-medium text-club-black/70">{registrosFiltrados.length === 1 ? 'registro' : 'registros'}</span>
@@ -3121,6 +3254,7 @@ export default function Captacion() {
               </tbody>
             </table>
           </TableScroll>
+          </>)}
         </>
       ) : seccionActiva === 'informes' ? (
         <div className="space-y-6">
@@ -3151,13 +3285,27 @@ export default function Captacion() {
 
           <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
             <div className="flex flex-col xl:flex-row xl:items-end gap-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-7 gap-3 flex-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-9 gap-3 flex-1">
                 <FiltroBuscador
                   label="Club"
                   value={filtrosInformes.club}
                   options={opcionesFiltrosInformes.club}
                   emptyLabel="Todos"
                   onChange={(valor) => actualizarFiltroInforme('club', valor)}
+                />
+                <FiltroBuscador
+                  label="Equipo"
+                  value={filtrosInformes.equipo}
+                  options={opcionesFiltrosInformes.equipo}
+                  emptyLabel="Todos"
+                  onChange={(valor) => actualizarFiltroInforme('equipo', valor)}
+                />
+                <FiltroBuscador
+                  label="Jugador"
+                  value={filtrosInformes.jugador}
+                  options={opcionesFiltrosInformes.jugador}
+                  emptyLabel="Todos"
+                  onChange={(valor) => actualizarFiltroInforme('jugador', valor)}
                 />
                 <FiltroBuscador
                   label="Etapa"

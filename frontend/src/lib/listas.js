@@ -45,6 +45,11 @@ function normalizarNombreEquipo(club, nombre) {
   const nombresCanonicos = clubCanonico
     ? EQUIPOS_MS.filter((equipo) => equipo.club === clubCanonico).map((equipo) => equipo.nombre)
     : obtenerEquiposPorClub(club);
+  const nombreCoincidente = nombresCanonicos.find(
+    (equipo) => normalizarClaveEquipo(equipo) === normalizarClaveEquipo(texto)
+  );
+  if (nombreCoincidente) return nombreCoincidente;
+
   const nombreCanonico = nombresCanonicos.find(
     (equipo) => normalizarClaveEquipo(equipo) === normalizarClaveEquipo(nombreBuscado)
   );
