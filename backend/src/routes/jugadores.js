@@ -124,46 +124,112 @@ async function conFotosUrl(rows, { timeoutMs = null } = {}) {
   }
 }
 
+// Campos numericos, booleanos y con validacion propia dentro de FULL_COLUMNS.
+// El resto de columnas editables se tratan como texto libre (trim, vacio -> null).
+const CAMPOS_NUMERICOS_JUGADOR = new Set(['dorsal', 'altura_cm', 'peso_kg']);
+const CAMPOS_BOOLEANOS_JUGADOR = new Set(['tiene_hermanos_club', 'acepta_condiciones']);
+const CAMPOS_NO_EDITABLES_JUGADOR = new Set(['id', 'club', 'foto_path', 'marca_temporal']);
+const CAMPOS_OBLIGATORIOS_JUGADOR = new Set(['nombre', 'primer_apellido', 'equipo']);
+
+// Construye el objeto de columnas a guardar en Supabase a partir del body recibido,
+// aplicando la whitelist de columnas del rol y la validacion propia de cada campo.
+// Devuelve { error: { status, mensaje } } si algun valor no es valido, o { valores }.
+function prepararCamposJugador(rol, body, { exigirObligatorios = false } = {}) {
+  const columnasPermitidas = new Set(columnsForRole(rol));
+  const valores = {};
+
+  for (const campo of Object.keys(body)) {
+    if (CAMPOS_NO_EDITABLES_JUGADOR.has(campo) || !columnasPermitidas.has(campo)) continue;
+
+    const valor = body[campo];
+
+    if (campo === 'dorsal') {
+      if (valor === '' || valor === null || valor === undefined) {
+        valores.dorsal = null;
+        continue;
+      }
+      const dorsalNum = Number(valor);
+      if (!Number.isInteger(dorsalNum) || dorsalNum < 1 || dorsalNum > 99) {
+        return { error: { status: 400, mensaje: 'El dorsal debe ser un numero entre 1 y 99.' } };
+      }
+      valores.dorsal = dorsalNum;
+      continue;
+    }
+
+    if (campo === 'lateralidad') {
+      const lateralidadNormalizada = valor === null || valor === undefined ? null : String(valor).trim() || null;
+      if (lateralidadNormalizada !== null && !LATERALIDAD_VALUES.includes(lateralidadNormalizada)) {
+        return {
+          error: {
+            status: 400,
+            mensaje: `Lateralidad no valida. Valores permitidos: ${LATERALIDAD_VALUES.join(', ')}.`,
+          },
+        };
+      }
+      valores.lateralidad = lateralidadNormalizada;
+      continue;
+    }
+
+    if (CAMPOS_NUMERICOS_JUGADOR.has(campo)) {
+      if (valor === '' || valor === null || valor === undefined) {
+        valores[campo] = null;
+        continue;
+      }
+      const numero = Number(valor);
+      if (Number.isNaN(numero)) {
+        return { error: { status: 400, mensaje: `El valor de "${campo}" debe ser numerico.` } };
+      }
+      valores[campo] = numero;
+      continue;
+    }
+
+    if (CAMPOS_BOOLEANOS_JUGADOR.has(campo)) {
+      valores[campo] = valor === null || valor === undefined ? null : Boolean(valor);
+      continue;
+    }
+
+    const texto = valor === null || valor === undefined ? '' : String(valor).trim();
+    if (CAMPOS_OBLIGATORIOS_JUGADOR.has(campo) && !texto) {
+      return { error: { status: 400, mensaje: 'Nombre, primer apellido y equipo son obligatorios.' } };
+    }
+    valores[campo] = texto || null;
+  }
+
+  if (exigirObligatorios) {
+    for (const campo of CAMPOS_OBLIGATORIOS_JUGADOR) {
+      if (!valores[campo]) {
+        return { error: { status: 400, mensaje: 'Nombre, primer apellido y equipo son obligatorios.' } };
+      }
+    }
+  }
+
+  return { valores };
+}
+
 // POST /api/jugadores -> crea un jugador desde el formulario de la app.
 router.post('/', requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR), async (req, res) => {
   try {
-    const body = req.body || {};
-    const nombre = String(body.nombre || '').trim();
-    const primer_apellido = String(body.primer_apellido || '').trim();
-    const segundo_apellido = String(body.segundo_apellido || '').trim();
-    const equipo = String(body.equipo || '').trim();
-
-    if (!nombre || !primer_apellido || !equipo) {
-      return res.status(400).json({ error: 'Nombre, primer apellido y equipo son obligatorios.' });
-    }
-
-    const dorsal = body.dorsal === '' || body.dorsal === null || body.dorsal === undefined ? null : Number(body.dorsal);
-    if (dorsal !== null && (!Number.isInteger(dorsal) || dorsal < 1 || dorsal > 99)) {
-      return res.status(400).json({ error: 'El dorsal debe ser un numero entre 1 y 99.' });
+    const { rol } = req.user;
+    const resultado = prepararCamposJugador(rol, req.body || {}, { exigirObligatorios: true });
+    if (resultado.error) {
+      return res.status(resultado.error.status).json({ error: resultado.error.mensaje });
     }
 
     const { data, error } = await supabaseAdmin
       .from('jugadores')
-      .insert({
-        club: req.club,
-        nombre,
-        primer_apellido,
-        segundo_apellido: segundo_apellido || null,
-        equipo,
-        fecha_nacimiento: body.fecha_nacimiento || null,
-        dorsal,
-        lateralidad: body.lateralidad || null,
-        demarcacion: body.demarcacion || null,
-      })
+      .insert({ club: req.club, ...resultado.valores })
       .select('*')
       .single();
 
     if (error) {
       console.error('Error creando jugador:', error);
+      if (error.code === '23505') {
+        return res.status(409).json({ error: 'No se pudo crear porque ese dorsal ya esta asignado en el equipo.' });
+      }
       return res.status(503).json({ error: 'No se pudo crear el jugador.' });
     }
 
-    return res.status(201).json({ jugador: await conFotoUrl(sanitizeRow(data, req.user.rol)) });
+    return res.status(201).json({ jugador: await conFotoUrl(sanitizeRow(data, rol)) });
   } catch (err) {
     console.error('Error inesperado creando jugador:', err);
     return res.status(503).json({ error: 'No se pudo crear el jugador.' });
@@ -303,6 +369,99 @@ router.get('/:id', async (req, res) => {
 
   res.json({ jugador: await conFotoUrl(sanitizeRow(data, rol)) });
 });
+
+// PUT /api/jugadores/:id -> actualiza los datos completos de un jugador.
+// Cada rol solo puede modificar las columnas visibles para el (misma whitelist que la lectura).
+router.put(
+  '/:id',
+  requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR, ROLES.RESPONSABLE, ROLES.TECNICO),
+  async (req, res) => {
+    try {
+      const { rol } = req.user;
+
+      const { data: jugadorActual, error: errorJugadorActual } = await supabaseAdmin
+        .from('jugadores')
+        .select('id, equipo')
+        .eq('id', req.params.id)
+        .eq('club', req.club)
+        .maybeSingle();
+
+      if (errorJugadorActual) {
+        return res.status(503).json({ error: 'No se pudo consultar la base de datos de jugadores.' });
+      }
+      if (!jugadorActual) {
+        return res.status(404).json({ error: 'Jugador no encontrado.' });
+      }
+      if (!puedeVerEquipo(req.user, jugadorActual.equipo)) {
+        return res.status(403).json({ error: 'No tienes permiso para editar este jugador.' });
+      }
+
+      const resultado = prepararCamposJugador(rol, req.body || {});
+      if (resultado.error) {
+        return res.status(resultado.error.status).json({ error: resultado.error.mensaje });
+      }
+
+      const updates = resultado.valores;
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ error: 'No hay datos para actualizar.' });
+      }
+
+      if (updates.dorsal !== undefined && updates.dorsal !== null) {
+        const equipoComprobar = updates.equipo || jugadorActual.equipo;
+        const { data: dorsalDuplicado, error: errorDorsalDuplicado } = await supabaseAdmin
+          .from('jugadores')
+          .select('id')
+          .eq('club', req.club)
+          .eq('equipo', equipoComprobar)
+          .eq('dorsal', updates.dorsal)
+          .neq('id', req.params.id)
+          .maybeSingle();
+
+        if (errorDorsalDuplicado) {
+          return res.status(503).json({ error: 'No se pudo comprobar el dorsal del jugador.' });
+        }
+        if (dorsalDuplicado) {
+          return res.status(409).json({
+            error: 'Ya existe otro jugador de ese equipo con ese dorsal. Elige otro numero.',
+          });
+        }
+      }
+
+      const { data, error } = await supabaseAdmin
+        .from('jugadores')
+        .update(updates)
+        .eq('id', req.params.id)
+        .eq('club', req.club)
+        .select('*')
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error de Supabase actualizando jugador:', {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+        });
+
+        if (error.code === '23505') {
+          return res.status(409).json({
+            error: 'No se pudo guardar porque ese dorsal ya esta asignado en el equipo.',
+          });
+        }
+
+        return res.status(503).json({ error: 'No se pudo actualizar el jugador.' });
+      }
+      if (!data) {
+        return res.status(404).json({ error: 'Jugador no encontrado.' });
+      }
+
+      res.json({ jugador: await conFotoUrl(sanitizeRow(data, rol)) });
+    } catch (err) {
+      console.error('Error inesperado actualizando jugador:', err.message);
+      res.status(503).json({ error: 'No se pudo actualizar el jugador.' });
+    }
+  }
+);
 
 // POST /api/jugadores/:id/foto -> sube/reemplaza la foto de un jugador.
 // Tecnico solo puede subir fotos de jugadores de su propio equipo asignado.
@@ -867,6 +1026,27 @@ router.post('/sync', requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR), bloquearS
     return acc;
   }, {});
 
+  let insertables;
+  let duplicados;
+  try {
+    ({ insertables, duplicados } = await separarPendientesNuevos(pendientes, club));
+  } catch (err) {
+    console.error('Error comprobando duplicados desde Sheets:', err.message);
+    return res.status(503).json({ error: 'No se pudo comprobar si ya existen jugadores en la base de datos.' });
+  }
+
+  const duplicadosConId = duplicados.filter((p) => p.id);
+
+  // Las filas "duplicadas" son filas del formulario que ya corresponden a un
+  // jugador existente (por DNI o por nombre+equipo) pero que todavia no
+  // tienen ID_SYNC en la hoja. Sin este merge, esa fila solo se enlazaria
+  // (marcando ID_SYNC) y sus datos (p.ej. fecha de nacimiento) no llegarian a
+  // Supabase hasta la siguiente sincronizacion.
+  const actualizablesConDuplicados = [
+    ...actualizables,
+    ...duplicadosConId.map((p) => ({ numeroFila: p.numeroFila, id: p.id, datos: p.datos })),
+  ];
+
   let actualizados = 0;
   let noEncontrados = 0;
   let sinCambios = 0;
@@ -874,10 +1054,10 @@ router.post('/sync', requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR), bloquearS
   let conflictos = 0;
   let borrados = 0;
   let fotosBorradas = 0;
-  if (actualizables.length > 0) {
+  if (actualizablesConDuplicados.length > 0) {
     try {
       ({ actualizados, noEncontrados, sinCambios, supabaseGanadores, conflictos } = await actualizarJugadoresDesdeSheet(
-        actualizables,
+        actualizablesConDuplicados,
         club
       ));
     } catch (err) {
@@ -900,16 +1080,6 @@ router.post('/sync', requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR), bloquearS
     }
   };
 
-  let insertables;
-  let duplicados;
-  try {
-    ({ insertables, duplicados } = await separarPendientesNuevos(pendientes, club));
-  } catch (err) {
-    console.error('Error comprobando duplicados desde Sheets:', err.message);
-    return res.status(503).json({ error: 'No se pudo comprobar si ya existen jugadores en la base de datos.' });
-  }
-
-  const duplicadosConId = duplicados.filter((p) => p.id);
   const idsPresentesBase = new Set([
     ...actualizables.map((fila) => fila.id),
     ...duplicadosConId.map((fila) => fila.id),

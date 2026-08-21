@@ -5,6 +5,7 @@ import { useClub } from '../context/ClubContext';
 import { api } from '../lib/api';
 import { useListaValores } from '../lib/listas';
 import { parseEquiposAsignados, usuarioLimitadoAUnEquipo } from '../lib/equiposAsignados';
+import BotonesVistaPlantillas from '../components/BotonesVistaPlantillas';
 
 const MAX_JUGADORES_POR_PUESTO = 3;
 
@@ -222,7 +223,7 @@ export default function Campogramas() {
 
   return (
     <div className="w-full px-4 sm:px-6 py-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
         <h2 className="text-2xl font-bold text-club-black">Campogramas</h2>
         {puedeEditar && (
           <button
@@ -233,6 +234,10 @@ export default function Campogramas() {
             {guardando ? 'Guardando...' : 'Guardar campograma'}
           </button>
         )}
+      </div>
+
+      <div className="mb-6">
+        <BotonesVistaPlantillas vistaActual="campogramas" />
       </div>
 
       {error && (

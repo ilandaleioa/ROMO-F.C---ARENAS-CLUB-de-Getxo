@@ -4,24 +4,11 @@ import { jsPDF } from 'jspdf';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { ETIQUETAS_JUGADOR, SECCIONES_FICHA } from '../lib/campos';
-import { useListaValores } from '../lib/listas';
+import { CLUBES_MAESTROS } from '../data/clubes';
+import CampoFutbolPosicion from '../components/CampoFutbolPosicion';
 
 const ROLES_QUE_PUEDEN_SUBIR_FOTO = ['administrador', 'director', 'responsable', 'tecnico'];
-const ROLES_QUE_PUEDEN_EDITAR_DEPORTIVO = ['administrador', 'responsable', 'director'];
-
-// Campos calculados que nunca se editan directamente (se derivan de otros).
-const CAMPOS_NO_EDITABLES = new Set(['edad', 'anio_nacimiento']);
-// Tipo de input a usar por campo (el resto se edita como texto libre).
-const TIPO_CAMPO = {
-  fecha_nacimiento: 'fecha',
-  altura_cm: 'numero',
-  peso_kg: 'numero',
-  dorsal: 'numero',
-  tiene_hermanos_club: 'booleano',
-  lateralidad: 'seleccion',
-  demarcacion: 'seleccion',
-  observaciones: 'area',
-};
+const ROLES_QUE_PUEDEN_EDITAR = ['administrador', 'director', 'responsable', 'tecnico'];
 
 function formatearValor(valor, campo) {
   if (valor === null || valor === undefined || valor === '') return '-';
@@ -73,68 +60,34 @@ function nombreCompleto(jugador) {
   return [jugador.nombre, jugador.primer_apellido, jugador.segundo_apellido].filter(Boolean).join(' ');
 }
 
-// Posicion aproximada en el campo para cada demarcacion general (sin lado
-// izquierda/derecha, ya que la lista de demarcaciones de jugadores no lo distingue).
-const POSICIONES_CAMPO_DEMARCACION = {
-  Portero: { x: 50, y: 140 },
-  Lateral: { x: 80, y: 100 },
-  Central: { x: 50, y: 115 },
-  Medio: { x: 50, y: 72 },
-  'Media punta': { x: 50, y: 40 },
-  Extremo: { x: 80, y: 24 },
-  Delantero: { x: 50, y: 12 },
-};
+function obtenerEscudoEquipo(equipo) {
+  if (!equipo) return null;
+  const equipoLower = equipo.toLowerCase().trim();
 
-function CampoFutbolDemarcacion({ demarcacion }) {
-  const posicion = POSICIONES_CAMPO_DEMARCACION[demarcacion];
+  let nombreBusqueda = equipo;
+  if (equipoLower.includes('romo') || equipoLower.includes('itzu')) {
+    nombreBusqueda = 'ROMO F.C.';
+  } else if (equipoLower.includes('arenas')) {
+    nombreBusqueda = 'ARENAS C.';
+  }
 
-  return (
-    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white p-2">
-      <svg viewBox="0 0 100 150" className="w-full" role="img" aria-label={`Posicion en el campo: ${demarcacion || 'sin asignar'}`}>
-        <rect x="0" y="0" width="100" height="150" fill="#3f8a4b" />
-        <rect x="2" y="2" width="96" height="146" fill="none" stroke="white" strokeWidth="0.6" />
-        <line x1="2" y1="75" x2="98" y2="75" stroke="white" strokeWidth="0.6" />
-        <circle cx="50" cy="75" r="9" fill="none" stroke="white" strokeWidth="0.6" />
-        <circle cx="50" cy="75" r="0.8" fill="white" />
-        <rect x="26" y="2" width="48" height="18" fill="none" stroke="white" strokeWidth="0.6" />
-        <rect x="38" y="2" width="24" height="8" fill="none" stroke="white" strokeWidth="0.6" />
-        <path d="M 38 20 A 9 9 0 0 0 62 20" fill="none" stroke="white" strokeWidth="0.6" />
-        <rect x="26" y="130" width="48" height="18" fill="none" stroke="white" strokeWidth="0.6" />
-        <rect x="38" y="140" width="24" height="8" fill="none" stroke="white" strokeWidth="0.6" />
-        <path d="M 38 130 A 9 9 0 0 1 62 130" fill="none" stroke="white" strokeWidth="0.6" />
-        {posicion ? <circle cx={posicion.x} cy={posicion.y} r="4.5" fill="#e2001a" stroke="white" strokeWidth="0.8" /> : null}
-      </svg>
-      <p className="mt-2 text-center text-xs font-semibold uppercase tracking-wide text-club-black/60">
-        {demarcacion || 'Sin demarcacion'}
-      </p>
-    </div>
-  );
+  const club = CLUBES_MAESTROS.find((c) => c.nombre === nombreBusqueda);
+  return club?.escudo || null;
 }
 
 export default function FichaJugador() {
   const { id } = useParams();
   const location = useLocation();
   const { user } = useAuth();
-  const lateralidades = useListaValores('lateralidad');
-  const demarcaciones = useListaValores('demarcacion');
   const [jugador, setJugador] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [subiendoFoto, setSubiendoFoto] = useState(false);
   const [errorFoto, setErrorFoto] = useState('');
-  const [datosDeportivos, setDatosDeportivos] = useState({});
-  const [guardandoDeportivo, setGuardandoDeportivo] = useState(false);
-  const [errorDeportivo, setErrorDeportivo] = useState('');
-  const [guardadoOkDeportivo, setGuardadoOkDeportivo] = useState(false);
-  const [syncHojaDeportivo, setSyncHojaDeportivo] = useState(null);
   const [generandoInforme, setGenerandoInforme] = useState(false);
 
   const puedeSubirFoto = user && ROLES_QUE_PUEDEN_SUBIR_FOTO.includes(user.rol);
-  const puedeEditarDeportivo = user && ROLES_QUE_PUEDEN_EDITAR_DEPORTIVO.includes(user.rol);
-  const OPCIONES_POR_CAMPO = {
-    lateralidad: lateralidades,
-    demarcacion: demarcaciones,
-  };
+  const puedeEditar = user && ROLES_QUE_PUEDEN_EDITAR.includes(user.rol);
 
   async function cargarImagenComoDataUrl(url) {
     try {
@@ -209,14 +162,6 @@ export default function FichaJugador() {
         doc.text(`Equipo: ${jugador.equipo}`, textoX, y);
       }
 
-      if (jugador.edicion) {
-        y += 8;
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(12);
-        doc.setTextColor(...gris);
-        doc.text(`Edicion: ${jugador.edicion}`, textoX, y);
-      }
-
       y = Math.max(y, fotoDataUrl ? fotoY + fotoTamano : y);
 
       y += 14;
@@ -225,10 +170,9 @@ export default function FichaJugador() {
       doc.line(14, y, anchoPagina - 14, y);
 
       const filas = [
-        ['Demarcación', formatearValor(jugador.demarcacion)],
+        ['Posición', formatearValor(jugador.demarcacion)],
         ['Lateralidad', formatearValor(jugador.lateralidad)],
         ['Dorsal', formatearValor(jugador.dorsal)],
-        ['Edicion', formatearValor(jugador.edicion)],
         ['Telefono', formatearValor(jugador.telefono_jugador)],
         ['Email', formatearValor(jugador.email_jugador)],
         ['Fecha de nacimiento', formatearValor(jugador.fecha_nacimiento, 'fecha_nacimiento')],
@@ -265,38 +209,6 @@ export default function FichaJugador() {
     }
   }
 
-  async function handleGuardarDatosDeportivos() {
-    setGuardandoDeportivo(true);
-    setErrorDeportivo('');
-    setGuardadoOkDeportivo(false);
-    setSyncHojaDeportivo(null);
-    try {
-      const payload = {};
-      Object.entries(datosDeportivos).forEach(([campo, valor]) => {
-        if (TIPO_CAMPO[campo] === 'numero') {
-          payload[campo] = valor !== '' && valor !== null && valor !== undefined ? Number(valor) : null;
-        } else if (TIPO_CAMPO[campo] === 'booleano') {
-          payload[campo] = valor === '' || valor === null || valor === undefined ? null : Boolean(valor);
-        } else {
-          payload[campo] = valor === '' || valor === null || valor === undefined ? null : valor;
-        }
-      });
-
-      const { jugador: actualizado, sheet_sync } = await api.patch(`/jugadores/${id}/datos`, payload);
-      setJugador((prev) => (prev ? { ...prev, ...actualizado } : actualizado));
-      setSyncHojaDeportivo(sheet_sync || null);
-      setGuardadoOkDeportivo(true);
-      setTimeout(() => {
-        setGuardadoOkDeportivo(false);
-        setSyncHojaDeportivo(null);
-      }, 5000);
-    } catch (err) {
-      setErrorDeportivo(err.message);
-    } finally {
-      setGuardandoDeportivo(false);
-    }
-  }
-
   async function handleFotoChange(e) {
     const file = e.target.files?.[0];
     e.target.value = '';
@@ -326,20 +238,6 @@ export default function FichaJugador() {
         if (activo) {
           const edad = calcularEdad(jugador.fecha_nacimiento);
           setJugador(edad !== null ? { ...jugador, edad } : jugador);
-
-          const camposEditables = SECCIONES_FICHA.flatMap((seccion) => seccion.campos).filter(
-            (campo) => !CAMPOS_NO_EDITABLES.has(campo)
-          );
-          const valoresIniciales = {};
-          camposEditables.forEach((campo) => {
-            const valor = jugador[campo];
-            if (TIPO_CAMPO[campo] === 'booleano') {
-              valoresIniciales[campo] = Boolean(valor);
-            } else {
-              valoresIniciales[campo] = valor ?? '';
-            }
-          });
-          setDatosDeportivos(valoresIniciales);
         }
       })
       .catch((err) => {
@@ -367,7 +265,7 @@ export default function FichaJugador() {
       <div className="mb-6 flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-3">
           <Link
-            to="/"
+            to="/plantillas"
             className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-club-black hover:bg-gray-50"
           >
             Volver al listado
@@ -397,105 +295,127 @@ export default function FichaJugador() {
       ) : jugador ? (
         <div className="mx-auto w-full max-w-6xl space-y-6">
           <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-            <div className="border-b border-gray-100 bg-gradient-to-r from-club-black to-club-red px-5 py-4 text-white">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/70">Ficha completa</p>
-              <h3 className="mt-1 text-2xl font-bold">{nombreCompleto(jugador) || 'Jugador sin nombre'}</h3>
-              <p className="text-sm text-white/80">{jugador.equipo || 'Sin equipo asignado'}</p>
+            <div className="flex items-center justify-between gap-3 border-b border-gray-100 bg-gradient-to-r from-club-black to-club-red px-5 py-4 text-white">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/70">Ficha completa</p>
+                <h3 className="mt-1 text-2xl font-bold">{nombreCompleto(jugador) || 'Jugador sin nombre'}</h3>
+                <p className="text-sm text-white/80">{jugador.equipo || 'Sin equipo asignado'}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleGenerarInforme}
+                  disabled={generandoInforme}
+                  title="Exportar PDF"
+                  aria-label="Exportar PDF"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 disabled:opacity-50"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4.5 w-4.5">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <path d="M14 2v6h6" />
+                    <path d="M9 15h1.5a1.5 1.5 0 0 0 0-3H9v5" />
+                    <path d="M13 12v5" />
+                    <path d="M16.5 12H15v5h1.5" />
+                  </svg>
+                </button>
+                {puedeEditar && (
+                  <Link
+                    to={`/plantillas/${id}`}
+                    title="Editar jugador"
+                    aria-label="Editar jugador"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4.5 w-4.5">
+                      <path d="M12 20h9" />
+                      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                    </svg>
+                  </Link>
+                )}
+              </div>
             </div>
 
-            <div className="grid gap-8 p-6 lg:grid-cols-[280px_1fr]">
-              <aside className="space-y-4">
-                <div className="overflow-hidden rounded-2xl border border-gray-200 bg-gray-50">
-                  {jugador.foto_url ? (
-                    <img src={jugador.foto_url} alt={`Foto de ${nombreCompleto(jugador)}`} className="h-80 w-full object-cover" />
-                  ) : (
-                    <div className="flex h-80 items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 text-center text-sm font-semibold text-club-black/40">
-                      Sin foto disponible
-                    </div>
-                  )}
+            <div className="space-y-6 p-6">
+              <div className="flex w-full flex-col items-center gap-6 md:flex-row md:items-start md:justify-center">
+                <div className="w-full max-w-xs shrink-0 space-y-2.5 md:w-56">
+                  <div className="overflow-hidden rounded-2xl border border-gray-200 bg-gray-50">
+                    {jugador.foto_url ? (
+                      <img src={jugador.foto_url} alt={`Foto de ${nombreCompleto(jugador)}`} className="h-72 w-full object-cover" />
+                    ) : (
+                      <div className="flex h-72 items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 text-center text-sm font-semibold text-club-black/40">
+                        Sin foto disponible
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    {puedeSubirFoto && (
+                      <label className="inline-flex w-full items-center justify-center rounded-md border border-club-red/20 bg-club-red/5 px-4 py-2.5 text-sm font-semibold text-club-red cursor-pointer hover:bg-club-red/10 transition-colors">
+                        {subiendoFoto ? 'Subiendo foto...' : 'Cambiar foto'}
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          className="hidden"
+                          onChange={handleFotoChange}
+                          disabled={subiendoFoto}
+                        />
+                      </label>
+                    )}
+                    {errorFoto ? <p className="text-xs text-club-red mt-2">{errorFoto}</p> : null}
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-lg border border-gray-200 bg-white p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-club-black/50">Dorsal</p>
-                    <p className="mt-2 text-2xl font-bold text-club-black">{formatearValor(obtenerValorCampoFicha(jugador, 'dorsal'), 'dorsal')}</p>
-                  </div>
-                  <div className="rounded-lg border border-gray-200 bg-white p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-club-black/50">Edad</p>
-                    <p className="mt-2 text-2xl font-bold text-club-black">{formatearValor(obtenerValorCampoFicha(jugador, 'edad'), 'edad')}</p>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  {puedeSubirFoto && (
-                    <label className="inline-flex w-full items-center justify-center rounded-md border border-club-red/20 bg-club-red/5 px-4 py-2.5 text-sm font-semibold text-club-red cursor-pointer hover:bg-club-red/10 transition-colors">
-                      {subiendoFoto ? 'Subiendo foto...' : 'Cambiar foto'}
-                      <input
-                        type="file"
-                        accept="image/png,image/jpeg,image/webp"
-                        className="hidden"
-                        onChange={handleFotoChange}
-                        disabled={subiendoFoto}
+                <div className="w-full max-w-sm space-y-3 md:w-72 md:shrink-0">
+                  <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 p-2.5">
+                    {obtenerEscudoEquipo(jugador.equipo) ? (
+                      <img
+                        src={obtenerEscudoEquipo(jugador.equipo)}
+                        alt={`Escudo ${jugador.equipo}`}
+                        className="h-10 w-10 flex-shrink-0 rounded-full object-cover"
                       />
-                    </label>
-                  )}
-                  <button
-                    onClick={handleGenerarInforme}
-                    disabled={generandoInforme}
-                    className="w-full rounded-md bg-club-black px-4 py-2.5 text-sm font-semibold text-white hover:bg-club-black/80 disabled:opacity-60 transition-colors"
-                  >
-                    {generandoInforme ? 'Generando informe...' : 'Informe jugador'}
-                  </button>
-                  {errorFoto ? <p className="text-xs text-club-red mt-2">{errorFoto}</p> : null}
+                    ) : (
+                      <div className="h-10 w-10 flex-shrink-0 rounded-full bg-gray-200" />
+                    )}
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-club-black">{jugador.equipo || 'Sin equipo asignado'}</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2.5">
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div className="rounded-xl border border-gray-200 bg-gray-50 p-2.5 text-center">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-club-black/50">Dorsal</p>
+                        <p className="mt-0.5 text-base font-bold text-club-black">{formatearValor(obtenerValorCampoFicha(jugador, 'dorsal'), 'dorsal')}</p>
+                      </div>
+                      <div className="rounded-xl border border-gray-200 bg-gray-50 p-2.5 text-center">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-club-black/50">Lateralidad</p>
+                        <p className="mt-0.5 text-base font-bold text-club-black">{formatearValor(obtenerValorCampoFicha(jugador, 'lateralidad'), 'lateralidad')}</p>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-2.5 text-center">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-club-black/50">Fecha nac.</p>
+                      <p className="mt-0.5 text-base font-bold text-club-black">{formatearValor(obtenerValorCampoFicha(jugador, 'fecha_nacimiento'), 'fecha_nacimiento')}</p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div className="rounded-xl border border-gray-200 bg-gray-50 p-2.5 text-center">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-club-black/50">Año nac.</p>
+                        <p className="mt-0.5 text-base font-bold text-club-black">{calcularAnioNacimiento(jugador.fecha_nacimiento) ?? '-'}</p>
+                      </div>
+                      <div className="rounded-xl border border-gray-200 bg-gray-50 p-2.5 text-center">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-club-black/50">Edad</p>
+                        <p className="mt-0.5 text-base font-bold text-club-black">{formatearValor(obtenerValorCampoFicha(jugador, 'edad'), 'edad')}</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </aside>
+
+                <div className="w-full max-w-xs shrink-0 md:w-56">
+                  <CampoFutbolPosicion demarcacion={obtenerValorCampoFicha(jugador, 'demarcacion')} />
+                </div>
+              </div>
 
               <main className="space-y-6">
-                {puedeEditarDeportivo ? (
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
-                    <button
-                      onClick={handleGuardarDatosDeportivos}
-                      disabled={guardandoDeportivo}
-                      className="rounded-md bg-club-red px-6 py-2.5 text-sm font-semibold text-white hover:bg-club-red/90 disabled:opacity-60 transition-colors sm:ml-auto"
-                    >
-                      {guardandoDeportivo ? 'Guardando...' : 'Guardar cambios'}
-                    </button>
-                  </div>
-                ) : null}
-
-                {guardadoOkDeportivo || errorDeportivo ? (
-                  <div className="rounded-lg border border-gray-200 bg-white p-4">
-                    <div className="space-y-2 text-sm">
-                      {guardadoOkDeportivo ? (
-                        <p className="font-medium text-green-600">
-                          {syncHojaDeportivo?.ok ? '✓ Guardado y hoja actualizada' : '✓ Guardado'}
-                        </p>
-                      ) : null}
-                      {guardadoOkDeportivo && syncHojaDeportivo && !syncHojaDeportivo.ok ? (
-                        <p className="text-amber-700">
-                          Guardado en la app. Hoja no actualizada: {syncHojaDeportivo.motivo}
-                        </p>
-                      ) : null}
-                      {errorDeportivo ? <p className="text-club-red font-medium">{errorDeportivo}</p> : null}
-                    </div>
-                  </div>
-                ) : null}
-
-                <div className="flex flex-wrap gap-2">
-                  {['equipo', 'edicion', 'lateralidad', 'demarcacion', 'colegio_instituto', 'club_procedencia'].map((campo) => {
-                    const valor = formatearValor(obtenerValorCampoFicha(jugador, campo), campo);
-                    if (!valor || valor === '-') return null;
-                    return (
-                      <span
-                        key={campo}
-                        className="inline-flex items-center rounded-full border border-club-red/20 bg-club-red/5 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-club-red"
-                      >
-                        {valor}
-                      </span>
-                    );
-                  })}
-                </div>
-
                 <div className="grid gap-4 lg:grid-cols-2">
                   {SECCIONES_FICHA.filter((seccion) => !['Contacto', 'Otros datos'].includes(seccion.titulo)).map((seccion) => {
                     const camposDisponibles = seccion.campos.filter((campo) => tieneDatoCampo(jugador, campo));
@@ -511,30 +431,13 @@ export default function FichaJugador() {
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <h4 className="text-sm font-bold uppercase tracking-wide text-club-black">{seccion.titulo}</h4>
-                          {puedeEditarDeportivo ? (
-                            <span className="text-xs font-semibold uppercase tracking-wide text-club-red">Editable</span>
-                          ) : null}
                         </div>
-
-                        {esDeportivo ? (
-                          <div className="mt-4 max-w-[220px]">
-                            <CampoFutbolDemarcacion
-                              demarcacion={
-                                puedeEditarDeportivo
-                                  ? datosDeportivos.demarcacion
-                                  : obtenerValorCampoFicha(jugador, 'demarcacion')
-                              }
-                            />
-                          </div>
-                        ) : null}
 
                         <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                           {camposDisponibles.map((campo) => {
                             const valorCampo = obtenerValorCampoFicha(jugador, campo);
                             const valor = formatearValor(valorCampo, campo);
                             const esLargo = campo === 'observaciones';
-                            const editable = puedeEditarDeportivo && !CAMPOS_NO_EDITABLES.has(campo);
-                            const tipo = TIPO_CAMPO[campo] || 'texto';
 
                             return (
                               <div
@@ -547,72 +450,16 @@ export default function FichaJugador() {
                                   {ETIQUETAS_JUGADOR[campo] || campo}
                                 </p>
                                 <div className={`mt-2 text-sm text-club-black/80 ${esLargo ? 'whitespace-pre-line leading-6' : 'break-words'}`}>
-                                  {!editable ? (
-                                    campo === 'telefono_jugador' && valor !== '-' ? (
-                                      <a href={`tel:${String(valor).replace(/\s+/g, '')}`} className="font-semibold text-club-red hover:underline">
-                                        {valor}
-                                      </a>
-                                    ) : campo === 'email_jugador' && valor !== '-' ? (
-                                      <a href={`mailto:${valor}`} className="font-semibold text-club-red hover:underline">
-                                        {valor}
-                                      </a>
-                                    ) : (
-                                      valor
-                                    )
-                                  ) : tipo === 'seleccion' ? (
-                                    <select
-                                      value={datosDeportivos[campo] || ''}
-                                      onChange={(e) => setDatosDeportivos((prev) => ({ ...prev, [campo]: e.target.value }))}
-                                      className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
-                                    >
-                                      <option value="">-</option>
-                                      {(OPCIONES_POR_CAMPO[campo] || []).map((opcion) => (
-                                        <option key={opcion} value={opcion}>
-                                          {opcion}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  ) : tipo === 'booleano' ? (
-                                    <select
-                                      value={datosDeportivos[campo] ? 'si' : 'no'}
-                                      onChange={(e) =>
-                                        setDatosDeportivos((prev) => ({ ...prev, [campo]: e.target.value === 'si' }))
-                                      }
-                                      className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
-                                    >
-                                      <option value="no">No</option>
-                                      <option value="si">Si</option>
-                                    </select>
-                                  ) : tipo === 'fecha' ? (
-                                    <input
-                                      type="date"
-                                      value={datosDeportivos[campo] || ''}
-                                      onChange={(e) => setDatosDeportivos((prev) => ({ ...prev, [campo]: e.target.value }))}
-                                      className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
-                                    />
-                                  ) : tipo === 'numero' ? (
-                                    <input
-                                      type="number"
-                                      min={campo === 'dorsal' ? 1 : 0}
-                                      max={campo === 'dorsal' ? 99 : undefined}
-                                      value={datosDeportivos[campo]}
-                                      onChange={(e) => setDatosDeportivos((prev) => ({ ...prev, [campo]: e.target.value }))}
-                                      className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
-                                    />
-                                  ) : tipo === 'area' ? (
-                                    <textarea
-                                      value={datosDeportivos[campo]}
-                                      onChange={(e) => setDatosDeportivos((prev) => ({ ...prev, [campo]: e.target.value }))}
-                                      rows={3}
-                                      className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
-                                    />
+                                  {campo === 'telefono_jugador' && valor !== '-' ? (
+                                    <a href={`tel:${String(valor).replace(/\s+/g, '')}`} className="font-semibold text-club-red hover:underline">
+                                      {valor}
+                                    </a>
+                                  ) : campo === 'email_jugador' && valor !== '-' ? (
+                                    <a href={`mailto:${valor}`} className="font-semibold text-club-red hover:underline">
+                                      {valor}
+                                    </a>
                                   ) : (
-                                    <input
-                                      type="text"
-                                      value={datosDeportivos[campo]}
-                                      onChange={(e) => setDatosDeportivos((prev) => ({ ...prev, [campo]: e.target.value }))}
-                                      className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
-                                    />
+                                    valor
                                   )}
                                 </div>
                               </div>

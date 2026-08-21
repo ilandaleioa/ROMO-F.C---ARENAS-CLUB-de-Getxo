@@ -105,6 +105,16 @@ function AppRoutes() {
         element={
           <ProtectedRoute requiredApartado="inicio">
             <Layout>
+              <Plantillas />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/fichas/:id"
+        element={
+          <ProtectedRoute requiredApartado="inicio">
+            <Layout>
               <FichaJugador />
             </Layout>
           </ProtectedRoute>

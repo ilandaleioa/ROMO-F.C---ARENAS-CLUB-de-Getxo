@@ -7,7 +7,6 @@ export const ETIQUETAS_JUGADOR = {
   primer_apellido: 'Primer apellido',
   segundo_apellido: 'Segundo apellido',
   equipo: 'Equipo',
-  edicion: 'Edicion',
   fecha_nacimiento: 'Fecha de nacimiento',
   anio_nacimiento: 'Ano de nacimiento',
   edad: 'Edad',
@@ -17,7 +16,7 @@ export const ETIQUETAS_JUGADOR = {
   peso_kg: 'Peso (kg)',
   dorsal: 'Dorsal',
   lateralidad: 'Lateralidad',
-  demarcacion: 'Demarcacion',
+  demarcacion: 'Posición',
   tiene_hermanos_club: 'Hermanos en el club',
   domicilio: 'Domicilio',
   numero: 'Numero',
@@ -50,7 +49,20 @@ export const ETIQUETAS_JUGADOR = {
 // Opciones validas para los desplegables de datos deportivos (deben coincidir
 // con backend/src/config/datosDeportivos.js).
 export const LATERALIDAD_OPCIONES = ['Diestro', 'Zurdo', 'Ambas'];
-export const DEMARCACION_OPCIONES = ['Portero', 'Lateral', 'Central', 'Medio', 'Media punta', 'Extremo', 'Delantero'];
+export const DEMARCACION_OPCIONES = [
+  'Portero',
+  'Lateral Dcho',
+  'Lateral Izdo',
+  'Central Dcho',
+  'Central Izdo',
+  'Pivote',
+  'Media punta',
+  'Interior Dcho',
+  'Interior Izdo',
+  'Extremo Dcho',
+  'Extremo Izdo',
+  'Delantero',
+];
 
 // Orden de las secciones/campos en la ficha de detalle.
 export const SECCIONES_FICHA = [
@@ -65,7 +77,6 @@ export const SECCIONES_FICHA = [
       'primer_apellido',
       'segundo_apellido',
       'equipo',
-      'edicion',
       'lugar_nacimiento',
       'dni_jugador',
       'altura_cm',

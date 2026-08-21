@@ -288,7 +288,20 @@ export const LISTAS_INICIALES = [
       { key: 'id', label: 'ID', editable: false },
       { key: 'nombre', label: 'Demarcacion' },
     ],
-    filas: ['Portero', 'Lateral', 'Central', 'Medio', 'Media punta', 'Extremo', 'Delantero'].map((nombre) => ({
+    filas: [
+      'Portero',
+      'Lateral Dcho',
+      'Lateral Izdo',
+      'Central Dcho',
+      'Central Izdo',
+      'Pivote',
+      'Media punta',
+      'Interior Dcho',
+      'Interior Izdo',
+      'Extremo Dcho',
+      'Extremo Izdo',
+      'Delantero',
+    ].map((nombre) => ({
       id: `demarcacion-${nombre.toLowerCase().replace(/[^a-z0-9]+/gi, '-')}`,
       nombre,
     })),

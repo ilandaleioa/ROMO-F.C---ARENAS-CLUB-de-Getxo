@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useClub } from '../context/ClubContext';
 import { useFiltroEquipos } from '../context/FiltroEquiposContext';
@@ -9,6 +9,9 @@ import { useListaValores } from '../lib/listas';
 import { equiposAsignadosLabel, parseEquiposAsignados, usuarioLimitadoAUnEquipo } from '../lib/equiposAsignados';
 import { usuarioPuedeVerApartado } from '../lib/apartados';
 import TableScroll from '../components/TableScroll';
+import CampoFutbolPosicion from '../components/CampoFutbolPosicion';
+import { ETIQUETAS_JUGADOR, SECCIONES_FICHA } from '../lib/campos';
+import BotonesVistaPlantillas from '../components/BotonesVistaPlantillas';
 
 const COLORES_MUNICIPIOS = [
   '#2a78d6',
@@ -85,8 +88,17 @@ function crearJugadorVacio(equipo = '') {
   };
 }
 
+// Secciones excluidas del bloque de datos inferiores del formulario porque sus
+// campos ya se editan arriba, junto a la foto y el campo de futbol (como en la ficha).
+const SECCIONES_FORMULARIO_JUGADOR = SECCIONES_FICHA.filter(
+  (seccion) => seccion.titulo !== 'Datos deportivos' && seccion.titulo !== 'Nacimiento'
+);
+const CAMPOS_NUMERICOS_FORMULARIO = new Set(['altura_cm', 'peso_kg']);
+const CAMPOS_OBLIGATORIOS_FORMULARIO = new Set(['nombre', 'primer_apellido', 'equipo']);
+
 export default function Plantillas({ soloGraficas = false }) {
   const navigate = useNavigate();
+  const { id: jugadorIdParam } = useParams();
   const { user } = useAuth();
   const { club } = useClub();
   const lateralidades = useListaValores('lateralidad');
@@ -121,6 +133,9 @@ export default function Plantillas({ soloGraficas = false }) {
   const [tarjetaAccionesAbiertaId, setTarjetaAccionesAbiertaId] = useState(null);
   const { vista, setVista } = useVistaPlantillas();
   const [esMovil, setEsMovil] = useState(detectarMovil);
+  const [jugadorEditando, setJugadorEditando] = useState(null);
+  const [cargandoEdicion, setCargandoEdicion] = useState(false);
+  const estaEditando = Boolean(jugadorIdParam);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(max-width: 767px)');
@@ -130,6 +145,27 @@ export default function Plantillas({ soloGraficas = false }) {
     mediaQuery.addEventListener('change', actualizar);
     return () => mediaQuery.removeEventListener('change', actualizar);
   }, []);
+
+  useEffect(() => {
+    if (!estaEditando) {
+      setJugadorEditando(null);
+      return;
+    }
+
+    setCargandoEdicion(true);
+    api
+      .get(`/jugadores/${jugadorIdParam}`)
+      .then(({ jugador }) => {
+        setJugadorEditando(jugador);
+        setMostrarFormularioJugador(true);
+        setFormularioJugador(jugador);
+      })
+      .catch((err) => {
+        setError(err.message);
+        navigate('/plantillas');
+      })
+      .finally(() => setCargandoEdicion(false));
+  }, [jugadorIdParam, estaEditando]);
 
   useEffect(() => {
     const cerrarFiltros = (event) => {
@@ -261,6 +297,10 @@ export default function Plantillas({ soloGraficas = false }) {
     if (guardandoJugador) return;
     setMostrarFormularioJugador(false);
     setFormularioJugador(crearJugadorVacio());
+    setJugadorEditando(null);
+    if (estaEditando) {
+      navigate('/plantillas');
+    }
   };
 
   const actualizarFormularioJugador = (campo, valor) => {
@@ -274,18 +314,36 @@ export default function Plantillas({ soloGraficas = false }) {
     setMensajeSync('');
 
     try {
-      const resultado = await api.post('/jugadores', {
+      const datosJugador = {
         ...formularioJugador,
         dorsal: formularioJugador.dorsal === '' ? null : Number(formularioJugador.dorsal),
         lateralidad: formularioJugador.lateralidad || null,
         demarcacion: formularioJugador.demarcacion || null,
+      };
+      CAMPOS_NUMERICOS_FORMULARIO.forEach((campo) => {
+        datosJugador[campo] = formularioJugador[campo] === '' || formularioJugador[campo] === undefined
+          ? null
+          : Number(formularioJugador[campo]);
       });
+
+      let resultado;
+      if (jugadorEditando?.id) {
+        resultado = await api.put(`/jugadores/${jugadorEditando.id}`, datosJugador);
+        setMensajeSync('Jugador actualizado correctamente.');
+      } else {
+        resultado = await api.post('/jugadores', datosJugador);
+        setMensajeSync('Jugador creado correctamente.');
+      }
+
       setMostrarFormularioJugador(false);
       setFormularioJugador(crearJugadorVacio());
-      setMensajeSync('Jugador creado correctamente.');
+      setJugadorEditando(null);
       await recargarEquipos();
       await cargarJugadores();
-      if (resultado?.jugador && equiposSeleccionados.length === 0) {
+
+      if (estaEditando) {
+        navigate('/plantillas');
+      } else if (resultado?.jugador && equiposSeleccionados.length === 0) {
         setJugadores((actuales) => (actuales.some((j) => j.id === resultado.jugador.id) ? actuales : [resultado.jugador, ...actuales]));
       }
     } catch (err) {
@@ -531,88 +589,197 @@ export default function Plantillas({ soloGraficas = false }) {
   const renderFormularioJugador = () => {
     if (!mostrarFormularioJugador) return null;
 
-    const camposTexto = [
-      ['nombre', 'Nombre', 'text', true],
-      ['primer_apellido', 'Primer apellido', 'text', true],
-      ['segundo_apellido', 'Segundo apellido', 'text', false],
-      ['equipo', 'Equipo', 'text', true],
-      ['fecha_nacimiento', 'Fecha de nacimiento', 'date', false],
-      ['dorsal', 'Dorsal', 'number', false],
-    ];
+    const esEdicion = Boolean(jugadorEditando?.id);
+    const tituloFormulario = esEdicion ? 'Editar jugador' : 'Nuevo jugador';
+    const descripcionFormulario = esEdicion
+      ? `Edita los datos de ${nombreCompleto(jugadorEditando)}`
+      : 'Completa los datos del jugador.';
+    const textoBtnGuardar = esEdicion
+      ? (guardandoJugador ? 'Guardando...' : 'Actualizar jugador')
+      : (guardandoJugador ? 'Guardando...' : 'Crear jugador');
+
+    const renderCampoSeccion = (campo) => {
+      const etiqueta = ETIQUETAS_JUGADOR[campo] || campo;
+      const requerido = CAMPOS_OBLIGATORIOS_FORMULARIO.has(campo);
+
+      if (campo === 'tiene_hermanos_club') {
+        const valorActual = formularioJugador[campo];
+        return (
+          <label key={campo} className="block rounded-xl border border-gray-200 bg-white p-4">
+            <span className="text-xs font-semibold uppercase tracking-wide text-club-black/45">{etiqueta}</span>
+            <select
+              value={valorActual === true ? 'si' : valorActual === false ? 'no' : ''}
+              onChange={(event) =>
+                actualizarFormularioJugador(campo, event.target.value === '' ? null : event.target.value === 'si')
+              }
+              className="mt-2 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
+            >
+              <option value="">Sin especificar</option>
+              <option value="si">Si</option>
+              <option value="no">No</option>
+            </select>
+          </label>
+        );
+      }
+
+      const esNumerico = CAMPOS_NUMERICOS_FORMULARIO.has(campo);
+
+      return (
+        <label key={campo} className="block rounded-xl border border-gray-200 bg-white p-4">
+          <span className="text-xs font-semibold uppercase tracking-wide text-club-black/45">
+            {etiqueta}
+            {requerido ? ' *' : ''}
+          </span>
+          <input
+            type={esNumerico ? 'number' : 'text'}
+            required={requerido}
+            value={formularioJugador[campo] ?? ''}
+            onChange={(event) => actualizarFormularioJugador(campo, event.target.value)}
+            className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
+          />
+        </label>
+      );
+    };
 
     return (
-      <form onSubmit={handleCrearJugador} className="mb-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <h3 className="font-bold text-club-black">Nuevo jugador</h3>
-          <p className="text-xs text-club-black/60">Completa los datos básicos del jugador.</p>
-        </div>
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:justify-center sm:items-center">
-          <button
-            type="submit"
-            disabled={guardandoJugador}
-            className="w-full sm:w-auto rounded-md bg-club-red px-4 py-2 text-sm font-semibold text-white hover:bg-club-redDark disabled:opacity-60"
-          >
-            {guardandoJugador ? 'Guardando...' : 'Crear jugador'}
-          </button>
-          <button
-            type="button"
-            onClick={cerrarFormularioJugador}
-            className="w-full sm:w-auto rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold text-club-black hover:bg-gray-50"
-          >
-            Cancelar
-          </button>
-        </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {camposTexto.map(([campo, etiqueta, tipo, requerido]) => (
-            <label key={campo} className="text-xs font-semibold text-club-black/70">
-              {etiqueta}
-              <input
-                type={tipo}
-                required={requerido}
-                min={campo === 'dorsal' ? 1 : undefined}
-                max={campo === 'dorsal' ? 99 : undefined}
-                value={formularioJugador[campo]}
-                onChange={(event) => actualizarFormularioJugador(campo, event.target.value)}
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-normal text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
-              />
-            </label>
-          ))}
-          <label className="text-xs font-semibold text-club-black/70">
-            Lateralidad
-            <select
-              value={formularioJugador.lateralidad}
-              onChange={(event) => actualizarFormularioJugador('lateralidad', event.target.value)}
-              className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
+      <section className="mb-4 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 bg-gradient-to-r from-club-black to-club-red px-5 py-4 text-white">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/70">{tituloFormulario}</p>
+            <h3 className="mt-1 text-2xl font-bold">
+              {esEdicion ? nombreCompleto(jugadorEditando) || 'Jugador sin nombre' : 'Nuevo jugador'}
+            </h3>
+            <p className="text-sm text-white/80">{descripcionFormulario}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="submit"
+              form="formulario-jugador"
+              disabled={guardandoJugador}
+              className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-club-red hover:bg-white/90 disabled:opacity-60"
             >
-              <option value="">Seleccionar</option>
-              {lateralidades.map((opcion) => <option key={opcion} value={opcion}>{opcion}</option>)}
-            </select>
-          </label>
-          <label className="text-xs font-semibold text-club-black/70">
-            Demarcacion
-            <select
-              value={formularioJugador.demarcacion}
-              onChange={(event) => actualizarFormularioJugador('demarcacion', event.target.value)}
-              className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
+              {textoBtnGuardar}
+            </button>
+            <button
+              type="button"
+              onClick={cerrarFormularioJugador}
+              disabled={guardandoJugador}
+              className="rounded-md border border-white/30 bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/20 disabled:opacity-60"
             >
-              <option value="">Seleccionar</option>
-              {demarcaciones.map((opcion) => <option key={opcion} value={opcion}>{opcion}</option>)}
-            </select>
-          </label>
+              Cancelar
+            </button>
+          </div>
         </div>
-      </form>
+
+        <form id="formulario-jugador" onSubmit={handleCrearJugador} className="space-y-6 p-6">
+          <div className="flex w-full flex-col items-center gap-6 md:flex-row md:items-start md:justify-center">
+            <div className="w-full max-w-xs shrink-0 space-y-2.5 md:w-56">
+              <div className="overflow-hidden rounded-2xl border border-gray-200 bg-gray-50">
+                {jugadorEditando?.foto_url ? (
+                  <img src={jugadorEditando.foto_url} alt="Foto del jugador" className="h-56 w-full object-cover" />
+                ) : (
+                  <div className="flex h-56 items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 px-3 text-center text-sm font-semibold text-club-black/40">
+                    Sin foto disponible
+                  </div>
+                )}
+              </div>
+              {esEdicion && (
+                <Link
+                  to={`/fichas/${jugadorEditando.id}`}
+                  className="block text-center text-xs font-semibold text-club-red hover:underline"
+                >
+                  Cambiar foto desde la ficha
+                </Link>
+              )}
+            </div>
+
+            <div className="w-full max-w-sm space-y-3 md:w-72 md:shrink-0">
+              <div className="grid grid-cols-2 gap-2.5">
+                <label className="block rounded-xl border border-gray-200 bg-gray-50 p-2.5 text-center">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-club-black/50">Dorsal</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={99}
+                    value={formularioJugador.dorsal ?? ''}
+                    onChange={(event) => actualizarFormularioJugador('dorsal', event.target.value)}
+                    className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-center text-base font-bold text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
+                  />
+                </label>
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-2.5 text-center">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-club-black/50">Edad</p>
+                  <p className="mt-1 text-base font-bold text-club-black">
+                    {calcularEdad(formularioJugador.fecha_nacimiento) ?? '-'}
+                  </p>
+                </div>
+                <label className="block rounded-xl border border-gray-200 bg-gray-50 p-2.5 text-center">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-club-black/50">Lateralidad</span>
+                  <select
+                    value={formularioJugador.lateralidad || ''}
+                    onChange={(event) => actualizarFormularioJugador('lateralidad', event.target.value)}
+                    className="mt-1 w-full rounded-md border border-gray-300 bg-white px-1 py-1 text-center text-sm font-semibold text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
+                  >
+                    <option value="">-</option>
+                    {lateralidades.map((opcion) => <option key={opcion} value={opcion}>{opcion}</option>)}
+                  </select>
+                </label>
+                <label className="block rounded-xl border border-gray-200 bg-gray-50 p-2.5 text-center">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-club-black/50">Fecha nac.</span>
+                  <input
+                    type="date"
+                    value={formularioJugador.fecha_nacimiento || ''}
+                    onChange={(event) => actualizarFormularioJugador('fecha_nacimiento', event.target.value)}
+                    className="mt-1 w-full rounded-md border border-gray-300 px-1 py-1 text-center text-sm font-semibold text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div className="w-full max-w-xs shrink-0 space-y-2 md:w-56">
+              <CampoFutbolPosicion demarcacion={formularioJugador.demarcacion} />
+              <select
+                value={formularioJugador.demarcacion || ''}
+                onChange={(event) => actualizarFormularioJugador('demarcacion', event.target.value)}
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
+              >
+                <option value="">Seleccionar posición</option>
+                {demarcaciones.map((opcion) => <option key={opcion} value={opcion}>{opcion}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            {SECCIONES_FORMULARIO_JUGADOR.map((seccion) => {
+              const esSeccionAncha = seccion.titulo === 'Datos del jugador';
+              return (
+                <section
+                  key={seccion.titulo}
+                  className={`rounded-2xl border border-gray-200 bg-gray-50 p-4 ${esSeccionAncha ? 'lg:col-span-2' : ''}`}
+                >
+                  <h4 className="text-sm font-bold uppercase tracking-wide text-club-black">{seccion.titulo}</h4>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    {seccion.campos.map((campo) => renderCampoSeccion(campo))}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        </form>
+      </section>
     );
   };
 
   const renderBotonVer = (jugador) => (
     <Link
-      to={`/plantillas/${jugador.id}`}
+      to={`/fichas/${jugador.id}`}
       onClick={(event) => event.stopPropagation()}
       className="inline-flex items-center justify-center h-8 w-8 shrink-0 rounded-md border border-club-red/20 bg-white text-club-red hover:bg-red-50 hover:text-club-redDark transition-colors"
       aria-label={`Ver ficha de ${nombreCompleto(jugador)}`}
       title={`Ver ficha de ${nombreCompleto(jugador)}`}
     >
-      {renderIconoOjo()}
+      <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4" aria-hidden="true">
+        <path d="M10 3.5c-4.14 0-7.4 2.6-9 6.5 1.6 3.9 4.86 6.5 9 6.5s7.4-2.6 9-6.5c-1.6-3.9-4.86-6.5-9-6.5zm0 10.83A4.33 4.33 0 1110 5.67a4.33 4.33 0 010 8.66zm0-6.83a2.5 2.5 0 100 5 2.5 2.5 0 000-5z" />
+      </svg>
     </Link>
   );
 
@@ -621,13 +788,16 @@ export default function Plantillas({ soloGraficas = false }) {
 
     return (
       <Link
-        to={`/plantillas/${jugador.id}#datos-deportivos`}
+        to={`/plantillas/${jugador.id}`}
         onClick={(event) => event.stopPropagation()}
         className="inline-flex items-center justify-center h-8 w-8 shrink-0 rounded-md border border-club-red/20 bg-white text-club-red hover:bg-red-50 hover:text-club-redDark transition-colors"
         aria-label={`Editar a ${nombreCompleto(jugador)}`}
         title={`Editar a ${nombreCompleto(jugador)}`}
       >
-        {renderIconoLapiz()}
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
+          <path d="M4 13.5V16h2.5L15.8 6.7a1.8 1.8 0 0 0 0-2.5l-.1-.1a1.8 1.8 0 0 0-2.5 0L4 13.5Z" />
+          <path d="m12.8 4.4 2.8 2.8" />
+        </svg>
       </Link>
     );
   };
@@ -650,14 +820,20 @@ export default function Plantillas({ soloGraficas = false }) {
         aria-label={`Borrar a ${nombre}`}
         title={`Borrar a ${nombre}`}
       >
-        {renderIconoPapelera()}
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
+          <path d="M3.5 5h13" />
+          <path d="M8 5V3.5h4V5" />
+          <path d="M6 5.5l.7 10.5h6.6L14 5.5" />
+          <path d="M8.5 8v5.5" />
+          <path d="M11.5 8v5.5" />
+        </svg>
         <span className="sr-only">{borrando ? 'Borrando...' : 'Borrar'}</span>
       </button>
     );
   };
 
   const renderAccionesJugador = (jugador, { mostrarCerrar = false, onCerrar } = {}) => (
-    <div className="inline-flex items-center justify-start gap-1.5" onClick={(event) => event.stopPropagation()}>
+    <div className="inline-flex items-center justify-start gap-0.5" onClick={(event) => event.stopPropagation()}>
       {renderBotonVer(jugador)}
       {renderBotonEditar(jugador)}
       {renderBotonBorrar(jugador)}
@@ -672,7 +848,10 @@ export default function Plantillas({ soloGraficas = false }) {
           aria-label={`Cerrar acciones de ${nombreCompleto(jugador)}`}
           title={`Cerrar acciones de ${nombreCompleto(jugador)}`}
         >
-          {renderIconoCerrar()}
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
+            <path d="M5 5l10 10" />
+            <path d="M15 5 5 15" />
+          </svg>
         </button>
       )}
     </div>
@@ -815,7 +994,7 @@ export default function Plantillas({ soloGraficas = false }) {
     return (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {renderBarras('Jugadores por equipo', porEquipo)}
-        {renderBarras('Jugadores por demarcación', porDemarcacion)}
+        {renderBarras('Jugadores por posición', porDemarcacion)}
         {renderBarras('Jugadores por año de nacimiento', porAnio, { ordenNumerico: true })}
         {renderGraficaCircularMunicipios()}
         {renderGraficaBarrasMunicipios()}
@@ -824,20 +1003,15 @@ export default function Plantillas({ soloGraficas = false }) {
   };
 
   const renderTablaJugadores = (lista) => (
-    <TableScroll className="overflow-x-auto overflow-y-auto max-h-[70vh] rounded-lg border border-gray-200">
-      <table className="w-full divide-y divide-gray-200 bg-white text-sm sm:text-base">
+    <div className="max-w-6xl">
+      <TableScroll className="overflow-x-auto overflow-y-auto max-h-[70vh] rounded-lg border border-gray-200">
+        <table className="w-full divide-y divide-gray-200 bg-white text-sm sm:text-base">
         <thead className="bg-club-black text-white sticky top-0 z-10">
           <tr>
-            <th className="px-2 py-2 sm:px-4 sm:py-3" />
-            <th className="px-2 py-2 sm:px-4 sm:py-3 text-left text-xs font-semibold uppercase tracking-wide">Foto</th>
-            <th className="px-2 py-2 sm:px-4 sm:py-3 text-left text-xs font-semibold uppercase tracking-wide">Nombre</th>
-            <th className="hidden sm:table-cell px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Fecha nacimiento</th>
-            <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Año</th>
-            <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Edad</th>
-            <th className="hidden min-[380px]:table-cell px-2 py-2 sm:px-4 sm:py-3 text-left text-xs font-semibold uppercase tracking-wide">Demarcación</th>
-            <th className="px-2 py-2 sm:px-4 sm:py-3 text-right text-xs font-semibold uppercase tracking-wide">
-              <span className="inline-flex items-center justify-end gap-2">
-                <span>Acciones</span>
+            <th className="px-2 py-2.5 sm:px-3 sm:py-3" />
+            <th className="px-2 py-2.5 sm:px-3 sm:py-3 text-left text-xs font-semibold uppercase tracking-wide">
+              <span className="inline-flex items-center gap-1">
+                <span className="hidden sm:inline">Acciones</span>
                 {puedeAnadirJugadores && (
                   <button
                     type="button"
@@ -851,6 +1025,12 @@ export default function Plantillas({ soloGraficas = false }) {
                 )}
               </span>
             </th>
+            <th className="px-2 py-2.5 sm:px-3 sm:py-3 text-left text-xs font-semibold uppercase tracking-wide">Foto</th>
+            <th className="px-2 py-2.5 sm:px-3 sm:py-3 text-left text-xs font-semibold uppercase tracking-wide">Nombre</th>
+            <th className="hidden sm:table-cell px-2.5 py-2.5 sm:px-3 sm:py-3 text-left text-xs font-semibold uppercase tracking-wide">F. nac.</th>
+            <th className="hidden md:table-cell px-2.5 py-2.5 sm:px-3 sm:py-3 text-left text-xs font-semibold uppercase tracking-wide">Año</th>
+            <th className="hidden md:table-cell px-2.5 py-2.5 sm:px-3 sm:py-3 text-left text-xs font-semibold uppercase tracking-wide">Edad</th>
+            <th className="hidden min-[380px]:table-cell px-2 py-2.5 sm:px-3 sm:py-3 text-left text-xs font-semibold uppercase tracking-wide">Posición</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
@@ -870,48 +1050,49 @@ export default function Plantillas({ soloGraficas = false }) {
               aria-label={`Abrir ficha de ${nombreCompleto(j)}`}
               title={`Abrir ficha de ${nombreCompleto(j)}`}
             >
-              <td className="px-2 py-2 sm:px-4 sm:py-3">
-                <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-full bg-gray-200 flex items-center justify-center text-[10px] sm:text-xs font-semibold text-club-black/60">
+              <td className="px-2 py-2.5 sm:px-3 sm:py-3">
+                <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-gray-200 flex items-center justify-center text-[8px] sm:text-[10px] font-semibold text-club-black/60">
                   {index + 1}
                 </div>
               </td>
-              <td className="px-2 py-2 sm:px-4 sm:py-3">
-                {j.foto_url ? (
-                  <img
-                    src={j.foto_url}
-                    alt={`Foto de ${j.nombre}`}
-                    className="w-7 h-7 sm:w-9 sm:h-9 rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-full bg-gray-200 flex items-center justify-center text-[10px] sm:text-xs font-semibold text-club-black/40">
-                    -
-                  </div>
-                )}
-              </td>
-              <td className="px-2 py-2 sm:px-4 sm:py-3 font-medium text-club-black max-w-[120px] sm:max-w-none truncate">
-                <div className="flex items-center gap-1.5">
-                  <span className="shrink-0 min-w-[1.5rem] text-center rounded-full bg-club-red/10 px-1.5 py-0.5 text-xs font-semibold text-club-red">
-                    {j.dorsal ?? '-'}
-                  </span>
-                  <span className="truncate">
-                    {nombreCompleto(j)}
-                  </span>
-                </div>
-              </td>
-              <td className="hidden sm:table-cell px-4 py-3 text-club-black/80">{formatearFecha(j.fecha_nacimiento) || '-'}</td>
-              <td className="hidden md:table-cell px-4 py-3 text-club-black/80">{anioNacimiento(j.fecha_nacimiento) ?? '-'}</td>
-              <td className="hidden md:table-cell px-4 py-3 text-club-black/80">{calcularEdad(j.fecha_nacimiento) ?? '-'}</td>
-              <td className="hidden min-[380px]:table-cell px-2 py-2 sm:px-4 sm:py-3 text-club-black/80 max-w-[110px] truncate">{j.demarcacion || '-'}</td>
-              <td className="px-2 py-2 sm:px-4 sm:py-3 text-left">
+              <td className="px-2 py-2.5 sm:px-3 sm:py-3">
                 <div onClick={(event) => event.stopPropagation()}>
                   {renderAccionesJugador(j)}
                 </div>
               </td>
+              <td className="px-2 py-2.5 sm:px-3 sm:py-3">
+                {j.foto_url ? (
+                  <img
+                    src={j.foto_url}
+                    alt={`Foto de ${j.nombre}`}
+                    className="w-5 h-5 sm:w-6 sm:h-6 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-gray-200 flex items-center justify-center text-[8px] sm:text-[10px] font-semibold text-club-black/40">
+                    -
+                  </div>
+                )}
+              </td>
+              <td className="px-2 py-2.5 sm:px-3 sm:py-3 font-medium text-club-black max-w-[120px] sm:max-w-none truncate">
+                <div className="flex items-center gap-1">
+                  <span className="shrink-0 min-w-[1.2rem] text-center rounded-full bg-club-red/10 px-1 py-0 text-[10px] font-semibold text-club-red">
+                    {j.dorsal ?? '-'}
+                  </span>
+                  <span className="truncate text-xs sm:text-sm">
+                    {nombreCompleto(j)}
+                  </span>
+                </div>
+              </td>
+              <td className="hidden sm:table-cell px-2.5 py-2.5 sm:px-3 sm:py-3 text-club-black/80 text-sm">{formatearFecha(j.fecha_nacimiento) || '-'}</td>
+              <td className="hidden md:table-cell px-2.5 py-2.5 sm:px-3 sm:py-3 text-club-black/80 text-sm">{anioNacimiento(j.fecha_nacimiento) ?? '-'}</td>
+              <td className="hidden md:table-cell px-2.5 py-2.5 sm:px-3 sm:py-3 text-club-black/80 text-sm max-w-[110px] truncate">{calcularEdad(j.fecha_nacimiento) ?? '-'}</td>
+              <td className="hidden min-[380px]:table-cell px-2 py-2.5 sm:px-3 sm:py-3 text-club-black/80 text-sm max-w-[110px] truncate">{j.demarcacion || '-'}</td>
             </tr>
           ))}
         </tbody>
       </table>
-    </TableScroll>
+      </TableScroll>
+    </div>
   );
 
   const renderTarjetasJugadores = (lista) => (
@@ -958,7 +1139,7 @@ export default function Plantillas({ soloGraficas = false }) {
             Lateralidad: {j.lateralidad || '-'}
           </p>
           <p className="text-sm text-club-black/60">
-            Demarcación: {j.demarcacion || '-'}
+            Posición: {j.demarcacion || '-'}
           </p>
           <div
             className={`mt-2 overflow-hidden transition-all duration-200 ${
@@ -989,6 +1170,7 @@ export default function Plantillas({ soloGraficas = false }) {
     </div>
   );
 
+
   const renderFiltroEquipos = () => {
     const etiquetaSeleccion =
       equiposSeleccionados.length === 0 ? 'Todos los equipos' : equiposSeleccionados[0];
@@ -1018,24 +1200,21 @@ export default function Plantillas({ soloGraficas = false }) {
             >
               Todos los equipos
             </button>
-            {equiposDisponiblesTabla.map((eq) => (
-              <label
+            {equiposDisponibles.map((eq) => (
+              <button
                 key={eq}
-                className="flex items-center gap-2 px-4 py-2.5 text-sm border-b border-gray-100 last:border-b-0 text-club-black/80 hover:bg-red-50/60 cursor-pointer"
+                onClick={() => {
+                  seleccionarEquipoUnico(eq);
+                  setFiltroEquiposAbierto(false);
+                }}
+                className={`w-full text-left px-4 py-2.5 text-sm border-b border-gray-100 last:border-b-0 transition-colors ${
+                  equiposSeleccionados.includes(eq)
+                    ? 'bg-club-red text-white font-semibold'
+                    : 'text-club-black/80 hover:bg-red-50/60'
+                }`}
               >
-                <input
-                  type="radio"
-                  name="filtro-equipo"
-                  checked={equiposSeleccionados.includes(eq)}
-                  onClick={() => {
-                    seleccionarEquipoUnico(eq);
-                    setFiltroEquiposAbierto(false);
-                  }}
-                  onChange={() => {}}
-                  className="h-4 w-4 accent-club-red"
-                />
                 {eq}
-              </label>
+              </button>
             ))}
           </div>
         </div>
@@ -1173,7 +1352,7 @@ export default function Plantillas({ soloGraficas = false }) {
       })}
       {renderFiltroMultiseleccion({
         id: 'demarcacion',
-        etiquetaTodos: 'Todas las demarcaciones',
+        etiquetaTodos: 'Todas las posiciones',
         opciones: demarcacionesDisponibles,
         seleccionados: filtroDemarcacion,
         setSeleccionados: setFiltroDemarcacion,
@@ -1188,90 +1367,86 @@ export default function Plantillas({ soloGraficas = false }) {
     </div>
   );
 
-  return (
-    <div className="w-full px-4 sm:px-6 py-6">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
-        <h2 className="text-2xl font-bold text-club-black">{soloGraficas ? 'Gráficas de plantillas' : 'Plantillas'}</h2>
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full lg:w-auto">
-          <div className="hidden md:block w-full lg:w-auto">
-            {renderFiltrosDeportivos()}
-          </div>
-          <div className="hidden md:flex md:flex-row md:items-center gap-3">
-            <button
-              onClick={handleActualizar}
-              disabled={refrescando}
-              className="inline-flex h-12 w-full sm:w-auto items-center justify-center self-start sm:self-auto whitespace-nowrap bg-club-red hover:bg-club-redDark disabled:opacity-60 text-white font-semibold px-4 py-2 rounded-md transition-colors"
-            >
-              {refrescando ? 'Actualizando...' : 'Actualizar datos'}
-            </button>
-            {puedeSincronizar && (
-              <button
-                onClick={handleSincronizar}
-                disabled={sincronizando}
-                className="inline-flex h-12 w-full sm:w-auto items-center justify-center self-start sm:self-auto whitespace-nowrap bg-club-black hover:bg-black disabled:opacity-60 text-white font-semibold px-4 py-2 rounded-md transition-colors"
-              >
-                {sincronizando ? 'Sincronizando...' : 'Sincronizar Google Sheets'}
-              </button>
-            )}
-          </div>
-        </div>
+  if (estaEditando && cargandoEdicion) {
+    return (
+      <div className="w-full px-3 sm:px-4 py-4 flex items-center justify-center min-h-[400px]">
+        <p className="text-club-black/60">Cargando formulario de edición...</p>
       </div>
+    );
+  }
 
-      {!soloGraficas && (
-        <div className="flex flex-wrap gap-3 mb-6" aria-label="Vistas de plantillas">
-          {[
-            { valor: 'tabla', label: 'Vista tabla' },
-            { valor: 'tarjetas', label: 'Vista tarjetas' },
-          ].map((opcion) => {
-            const activo = vista === opcion.valor;
-
-            return (
-              <button
-                key={opcion.valor}
-                type="button"
-                onClick={() => setVista(opcion.valor)}
-                className={`rounded-md px-5 py-3 text-sm font-semibold transition-colors ${
-                  activo
-                    ? 'bg-club-red text-white'
-                    : 'border border-gray-300 bg-white text-club-black/80 hover:bg-club-red/10 hover:text-club-black'
-                }`}
-              >
-                {opcion.label}
-              </button>
-            );
-          })}
-          {usuarioPuedeVerApartado(user, 'graficas') && (
-            <button
-              type="button"
-              onClick={() => navigate('/graficas')}
-              className="rounded-md border border-gray-300 bg-white px-5 py-3 text-sm font-semibold text-club-black/80 transition-colors hover:bg-club-red/10 hover:text-club-black"
-            >
-              GRÁFICAS
-            </button>
+  return (
+    <div className="w-full px-3 sm:px-4 py-4">
+      {estaEditando && (
+        <div className="mb-4 flex flex-col gap-2">
+          <Link
+            to="/plantillas"
+            className="inline-flex items-center gap-2 w-fit text-sm font-semibold text-club-red hover:text-club-redDark transition-colors"
+          >
+            ← Volver a plantillas
+          </Link>
+          {error && (
+            <p className="text-sm text-club-red font-medium bg-red-50 border border-club-red/30 rounded-md px-3 py-2">
+              {error}
+            </p>
           )}
-          {usuarioPuedeVerApartado(user, 'campogramas') && (
-            <button
-              type="button"
-              onClick={() => navigate('/campogramas')}
-              className="rounded-md border border-gray-300 bg-white px-5 py-3 text-sm font-semibold text-club-black/80 transition-colors hover:bg-club-red/10 hover:text-club-black"
-            >
-              Campogramas
-            </button>
+          {mensajeSync && (
+            <p className="text-sm text-club-black bg-gray-100 border border-gray-200 rounded-md px-3 py-2">
+              {mensajeSync}
+            </p>
           )}
         </div>
       )}
 
-      {mensajeSync && (
-        <p className="text-sm text-club-black bg-gray-100 border border-gray-200 rounded-md px-3 py-2 mb-4">
-          {mensajeSync}
-        </p>
+      {!estaEditando && (
+        <>
+          <div className="flex flex-col gap-4 mb-4">
+            <h2 className="text-2xl font-bold text-club-black text-center lg:text-left">Plantillas</h2>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-center gap-3 w-full">
+              <div className="hidden md:block">
+                {renderFiltrosDeportivos()}
+              </div>
+              <div className="hidden md:flex md:flex-row md:items-center gap-3">
+                <button
+                  onClick={handleActualizar}
+                  disabled={refrescando}
+                  className="inline-flex h-12 w-full sm:w-auto items-center justify-center whitespace-nowrap bg-club-red hover:bg-club-redDark disabled:opacity-60 text-white font-semibold px-4 py-2 rounded-md transition-colors"
+                >
+                  {refrescando ? 'Actualizando...' : 'Actualizar datos'}
+                </button>
+                {puedeSincronizar && (
+                  <button
+                    onClick={handleSincronizar}
+                    disabled={sincronizando}
+                    className="inline-flex h-12 w-full sm:w-auto items-center justify-center whitespace-nowrap bg-club-black hover:bg-black disabled:opacity-60 text-white font-semibold px-4 py-2 rounded-md transition-colors"
+                  >
+                    {sincronizando ? 'Sincronizando...' : 'Sincronizar Google Sheets'}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {mensajeSync && (
+            <p className="text-sm text-club-black bg-gray-100 border border-gray-200 rounded-md px-3 py-2 mb-3">
+              {mensajeSync}
+            </p>
+          )}
+        </>
       )}
 
-      {renderFormularioJugador()}
+      {mostrarFormularioJugador && (
+        <div className="mx-auto w-full max-w-6xl">
+          {renderFormularioJugador()}
+        </div>
+      )}
 
-      {limitadoAUnEquipo ? (
-        <div className="mb-6">
-          <div className="flex flex-wrap items-center gap-3 mb-4">
+      {!estaEditando && (limitadoAUnEquipo ? (
+        <div className="mb-4">
+          <div className="mb-4">
+            <BotonesVistaPlantillas vistaActual={soloGraficas ? 'graficas' : vista} />
+          </div>
+          <div className="flex flex-wrap items-center gap-2 mb-3">
             <div className="text-sm font-semibold bg-club-black text-white px-4 py-2 rounded-md inline-block">
               Equipo: {equiposAsignadosLabel(user.equipo_asignado)}
             </div>
@@ -1301,14 +1476,17 @@ export default function Plantillas({ soloGraficas = false }) {
           )}
         </div>
       ) : (
-        <div className="flex flex-col md:flex-row gap-6">
+        <div className="flex flex-col md:flex-row gap-4">
           <div className="hidden md:block">
             {renderFiltroEquipos()}
           </div>
 
           <div className="flex-1 min-w-0">
+            <div className="mb-4">
+              <BotonesVistaPlantillas vistaActual={soloGraficas ? 'graficas' : vista} />
+            </div>
             {error && (
-              <p className="text-sm text-club-red font-medium bg-red-50 border border-club-red/30 rounded-md px-3 py-2 mb-4">
+              <p className="text-sm text-club-red font-medium bg-red-50 border border-club-red/30 rounded-md px-3 py-2 mb-3">
                 {error}
               </p>
             )}
@@ -1319,12 +1497,12 @@ export default function Plantillas({ soloGraficas = false }) {
               <p className="text-club-black/60">No se han encontrado jugadores.</p>
             ) : vistaVisible === 'graficas' ? (
               <>
-                <div className="mb-4">{renderContadorRegistros(jugadoresFiltrados.length)}</div>
+                <div className="mb-3">{renderContadorRegistros(jugadoresFiltrados.length)}</div>
                 {renderGraficas(jugadoresFiltrados)}
               </>
             ) : (
-              <div className="space-y-4">
-                <div className="flex flex-wrap items-center gap-3">
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
                   {equiposSeleccionados.length === 1 && (
                     <Link
                       to={`/campogramas?equipo=${encodeURIComponent(equiposSeleccionados[0])}`}
@@ -1340,7 +1518,7 @@ export default function Plantillas({ soloGraficas = false }) {
             )}
           </div>
         </div>
-      )}
+      ))}
     </div>
   );
 }

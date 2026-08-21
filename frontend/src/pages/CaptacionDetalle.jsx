@@ -501,11 +501,11 @@ const ETIQUETAS_INFORME = {
 };
 
 const VALORACION_INFORME_OPCIONES = [
-  { valor: '1', etiqueta: '1 - Muy Bajo' },
-  { valor: '2', etiqueta: '2 - Bajo' },
-  { valor: '3', etiqueta: '3 - Medio' },
-  { valor: '4', etiqueta: '4 - Alto' },
-  { valor: '5', etiqueta: '5 - Muy Alto' },
+  { valor: '1' },
+  { valor: '2' },
+  { valor: '3' },
+  { valor: '4' },
+  { valor: '5' },
 ];
 
 const COLOR_VALORACION_INFORME = {
@@ -1300,7 +1300,7 @@ export default function CaptacionDetalle() {
             </div>
 
             <div className="space-y-6 p-5">
-              <div className="flex w-full flex-col items-center gap-6 md:flex-row md:items-start md:justify-between">
+              <div className="flex w-full flex-col items-center gap-6 md:flex-row md:items-start md:justify-center">
                 <div className="w-full max-w-xs shrink-0 space-y-2.5 md:w-56">
                   <div className="overflow-hidden rounded-2xl border border-gray-200 bg-gray-50">
                     {fotoUrl ? (
@@ -1430,27 +1430,28 @@ export default function CaptacionDetalle() {
           </section>
 
           <section id="informes-vinculados" ref={informesRef} className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-wide text-club-black/50">Actividad relacionada</p>
                 <h3 className="text-xl font-bold text-club-black">INFORME EN PARTIDOS</h3>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
-                  <span className="text-lg font-bold text-club-red tabular-nums">{informes.length}</span>
-                  <span className="text-sm text-club-black/70">{informes.length === 1 ? 'informe' : 'informes'}</span>
-                </div>
-                <div className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
-                  <span className="text-lg font-bold text-club-red tabular-nums">{mediaValoracion}</span>
-                  <span className="text-sm text-club-black/70">media valoración</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => alternarBloque('INFORME EN PARTIDOS')}
-                  title={bloquesOcultos['INFORME EN PARTIDOS'] ? 'Mostrar sección' : 'Ocultar sección'}
-                  aria-label={bloquesOcultos['INFORME EN PARTIDOS'] ? 'Mostrar sección' : 'Ocultar sección'}
-                  className="text-club-black/40 hover:text-club-red"
-                >
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                    <span className="text-lg font-bold text-club-red tabular-nums">{informes.length}</span>
+                    <span className="text-sm text-club-black/70">{informes.length === 1 ? 'informe' : 'informes'}</span>
+                  </div>
+                  <div className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                    <span className="text-lg font-bold text-club-red tabular-nums">{mediaValoracion}</span>
+                    <span className="text-sm text-club-black/70">media valoración</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => alternarBloque('INFORME EN PARTIDOS')}
+                    title={bloquesOcultos['INFORME EN PARTIDOS'] ? 'Mostrar sección' : 'Ocultar sección'}
+                    aria-label={bloquesOcultos['INFORME EN PARTIDOS'] ? 'Mostrar sección' : 'Ocultar sección'}
+                    className="text-club-black/40 hover:text-club-red"
+                  >
                   {bloquesOcultos['INFORME EN PARTIDOS'] ? (
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
                       <path d="M10 3.5c-4.5 0-7.5 3.5-8.5 6.5 1 3 4 6.5 8.5 6.5s7.5-3.5 8.5-6.5c-1-3-4-6.5-8.5-6.5zm0 10.5a4 4 0 1 1 0-8 4 4 0 0 1 0 8z" />
@@ -1461,6 +1462,19 @@ export default function CaptacionDetalle() {
                       <path d="M2.28 2.22a.75.75 0 0 0-1.06 1.06l1.86 1.86C1.68 6.53.66 8.06.1 9.15a.75.75 0 0 0 0 .7c1 2 4 6.65 9.9 6.65 1.93 0 3.55-.5 4.89-1.24l2.13 2.13a.75.75 0 1 0 1.06-1.06L2.28 2.22zM10 15c-4.5 0-7.03-3.6-7.98-5.5.5-.98 1.42-2.31 2.79-3.42l1.6 1.6a4 4 0 0 0 5.4 5.4l1.36 1.36c-.96.36-2.03.56-3.17.56zm3.98-3.36-5.6-5.6A4 4 0 0 1 14 9.99c0 .6-.13 1.16-.02 1.65zm4.61 1.86-1.11-1.11c.5-.75.89-1.5 1.15-2.09-.95-1.9-3.48-5.5-7.98-5.5-.7 0-1.35.08-1.97.22L7.36 3.7A9.9 9.9 0 0 1 10 3.35c5.9 0 8.9 4.65 9.9 6.65a.75.75 0 0 1 0 .7c-.34.68-.98 1.77-1.9 2.9z" />
                     </svg>
                   )}
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={abrirModalNuevoInforme}
+                  title="Añadir informe en partido"
+                  aria-label="Añadir informe en partido"
+                  className="inline-flex items-center gap-2 rounded-lg border border-club-red bg-club-red px-4 py-2 text-sm font-semibold text-white transition hover:bg-club-red/90 hover:border-club-red/90"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                    <path d="M10 4a1 1 0 0 1 1 1v4h4a1 1 0 1 1 0 2h-4v4a1 1 0 1 1-2 0v-4H5a1 1 0 1 1 0-2h4V5a1 1 0 0 1 1-1z" />
+                  </svg>
+                  AÑADIR INFORME
                 </button>
               </div>
             </div>
@@ -1650,22 +1664,18 @@ export default function CaptacionDetalle() {
                 <div className="mt-4">
                   <p className="text-xs font-bold uppercase tracking-wide text-club-black/70 mb-3">Valoracion</p>
                   {(() => {
-                    const coloresValoracion = {
-                      BAJO: 'border-red-300 bg-red-50 text-red-700 focus:ring-red-500',
-                      MEDIO: 'border-orange-300 bg-orange-50 text-orange-700 focus:ring-orange-500',
-                      ALTO: 'border-green-300 bg-green-50 text-green-700 focus:ring-green-500',
-                    };
-                    const claseColor = coloresValoracion[informeEditando.valoracion || ''] || '';
+                    const colorSeleccionado = COLOR_VALORACION_INFORME[informeEditando.valoracion || ''];
                     return (
                       <select
                         value={informeEditando.valoracion || ''}
                         onChange={(e) => actualizarCampoInforme('valoracion', e.target.value)}
-                        className={`w-full max-w-xs rounded-md border border-gray-300 px-2 py-1.5 text-sm font-semibold focus:outline-none focus:ring-2 ${claseColor}`}
+                        className="w-full max-w-xs rounded-md border border-gray-300 px-2 py-1.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-club-red"
+                        style={colorSeleccionado ? { borderColor: colorSeleccionado, backgroundColor: `${colorSeleccionado}1a`, color: colorSeleccionado } : undefined}
                       >
                         <option value="">Seleccionar...</option>
                         {VALORACION_INFORME_OPCIONES.map((opcion) => (
                           <option key={opcion.valor} value={opcion.valor}>
-                            {opcion.etiqueta}
+                            {opcion.valor}
                           </option>
                         ))}
                       </select>
@@ -2131,22 +2141,18 @@ export default function CaptacionDetalle() {
                 <div>
                   <p className="text-xs font-bold uppercase tracking-wide text-club-black/70 mb-3">Valoracion</p>
                   {(() => {
-                    const coloresValoracion = {
-                      BAJO: 'border-red-300 bg-red-50 text-red-700 focus:ring-red-500',
-                      MEDIO: 'border-orange-300 bg-orange-50 text-orange-700 focus:ring-orange-500',
-                      ALTO: 'border-green-300 bg-green-50 text-green-700 focus:ring-green-500',
-                    };
-                    const claseColor = coloresValoracion[nuevoInforme.valoracion || ''] || '';
+                    const colorSeleccionado = COLOR_VALORACION_INFORME[nuevoInforme.valoracion || ''];
                     return (
                       <select
                         value={nuevoInforme.valoracion || ''}
                         onChange={(e) => actualizarCampoNuevoInforme('valoracion', e.target.value)}
-                        className={`w-full max-w-xs rounded-md border border-gray-300 px-2 py-1.5 text-sm font-semibold focus:outline-none focus:ring-2 ${claseColor}`}
+                        className="w-full max-w-xs rounded-md border border-gray-300 px-2 py-1.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-club-red"
+                        style={colorSeleccionado ? { borderColor: colorSeleccionado, backgroundColor: `${colorSeleccionado}1a`, color: colorSeleccionado } : undefined}
                       >
                         <option value="">Seleccionar...</option>
                         {VALORACION_INFORME_OPCIONES.map((opcion) => (
                           <option key={opcion.valor} value={opcion.valor}>
-                            {opcion.etiqueta}
+                            {opcion.valor}
                           </option>
                         ))}
                       </select>
