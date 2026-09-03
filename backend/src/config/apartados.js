@@ -13,6 +13,7 @@ const APARTADOS_PERMITIDOS = [
   'clubes_maestros',
   'hojas_calculo',
   'competiciones',
+  'competicion',
 ];
 
 function limpiarApartado(valor) {

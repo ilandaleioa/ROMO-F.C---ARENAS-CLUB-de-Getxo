@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../lib/api';
-import { useClub } from '../context/ClubContext';
+import { CLUBES, useClub } from '../context/ClubContext';
+import { useAuth } from '../context/AuthContext';
 
 const FORM_VACIO = {
   nombre: '',
+  club: '',
   tipo: 'liga',
   partes: '2',
   minutos_por_parte: '45',
@@ -13,13 +15,26 @@ const FORM_VACIO = {
   etapa: '',
   categoria: '',
   url: '',
+  url_resultados: '',
+  url_calendario: '',
+  url_tabla_cruzada: '',
+  url_goleadores: '',
+  url_porteros: '',
+  url_estadisticas: '',
+  rivales: '',
 };
 
 const CAMPOS_FEDERATIVOS = [
   { key: 'equipo_fed', label: 'Equipo Fed' },
   { key: 'etapa', label: 'Etapa' },
   { key: 'categoria', label: 'Categoría' },
-  { key: 'url', label: 'URL', type: 'url' },
+  { key: 'url_resultados', label: 'URL Resultados', type: 'url' },
+  { key: 'url', label: 'URL Clasificación', type: 'url' },
+  { key: 'url_calendario', label: 'URL Calendario', type: 'url' },
+  { key: 'url_tabla_cruzada', label: 'URL Tabla cruzada', type: 'url' },
+  { key: 'url_goleadores', label: 'URL Goleadores', type: 'url' },
+  { key: 'url_porteros', label: 'URL Porteros', type: 'url' },
+  { key: 'url_estadisticas', label: 'URL Estadísticas', type: 'url' },
 ];
 
 function texto(valor) {
@@ -35,9 +50,10 @@ function nombreClub(club) {
   return club === 'ARENAS' ? 'ARENAS CLUB' : 'ROMO FC';
 }
 
-function formDesdeFila(fila) {
+function formDesdeFila(fila, clubActual) {
   return {
     nombre: texto(fila.nombre || fila.equipo_fed || fila.equipo_interno),
+    club: texto(fila.club).toUpperCase() || clubActual,
     tipo: texto(fila.tipo).toLowerCase() || 'liga',
     partes: String(fila.partes ?? 2),
     minutos_por_parte: String(fila.minutos_por_parte ?? 45),
@@ -47,6 +63,13 @@ function formDesdeFila(fila) {
     etapa: texto(fila.etapa),
     categoria: texto(fila.categoria),
     url: texto(fila.url),
+    url_resultados: texto(fila.url_resultados),
+    url_calendario: texto(fila.url_calendario),
+    url_tabla_cruzada: texto(fila.url_tabla_cruzada),
+    url_goleadores: texto(fila.url_goleadores),
+    url_porteros: texto(fila.url_porteros),
+    url_estadisticas: texto(fila.url_estadisticas),
+    rivales: Array.isArray(fila.rivales) ? fila.rivales.join('\n') : '',
   };
 }
 
@@ -91,10 +114,14 @@ function BotonAccion({ tipo, etiqueta, onClick, disabled = false, peligro = fals
   );
 }
 
+const ETAPA_TODAS = 'todas';
+
 export default function Competiciones() {
-  const { club } = useClub();
+  const { user } = useAuth();
+  const { club, setClub } = useClub();
   const [competiciones, setCompeticiones] = useState([]);
   const [equipos, setEquipos] = useState([]);
+  const [equiposPorClub, setEquiposPorClub] = useState({});
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
   const [formError, setFormError] = useState('');
@@ -102,6 +129,25 @@ export default function Competiciones() {
   const [editandoId, setEditandoId] = useState(null);
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [guardando, setGuardando] = useState(false);
+  const [filtroEtapa, setFiltroEtapa] = useState(ETAPA_TODAS);
+
+  const puedeCambiarClub = !user?.club || user.club === 'TODOS';
+
+  const etapasDisponibles = useMemo(
+    () =>
+      Array.from(new Set(competiciones.map((fila) => texto(fila.etapa)).filter(Boolean))).sort((a, b) =>
+        a.localeCompare(b, 'es')
+      ),
+    [competiciones]
+  );
+
+  const competicionesFiltradas = useMemo(
+    () =>
+      filtroEtapa === ETAPA_TODAS
+        ? competiciones
+        : competiciones.filter((fila) => texto(fila.etapa) === filtroEtapa),
+    [competiciones, filtroEtapa]
+  );
 
   const totalMinutos = numero(form.partes) * numero(form.minutos_por_parte);
 
@@ -122,8 +168,10 @@ export default function Competiciones() {
     try {
       const respuesta = await api.get('/competiciones/equipos');
       setEquipos(respuesta.equipos || []);
+      setEquiposPorClub(respuesta.equiposPorClub || {});
     } catch (_) {
       setEquipos([]);
+      setEquiposPorClub({});
     }
   }, []);
 
@@ -132,6 +180,7 @@ export default function Competiciones() {
     setEditandoId(null);
     setForm(FORM_VACIO);
     setFormError('');
+    setFiltroEtapa(ETAPA_TODAS);
     cargarCompeticiones();
     cargarEquipos();
   }, [club, cargarCompeticiones, cargarEquipos]);
@@ -141,16 +190,23 @@ export default function Competiciones() {
     setFormError('');
   };
 
+  const cambiarClubForm = (valor) => {
+    const equiposClub = equiposPorClub[valor] || [];
+    setForm((actual) => ({ ...actual, club: valor, equipo_interno: equiposClub[0] || '' }));
+    setFormError('');
+  };
+
   const abrirCrear = () => {
     setEditandoId(null);
-    setForm({ ...FORM_VACIO, equipo_interno: equipos[0] || '' });
+    const equiposClub = equiposPorClub[club] || equipos;
+    setForm({ ...FORM_VACIO, club, equipo_interno: equiposClub[0] || '' });
     setFormError('');
     setMostrarFormulario(true);
   };
 
   const abrirEditar = (competicion) => {
     setEditandoId(competicion.id);
-    setForm(formDesdeFila(competicion));
+    setForm(formDesdeFila(competicion, club));
     setFormError('');
     setMostrarFormulario(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -175,6 +231,7 @@ export default function Competiciones() {
 
     const datos = {
       nombre: texto(form.nombre),
+      club: texto(form.club).toUpperCase() || club,
       tipo: texto(form.tipo).toLowerCase(),
       partes,
       minutos_por_parte: minutosPorParte,
@@ -182,6 +239,10 @@ export default function Competiciones() {
       equipo_interno: texto(form.equipo_interno),
       equipos_anadidos: Math.max(0, numero(form.equipos_anadidos)),
       ...Object.fromEntries(CAMPOS_FEDERATIVOS.map((campo) => [campo.key, texto(form[campo.key])])),
+      rivales: form.rivales
+        .split('\n')
+        .map((linea) => texto(linea))
+        .filter(Boolean),
     };
 
     setGuardando(true);
@@ -216,7 +277,8 @@ export default function Competiciones() {
     }
   };
 
-  const equiposParaSelector = equipos.length > 0 ? equipos : ['Sin equipos disponibles'];
+  const equiposDelClubForm = puedeCambiarClub ? equiposPorClub[form.club] || [] : equipos;
+  const equiposParaSelector = equiposDelClubForm.length > 0 ? equiposDelClubForm : ['Sin equipos disponibles'];
 
   return (
     <div className="min-h-full bg-white px-5 py-8 sm:px-8 sm:py-10 lg:px-12">
@@ -234,6 +296,44 @@ export default function Competiciones() {
 
         {error ? <p className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-club-red">{error}</p> : null}
 
+        <div className="mb-8 flex flex-wrap items-end gap-5">
+          {puedeCambiarClub && (
+            <div>
+              <p className="mb-2 text-xs font-black uppercase tracking-wide text-slate-500">Club</p>
+              <div className="inline-flex overflow-hidden rounded-xl border border-slate-200">
+                {CLUBES.map((c) => (
+                  <button
+                    key={c.valor}
+                    type="button"
+                    onClick={() => setClub(c.valor)}
+                    className={`px-5 py-2.5 text-sm font-black uppercase tracking-wide transition-colors ${
+                      club === c.valor
+                        ? 'bg-club-red text-white'
+                        : 'bg-white text-slate-500 hover:bg-slate-100 hover:text-slate-800'
+                    }`}
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <label className="text-xs font-black uppercase tracking-wide text-slate-500">
+            Etapa
+            <select
+              value={filtroEtapa}
+              onChange={(evento) => setFiltroEtapa(evento.target.value)}
+              className="mt-2 block h-12 min-w-[200px] rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold normal-case tracking-normal text-slate-700 shadow-sm focus:border-club-red focus:outline-none focus:ring-2 focus:ring-club-red/20"
+            >
+              <option value={ETAPA_TODAS}>Todas las etapas</option>
+              {etapasDisponibles.map((etapa) => (
+                <option key={etapa} value={etapa}>{etapa}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+
         {mostrarFormulario && (
           <form onSubmit={guardar} className="mb-10 rounded-2xl border border-slate-200 bg-slate-50/80 p-6 shadow-[0_14px_38px_rgba(15,23,42,0.07)] sm:p-10">
             <div className="mb-8 flex flex-col-reverse gap-5 sm:flex-row sm:items-start sm:justify-between">
@@ -249,12 +349,15 @@ export default function Competiciones() {
               <label className="text-sm font-black uppercase tracking-wide text-slate-600">Nombre de la competición *<input value={form.nombre} onChange={(evento) => cambiarCampo('nombre', evento.target.value)} required className="mt-2 h-16 w-full rounded-2xl border border-slate-200 bg-white px-6 text-lg font-normal normal-case tracking-normal text-slate-800 shadow-sm focus:border-club-red focus:outline-none focus:ring-2 focus:ring-club-red/20" /></label>
               <label className="text-sm font-black uppercase tracking-wide text-slate-600">Tipo *<select value={form.tipo} onChange={(evento) => cambiarCampo('tipo', evento.target.value)} required className="mt-2 h-16 w-full rounded-2xl border border-slate-200 bg-white px-6 text-lg font-normal normal-case tracking-normal text-slate-800 shadow-sm focus:border-club-red focus:outline-none focus:ring-2 focus:ring-club-red/20"><option value="liga">Liga</option><option value="amistoso">Amistoso</option></select></label>
               <label className="text-sm font-black uppercase tracking-wide text-slate-600">Número de partes *<input type="number" min="1" value={form.partes} onChange={(evento) => cambiarCampo('partes', evento.target.value)} required className="mt-2 h-16 w-full rounded-2xl border border-slate-200 bg-white px-6 text-lg font-normal normal-case tracking-normal text-slate-800 shadow-sm focus:border-club-red focus:outline-none focus:ring-2 focus:ring-club-red/20" /></label>
+              {puedeCambiarClub ? (
+                <label className="text-sm font-black uppercase tracking-wide text-slate-600">Club<select value={form.club} onChange={(evento) => cambiarClubForm(evento.target.value)} className="mt-2 h-16 w-full rounded-2xl border border-slate-200 bg-white px-6 text-lg font-normal normal-case tracking-normal text-slate-800 shadow-sm focus:border-club-red focus:outline-none focus:ring-2 focus:ring-club-red/20">{CLUBES.map((c) => <option key={c.valor} value={c.valor}>{c.label}</option>)}</select></label>
+              ) : null}
               <label className="text-sm font-black uppercase tracking-wide text-slate-600">Equipo interno<select value={form.equipo_interno} onChange={(evento) => cambiarCampo('equipo_interno', evento.target.value)} className="mt-2 h-16 w-full rounded-2xl border border-slate-200 bg-white px-6 text-lg font-normal normal-case tracking-normal text-slate-800 shadow-sm focus:border-club-red focus:outline-none focus:ring-2 focus:ring-club-red/20"><option value="">-- Seleccionar equipo --</option>{equiposParaSelector.map((equipo) => <option key={equipo} value={equipo} disabled={equipo === 'Sin equipos disponibles'}>{equipo}</option>)}</select></label>
               <label className="text-sm font-black uppercase tracking-wide text-slate-600">Minutos por parte *<input type="number" min="1" value={form.minutos_por_parte} onChange={(evento) => cambiarCampo('minutos_por_parte', evento.target.value)} required className="mt-2 h-16 w-full rounded-2xl border border-slate-200 bg-white px-6 text-lg font-normal normal-case tracking-normal text-slate-800 shadow-sm focus:border-club-red focus:outline-none focus:ring-2 focus:ring-club-red/20" /></label>
               <div className="text-sm font-black uppercase tracking-wide text-slate-600">Total de minutos<div className="mt-2 flex h-16 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-6 text-xl font-black normal-case tracking-normal text-club-red shadow-sm"><span aria-hidden="true">◷</span> {totalMinutos > 0 ? `${totalMinutos} min` : '—'}</div></div>
             </div>
 
-            <details className="mt-8 rounded-2xl border border-slate-200 bg-white px-5 py-4"><summary className="cursor-pointer text-sm font-black uppercase tracking-wide text-slate-600">Datos federativos y enlace</summary><div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-2">{CAMPOS_FEDERATIVOS.map((campo) => <label key={campo.key} className="text-sm font-black uppercase tracking-wide text-slate-600">{campo.label}<input type={campo.type || 'text'} value={form[campo.key]} onChange={(evento) => cambiarCampo(campo.key, evento.target.value)} placeholder={campo.type === 'url' ? 'https://...' : ''} className="mt-2 h-14 w-full rounded-2xl border border-slate-200 bg-white px-5 text-base font-normal normal-case tracking-normal text-slate-800 focus:border-club-red focus:outline-none focus:ring-2 focus:ring-club-red/20" /></label>)}</div></details>
+            <details className="mt-8 rounded-2xl border border-slate-200 bg-white px-5 py-4"><summary className="cursor-pointer text-sm font-black uppercase tracking-wide text-slate-600">Datos federativos y enlace</summary><div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-2">{CAMPOS_FEDERATIVOS.map((campo) => <label key={campo.key} className="text-sm font-black uppercase tracking-wide text-slate-600">{campo.label}<input type={campo.type || 'text'} value={form[campo.key]} onChange={(evento) => cambiarCampo(campo.key, evento.target.value)} placeholder={campo.type === 'url' ? 'https://...' : ''} className="mt-2 h-14 w-full rounded-2xl border border-slate-200 bg-white px-5 text-base font-normal normal-case tracking-normal text-slate-800 focus:border-club-red focus:outline-none focus:ring-2 focus:ring-club-red/20" /></label>)}<label className="text-sm font-black uppercase tracking-wide text-slate-600 md:col-span-2">Equipos rivales (uno por línea, para pintar la clasificación en la app)<textarea value={form.rivales} onChange={(evento) => cambiarCampo('rivales', evento.target.value)} rows={6} placeholder={'Equipo 1\nEquipo 2\nEquipo 3'} className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-5 py-3 text-base font-normal normal-case tracking-normal text-slate-800 focus:border-club-red focus:outline-none focus:ring-2 focus:ring-club-red/20" /></label></div></details>
           </form>
         )}
 
@@ -263,7 +366,7 @@ export default function Competiciones() {
             <table className="min-w-[1100px] w-full text-left">
               <thead className="border-b border-slate-200 bg-slate-50/90"><tr><th className="w-[29%] px-10 py-7 text-xs font-black uppercase tracking-wider text-slate-400">Competición</th><th className="px-5 py-7 text-xs font-black uppercase tracking-wider text-slate-400">Tipo</th><th className="px-5 py-7 text-xs font-black uppercase tracking-wider text-slate-400">Partes</th><th className="px-5 py-7 text-xs font-black uppercase tracking-wider text-slate-400">Min/parte</th><th className="px-5 py-7 text-xs font-black uppercase tracking-wider text-slate-400">Total minutos</th><th className="px-5 py-7 text-xs font-black uppercase tracking-wider text-slate-400">Equipos añadidos</th><th className="px-8 py-7 text-right text-xs font-black uppercase tracking-wider text-slate-400">Acciones</th></tr></thead>
               <tbody className="divide-y divide-slate-200">
-                {cargando ? <tr><td colSpan="7" className="px-6 py-16 text-center text-sm font-semibold text-slate-400">Cargando competiciones...</td></tr> : competiciones.length === 0 ? <tr><td colSpan="7" className="px-6 py-16 text-center text-sm font-semibold text-slate-400">Todavía no hay competiciones creadas.</td></tr> : competiciones.map((competicion) => (
+                {cargando ? <tr><td colSpan="7" className="px-6 py-16 text-center text-sm font-semibold text-slate-400">Cargando competiciones...</td></tr> : competiciones.length === 0 ? <tr><td colSpan="7" className="px-6 py-16 text-center text-sm font-semibold text-slate-400">Todavía no hay competiciones creadas.</td></tr> : competicionesFiltradas.length === 0 ? <tr><td colSpan="7" className="px-6 py-16 text-center text-sm font-semibold text-slate-400">Ninguna competición coincide con la etapa seleccionada.</td></tr> : competicionesFiltradas.map((competicion) => (
                   <tr key={competicion.id} className="h-32 transition-colors hover:bg-slate-50/80"><td className="px-10 py-6 text-lg font-bold text-slate-800">{competicion.nombre || competicion.equipo_fed || competicion.equipo_interno || 'Sin nombre'}</td><td className="px-5 py-6"><span className="inline-flex min-w-[108px] justify-center rounded-full bg-slate-100 px-4 py-2 text-sm font-black uppercase text-slate-600">{texto(competicion.tipo || 'liga')}</span></td><td className="px-5 py-6"><span className="inline-flex h-11 min-w-[54px] items-center justify-center rounded-full bg-club-red/10 px-4 text-xl font-black text-club-red">{competicion.partes ?? 2}</span></td><td className="px-5 py-6 text-xl font-black text-slate-800">{competicion.minutos_por_parte ?? 0}'</td><td className="px-5 py-6"><span className="inline-flex min-w-[130px] items-center justify-center gap-2 rounded-full bg-emerald-50 px-4 py-2.5 text-base font-black text-emerald-600"><span aria-hidden="true">◷</span> {competicion.total_minutos ?? 0} min</span></td><td className="px-5 py-6"><span className="inline-flex min-w-[108px] items-center justify-center gap-2 rounded-full bg-red-50 px-4 py-2.5 text-base font-black text-club-red"><Icono tipo="equipos" /> {competicion.equipos_anadidos ?? 0}</span></td><td className="px-8 py-6"><div className="flex justify-end gap-3"><BotonAccion tipo="equipos" etiqueta="Gestionar equipos" disabled /><BotonAccion tipo="calendario" etiqueta="Ver calendario" disabled /><BotonAccion tipo="editar" etiqueta="Editar competición" onClick={() => abrirEditar(competicion)} /><BotonAccion tipo="borrar" etiqueta="Borrar competición" peligro onClick={() => borrar(competicion)} /></div></td></tr>
                 ))}
               </tbody>

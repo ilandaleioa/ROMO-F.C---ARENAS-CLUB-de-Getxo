@@ -3,7 +3,7 @@ const supabaseAdmin = require('../config/supabaseClient');
 const requireAuth = require('../middleware/requireAuth');
 const requireRole = require('../middleware/requireRole');
 const resolveClub = require('../middleware/resolveClub');
-const { CLUB_TODOS } = require('../config/clubs');
+const { CLUBES, CLUB_TODOS } = require('../config/clubs');
 const { ROLES } = require('../config/roles');
 const { ordenarEquipos: ordenarEquiposGlobal } = require('../lib/equiposOrden');
 
@@ -24,8 +24,17 @@ const CAMPOS = [
   'etapa',
   'categoria',
   'url',
+  'url_resultados',
+  'url_calendario',
+  'url_tabla_cruzada',
+  'url_goleadores',
+  'url_porteros',
+  'url_estadisticas',
+  'rivales',
 ];
-const CAMPOS_SELECT = ['id', ...CAMPOS, 'created_at', 'updated_at'].join(', ');
+
+const CAMPOS_URL = ['url', 'url_resultados', 'url_calendario', 'url_tabla_cruzada', 'url_goleadores', 'url_porteros', 'url_estadisticas'];
+const CAMPOS_SELECT = ['id', 'club', ...CAMPOS, 'created_at', 'updated_at'].join(', ');
 const TIPOS_VALIDOS = ['liga', 'amistoso'];
 
 function texto(valor) {
@@ -35,6 +44,11 @@ function texto(valor) {
 function entero(valor, fallback = 0) {
   const numero = Number.parseInt(valor, 10);
   return Number.isFinite(numero) ? numero : fallback;
+}
+
+function listaRivales(valor) {
+  if (!Array.isArray(valor)) return [];
+  return Array.from(new Set(valor.map((nombre) => texto(nombre)).filter(Boolean))).slice(0, 40);
 }
 
 function normalizarPayload(body) {
@@ -50,6 +64,13 @@ function normalizarPayload(body) {
     etapa: texto(body?.etapa),
     categoria: texto(body?.categoria),
     url: texto(body?.url),
+    url_resultados: texto(body?.url_resultados),
+    url_calendario: texto(body?.url_calendario),
+    url_tabla_cruzada: texto(body?.url_tabla_cruzada),
+    url_goleadores: texto(body?.url_goleadores),
+    url_porteros: texto(body?.url_porteros),
+    url_estadisticas: texto(body?.url_estadisticas),
+    rivales: listaRivales(body?.rivales),
   };
 }
 
@@ -66,16 +87,26 @@ function validarPayload(payload) {
     return 'El número de partes y los minutos por parte deben ser mayores que cero.';
   }
 
-  if (payload.url) {
+  for (const campo of CAMPOS_URL) {
+    if (!payload[campo]) continue;
     try {
-      const url = new URL(payload.url);
+      const url = new URL(payload[campo]);
       if (!['http:', 'https:'].includes(url.protocol)) throw new Error('protocolo no valido');
     } catch (_) {
-      return 'La URL debe ser válida y comenzar por http:// o https://.';
+      return 'Las URLs deben ser válidas y comenzar por http:// o https://.';
     }
   }
 
   return null;
+}
+
+function resolverClubEscritura(req, body) {
+  // Solo un usuario con acceso a ambos clubes puede elegir el club del
+  // equipo interno desde el formulario; el resto siempre escribe en su
+  // propio club (req.club), venga lo que venga en el body.
+  if (req.user?.club !== CLUB_TODOS) return req.club;
+  const valor = texto(body?.club).toUpperCase();
+  return CLUBES.includes(valor) ? valor : req.club;
 }
 
 function esTablaInexistente(error) {
@@ -90,16 +121,30 @@ function esTablaInexistente(error) {
 async function cargarEquiposParaSelector(clubes) {
   const { data, error } = await supabaseAdmin
     .from('jugadores')
-    .select('equipo')
+    .select('club, equipo')
     .in('club', clubes);
 
   if (error) return { error };
+
+  const porClub = new Map();
+  (data || []).forEach((fila) => {
+    const clubFila = texto(fila.club);
+    const equipo = texto(fila.equipo);
+    if (!clubFila || !equipo) return;
+    if (!porClub.has(clubFila)) porClub.set(clubFila, new Set());
+    porClub.get(clubFila).add(equipo);
+  });
+
+  const equiposPorClub = {};
+  porClub.forEach((equipos, clubFila) => {
+    equiposPorClub[clubFila] = ordenarEquiposGlobal(Array.from(equipos));
+  });
 
   const equipos = ordenarEquiposGlobal(
     Array.from(new Set((data || []).map((fila) => texto(fila.equipo)).filter(Boolean)))
   );
 
-  return { equipos };
+  return { equipos, equiposPorClub };
 }
 
 function responderError(res, error, accion) {
@@ -121,16 +166,46 @@ function responderError(res, error, accion) {
 
 router.get('/equipos', requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR), async (req, res) => {
   const clubes = req.user?.club === CLUB_TODOS ? ['ROMO', 'ARENAS'] : [req.club];
-  const { equipos, error } = await cargarEquiposParaSelector(clubes);
+  const { equipos, equiposPorClub, error } = await cargarEquiposParaSelector(clubes);
 
   if (error) return responderError(res, error, 'consultar');
-  return res.json({ equipos: equipos || [] });
+  return res.json({ equipos: equipos || [], equiposPorClub: equiposPorClub || {} });
 });
 
 router.get('/', requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR), async (req, res) => {
   const { data, error } = await supabaseAdmin
     .from('competiciones')
     .select(CAMPOS_SELECT)
+    .eq('club', req.club)
+    .order('equipo_interno', { ascending: true });
+
+  if (error) return responderError(res, error, 'consultar');
+  return res.json({ competiciones: data || [] });
+});
+
+const CAMPOS_PUBLICOS_SELECT = [
+  'id',
+  'club',
+  'nombre',
+  'tipo',
+  'equipo_interno',
+  'equipo_fed',
+  'etapa',
+  'categoria',
+  'url',
+  'url_resultados',
+  'url_calendario',
+  'url_tabla_cruzada',
+  'url_goleadores',
+  'url_porteros',
+  'url_estadisticas',
+  'rivales',
+].join(', ');
+
+router.get('/publicas', async (req, res) => {
+  const { data, error } = await supabaseAdmin
+    .from('competiciones')
+    .select(CAMPOS_PUBLICOS_SELECT)
     .eq('club', req.club)
     .order('equipo_interno', { ascending: true });
 
@@ -145,7 +220,7 @@ router.post('/', requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR), async (req, r
 
   const { data, error } = await supabaseAdmin
     .from('competiciones')
-    .insert({ ...payload, club: req.club })
+    .insert({ ...payload, club: resolverClubEscritura(req, req.body) })
     .select(CAMPOS_SELECT)
     .single();
 
@@ -160,7 +235,7 @@ router.put('/:id', requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR), async (req,
 
   const { data, error } = await supabaseAdmin
     .from('competiciones')
-    .update({ ...payload, updated_at: new Date().toISOString() })
+    .update({ ...payload, club: resolverClubEscritura(req, req.body), updated_at: new Date().toISOString() })
     .eq('id', req.params.id)
     .eq('club', req.club)
     .select(CAMPOS_SELECT)

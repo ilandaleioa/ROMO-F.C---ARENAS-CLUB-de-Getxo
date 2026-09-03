@@ -22,8 +22,8 @@ export default function Login() {
     setError('');
     setSubmitting(true);
     try {
-      await login(username, password);
-      navigate(location.state?.from?.pathname || '/actividades', { replace: true });
+      const loggedUser = await login(username, password);
+      navigate(location.state?.from?.pathname || getRutaPorDefecto(loggedUser), { replace: true });
     } catch (err) {
       setError(err.message || 'No se pudo iniciar sesion.');
     } finally {

@@ -33,17 +33,17 @@ function BotonPantallaCompleta() {
       type="button"
       onClick={alternarPantallaCompleta}
       title={esPantallaCompleta ? 'Salir de pantalla completa' : 'Pantalla completa'}
-      className="p-2 rounded-md bg-white/10 hover:bg-white/20 text-white transition-colors"
+      className="shrink-0 p-2.5 rounded-md bg-white/20 hover:bg-white/30 ring-1 ring-white/40 text-white transition-colors"
     >
       {esPantallaCompleta ? (
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
           <path d="M8 3v3a2 2 0 0 1-2 2H3" />
           <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
           <path d="M3 16h3a2 2 0 0 1 2 2v3" />
           <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
         </svg>
       ) : (
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
           <path d="M8 3H5a2 2 0 0 0-2 2v3" />
           <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
           <path d="M3 16v3a2 2 0 0 0 2 2h3" />
@@ -157,12 +157,16 @@ export default function Header({ onToggleSidebar, menuAbierto, onToggleMenu }) {
               {nombreClub}
             </h1>
           </div>
+          {user && (
+            <div className="hidden lg:block">
+              <BotonPantallaCompleta />
+            </div>
+          )}
         </div>
 
         {user && (
           <div className="hidden lg:flex items-center gap-3 text-sm">
             <PwaInstallButton />
-            <BotonPantallaCompleta />
             <div className="text-right hidden xl:block">
               <p className="font-semibold">{user.username}</p>
               <p className="text-white/60 text-xs">{ROLE_LABELS[user.rol] || user.rol}</p>

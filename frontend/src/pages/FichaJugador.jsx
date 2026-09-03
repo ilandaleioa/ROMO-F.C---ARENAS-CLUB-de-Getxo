@@ -116,88 +116,304 @@ export default function FichaJugador() {
       const rojoClub = [200, 16, 46];
       const negro = [17, 17, 17];
       const gris = [110, 110, 110];
+      const grisEtiqueta = [130, 130, 130];
+      const grisClaro = [249, 249, 249];
+      const bordeGris = [222, 222, 222];
+      const blanco = [255, 255, 255];
       const anchoPagina = doc.internal.pageSize.getWidth();
-
-      doc.setFillColor(...negro);
-      doc.rect(0, 0, anchoPagina, 32, 'F');
-      doc.setFillColor(...rojoClub);
-      doc.rect(0, 32, anchoPagina, 2, 'F');
-
-      doc.setTextColor(255, 255, 255);
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(18);
-      doc.text('Informe del jugador', 14, 20);
+      const altoPagina = doc.internal.pageSize.getHeight();
+      const margen = 14;
+      const anchoContenido = anchoPagina - margen * 2;
+      const margenInferior = 16;
 
       const nombreJugador = nombreCompleto(jugador);
 
-      const fotoTamano = 28;
-      const fotoX = 14;
-      const fotoY = 42;
-      const textoX = fotoDataUrl ? fotoX + fotoTamano + 8 : 14;
+      // --- Cabecera con degradado negro -> rojo, como en la web ---
+      const alturaHeader = 26;
+      const pasosDegradado = 60;
+      for (let i = 0; i < pasosDegradado; i += 1) {
+        const t = i / (pasosDegradado - 1);
+        const r = Math.round(negro[0] + (rojoClub[0] - negro[0]) * t);
+        const g = Math.round(negro[1] + (rojoClub[1] - negro[1]) * t);
+        const b = Math.round(negro[2] + (rojoClub[2] - negro[2]) * t);
+        doc.setFillColor(r, g, b);
+        const franjaAncho = anchoPagina / pasosDegradado;
+        doc.rect(i * franjaAncho, 0, franjaAncho + 0.6, alturaHeader, 'F');
+      }
 
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(235, 205, 210);
+      doc.text('FICHA COMPLETA', margen, 9.5);
+
+      doc.setFontSize(16);
+      doc.setTextColor(...blanco);
+      doc.text(nombreJugador || 'Jugador sin nombre', margen, 17.5);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9.5);
+      doc.setTextColor(225, 225, 225);
+      doc.text(jugador.equipo || 'Sin equipo asignado', margen, 23);
+
+      let y = alturaHeader + 5;
+
+      function piePagina() {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(...gris);
+        doc.text('Athletic Club', margen, altoPagina - 10);
+      }
+
+      function asegurarEspacio(alturaNecesaria) {
+        if (y + alturaNecesaria > altoPagina - margenInferior) {
+          piePagina();
+          doc.addPage();
+          y = 20;
+        }
+      }
+
+      // --- Fila superior: foto, datos deportivos rapidos y posicion en el campo ---
+      const anchoFoto = 40;
+      const altoFoto = 48;
+      const anchoPitch = 32;
+      const altoPitch = 48;
+      const gapColumnas = 5;
+      const anchoInfo = anchoContenido - anchoFoto - anchoPitch - gapColumnas * 2;
+
+      const xFoto = margen;
+      const xInfo = xFoto + anchoFoto + gapColumnas;
+      const xPitch = xInfo + anchoInfo + gapColumnas;
+
+      asegurarEspacio(altoFoto + 4);
+      const yFilaSuperior = y;
+
+      doc.setDrawColor(...bordeGris);
+      doc.setFillColor(...grisClaro);
+      doc.roundedRect(xFoto, yFilaSuperior, anchoFoto, altoFoto, 3, 3, 'FD');
       if (fotoDataUrl) {
         try {
           doc.saveGraphicsState();
-          doc.roundedRect(fotoX, fotoY, fotoTamano, fotoTamano, fotoTamano / 2, fotoTamano / 2, null);
+          doc.roundedRect(xFoto + 1, yFilaSuperior + 1, anchoFoto - 2, altoFoto - 2, 2, 2, null);
           doc.clip();
           doc.discardPath();
           const formatoImagen = fotoDataUrl.includes('image/png') ? 'PNG' : 'JPEG';
-          doc.addImage(fotoDataUrl, formatoImagen, fotoX, fotoY, fotoTamano, fotoTamano);
+          doc.addImage(fotoDataUrl, formatoImagen, xFoto + 1, yFilaSuperior + 1, anchoFoto - 2, altoFoto - 2);
           doc.restoreGraphicsState();
         } catch (_) {
           // Si la imagen no se puede procesar, se omite sin bloquear el informe.
         }
-      }
-
-      let y = fotoDataUrl ? fotoY + 10 : 50;
-      doc.setTextColor(...negro);
-      doc.setFontSize(22);
-      doc.text(nombreJugador, textoX, y);
-
-      if (jugador.equipo) {
-        y += 8;
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(12);
-        doc.setTextColor(...gris);
-        doc.text(`Equipo: ${jugador.equipo}`, textoX, y);
-      }
-
-      y = Math.max(y, fotoDataUrl ? fotoY + fotoTamano : y);
-
-      y += 14;
-      doc.setDrawColor(...rojoClub);
-      doc.setLineWidth(0.5);
-      doc.line(14, y, anchoPagina - 14, y);
-
-      const filas = [
-        ['Posición', formatearValor(jugador.demarcacion)],
-        ['Lateralidad', formatearValor(jugador.lateralidad)],
-        ['Dorsal', formatearValor(jugador.dorsal)],
-        ['Telefono', formatearValor(jugador.telefono_jugador)],
-        ['Email', formatearValor(jugador.email_jugador)],
-        ['Fecha de nacimiento', formatearValor(jugador.fecha_nacimiento, 'fecha_nacimiento')],
-        ['Año de nacimiento', calcularAnioNacimiento(jugador.fecha_nacimiento) ?? '-'],
-        ['Edad', jugador.edad !== undefined && jugador.edad !== null ? `${jugador.edad} años` : '-'],
-      ];
-
-      y += 14;
-      filas.forEach(([etiqueta, valor]) => {
+      } else {
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(11);
-        doc.setTextColor(...gris);
-        doc.text(etiqueta, 14, y);
+        doc.setFontSize(8);
+        doc.setTextColor(...grisEtiqueta);
+        doc.text('Sin foto disponible', xFoto + anchoFoto / 2, yFilaSuperior + altoFoto / 2, { align: 'center', maxWidth: anchoFoto - 8 });
+      }
 
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(13);
+      function tarjetaInfo(x, yTop, ancho, alto, etiqueta, valor) {
+        doc.setDrawColor(...bordeGris);
+        doc.setFillColor(...grisClaro);
+        doc.roundedRect(x, yTop, ancho, alto, 2, 2, 'FD');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(6.5);
+        doc.setTextColor(...grisEtiqueta);
+        doc.text(etiqueta.toUpperCase(), x + ancho / 2, yTop + alto / 2 - 1.5, { align: 'center' });
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
         doc.setTextColor(...negro);
-        doc.text(String(valor), 90, y);
+        doc.text(String(valor), x + ancho / 2, yTop + alto / 2 + 3.5, { align: 'center', maxWidth: ancho - 4 });
+      }
 
-        y += 12;
+      let yInfo = yFilaSuperior;
+      doc.setDrawColor(...bordeGris);
+      doc.setFillColor(...grisClaro);
+      doc.roundedRect(xInfo, yInfo, anchoInfo, 9, 2, 2, 'FD');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(...negro);
+      doc.text(String(jugador.equipo || 'Sin equipo asignado'), xInfo + anchoInfo / 2, yInfo + 6, {
+        align: 'center',
+        maxWidth: anchoInfo - 6,
+      });
+      yInfo += 9 + 2;
+
+      const anchoMedio = (anchoInfo - 2) / 2;
+      tarjetaInfo(xInfo, yInfo, anchoMedio, 11, 'Dorsal', formatearValor(obtenerValorCampoFicha(jugador, 'dorsal'), 'dorsal'));
+      tarjetaInfo(
+        xInfo + anchoMedio + 2,
+        yInfo,
+        anchoMedio,
+        11,
+        'Lateralidad',
+        formatearValor(obtenerValorCampoFicha(jugador, 'lateralidad'), 'lateralidad'),
+      );
+      yInfo += 11 + 2;
+
+      tarjetaInfo(
+        xInfo,
+        yInfo,
+        anchoInfo,
+        11,
+        'Fecha nac.',
+        formatearValor(obtenerValorCampoFicha(jugador, 'fecha_nacimiento'), 'fecha_nacimiento'),
+      );
+      yInfo += 11 + 2;
+
+      tarjetaInfo(xInfo, yInfo, anchoMedio, 11, 'Año nac.', calcularAnioNacimiento(jugador.fecha_nacimiento) ?? '-');
+      tarjetaInfo(
+        xInfo + anchoMedio + 2,
+        yInfo,
+        anchoMedio,
+        11,
+        'Edad',
+        formatearValor(obtenerValorCampoFicha(jugador, 'edad'), 'edad'),
+      );
+
+      // --- Mini-campo de futbol con la posicion, igual que CampoFutbolPosicion.jsx ---
+      const POSICIONES_CAMPO_DEMARCACION = {
+        Portero: { x: 50, y: 140 },
+        'Lateral Dcho': { x: 80, y: 100 },
+        'Lateral Izdo': { x: 20, y: 100 },
+        'Central Dcho': { x: 60, y: 115 },
+        'Central Izdo': { x: 40, y: 115 },
+        Pivote: { x: 50, y: 85 },
+        'Media punta': { x: 50, y: 40 },
+        'Interior Dcho': { x: 70, y: 60 },
+        'Interior Izdo': { x: 30, y: 60 },
+        'Extremo Dcho': { x: 85, y: 24 },
+        'Extremo Izdo': { x: 15, y: 24 },
+        Delantero: { x: 50, y: 12 },
+      };
+      const demarcacion = obtenerValorCampoFicha(jugador, 'demarcacion');
+      const posicionCampo = POSICIONES_CAMPO_DEMARCACION[demarcacion];
+      const escala = anchoPitch / 100;
+      const xEsc = (valor) => xPitch + valor * escala;
+      const yEsc = (valor) => yFilaSuperior + valor * escala;
+
+      doc.setDrawColor(...bordeGris);
+      doc.setFillColor(...grisClaro);
+      doc.roundedRect(xPitch, yFilaSuperior, anchoPitch, altoPitch - 8, 2, 2, 'FD');
+
+      doc.setFillColor(63, 138, 75);
+      doc.rect(xEsc(0), yEsc(0), anchoPitch, (altoPitch - 8) * (146 / 150), 'F');
+      doc.setDrawColor(255, 255, 255);
+      doc.setLineWidth(0.3);
+      doc.rect(xEsc(2), yEsc(2), xEsc(98) - xEsc(2), yEsc(146) - yEsc(2));
+      doc.line(xEsc(2), yEsc(75), xEsc(98), yEsc(75));
+      doc.circle(xEsc(50), yEsc(75), xEsc(59) - xEsc(50));
+      doc.rect(xEsc(26), yEsc(2), xEsc(74) - xEsc(26), yEsc(20) - yEsc(2));
+      doc.rect(xEsc(26), yEsc(130), xEsc(74) - xEsc(26), yEsc(148) - yEsc(130));
+      if (posicionCampo) {
+        doc.setFillColor(...rojoClub);
+        doc.setDrawColor(255, 255, 255);
+        doc.circle(xEsc(posicionCampo.x), yEsc(posicionCampo.y), 1.6, 'FD');
+      }
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(...grisEtiqueta);
+      doc.text((demarcacion || 'Sin posición').toUpperCase(), xPitch + anchoPitch / 2, yFilaSuperior + altoPitch - 3, {
+        align: 'center',
       });
 
-      doc.setFontSize(9);
-      doc.setTextColor(...gris);
-      doc.text('Athletic Club', 14, doc.internal.pageSize.getHeight() - 10);
+      y = yFilaSuperior + Math.max(altoFoto, yInfo + 11 - yFilaSuperior, altoPitch) + 5;
+
+      // --- Secciones de datos, en tarjetas como en la web ---
+      const SECCIONES_EXCLUIDAS_INFORME = ['Domicilio', 'Datos del padre', 'Datos de la madre', 'Nacimiento'];
+      const CAMPOS_EXCLUIDOS_INFORME = ['nombre', 'primer_apellido', 'segundo_apellido', 'fecha_nacimiento'];
+      const columnasSeccion = 3;
+      const paddingSeccion = 4;
+      const anchoInternoSeccion = anchoContenido - paddingSeccion * 2;
+      const gapCard = 3;
+      const anchoCard = (anchoInternoSeccion - gapCard * (columnasSeccion - 1)) / columnasSeccion;
+      const altoCard = 13;
+      const gapFila = 2;
+
+      function dibujarSeccion(titulo, filas) {
+        const numFilas = Math.ceil(filas.length / columnasSeccion);
+        const alturaSeccion = paddingSeccion + 5 + 3 + numFilas * altoCard + (numFilas - 1) * gapFila + paddingSeccion;
+
+        asegurarEspacio(alturaSeccion);
+        const yInicio = y;
+
+        doc.setDrawColor(...bordeGris);
+        doc.setFillColor(...grisClaro);
+        doc.roundedRect(margen, yInicio, anchoContenido, alturaSeccion, 3, 3, 'FD');
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9.5);
+        doc.setTextColor(...negro);
+        doc.text(titulo.toUpperCase(), margen + paddingSeccion, yInicio + paddingSeccion + 3.5);
+
+        const yCards = yInicio + paddingSeccion + 5 + 3;
+        filas.forEach(([etiqueta, valor], indice) => {
+          const col = indice % columnasSeccion;
+          const fila = Math.floor(indice / columnasSeccion);
+          const cardX = margen + paddingSeccion + col * (anchoCard + gapCard);
+          const cardY = yCards + fila * (altoCard + gapFila);
+
+          doc.setDrawColor(...bordeGris);
+          doc.setFillColor(...blanco);
+          doc.roundedRect(cardX, cardY, anchoCard, altoCard, 2, 2, 'FD');
+
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(6.5);
+          doc.setTextColor(...grisEtiqueta);
+          doc.text(etiqueta.toUpperCase(), cardX + 2.5, cardY + 5, { maxWidth: anchoCard - 5 });
+
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(8.5);
+          doc.setTextColor(...negro);
+          doc.text(String(valor), cardX + 2.5, cardY + 10.5, { maxWidth: anchoCard - 5 });
+        });
+
+        y = yInicio + alturaSeccion + 4;
+      }
+
+      SECCIONES_FICHA.filter((seccion) => !SECCIONES_EXCLUIDAS_INFORME.includes(seccion.titulo)).forEach((seccion) => {
+        const filasSeccion = seccion.campos
+          .filter((campo) => !CAMPOS_EXCLUIDOS_INFORME.includes(campo) && tieneDatoCampo(jugador, campo))
+          .map((campo) => [
+            ETIQUETAS_JUGADOR[campo] || campo,
+            formatearValor(obtenerValorCampoFicha(jugador, campo), campo),
+          ]);
+
+        if (filasSeccion.length === 0) return;
+        dibujarSeccion(seccion.titulo, filasSeccion);
+      });
+
+      if (jugador.observaciones) {
+        const lineasObservaciones = doc.splitTextToSize(
+          String(jugador.observaciones),
+          anchoContenido - paddingSeccion * 2 - 6,
+        );
+        const alturaTexto = lineasObservaciones.length * 4.5;
+        const alturaSeccion = paddingSeccion + 5 + 3 + alturaTexto + paddingSeccion;
+
+        asegurarEspacio(alturaSeccion);
+        const yInicio = y;
+
+        doc.setDrawColor(...bordeGris);
+        doc.setFillColor(...grisClaro);
+        doc.roundedRect(margen, yInicio, anchoContenido, alturaSeccion, 3, 3, 'FD');
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9.5);
+        doc.setTextColor(...negro);
+        doc.text('OBSERVACIONES', margen + paddingSeccion, yInicio + paddingSeccion + 3.5);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8.5);
+        doc.setTextColor(...negro);
+        let yTexto = yInicio + paddingSeccion + 5 + 3 + 3.5;
+        lineasObservaciones.forEach((linea) => {
+          doc.text(linea, margen + paddingSeccion, yTexto);
+          yTexto += 4.5;
+        });
+
+        y = yInicio + alturaSeccion + 4;
+      }
+
+      piePagina();
 
       const nombreArchivo = `informe_${nombreJugador.replace(/\s+/g, '_').toLowerCase()}.pdf`;
       doc.setProperties({ title: nombreArchivo });

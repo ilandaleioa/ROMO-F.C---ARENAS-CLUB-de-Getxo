@@ -32,6 +32,35 @@ function avatarIniciales(personal) {
   return [personal.nombre?.[0], personal.primer_apellido?.[0]].filter(Boolean).join('').toUpperCase() || 'P';
 }
 
+function IconoVer() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4" aria-hidden="true">
+      <path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12Z" />
+      <circle cx="12" cy="12" r="2.5" />
+    </svg>
+  );
+}
+
+function IconoEditar() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4" aria-hidden="true">
+      <path d="m4 20 4.5-1 10-10a1.8 1.8 0 0 0 0-2.5l-1-1a1.8 1.8 0 0 0-2.5 0l-10 10L4 20Z" strokeLinejoin="round" />
+      <path d="m13 6 5 5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconoBorrar() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4" aria-hidden="true">
+      <path d="M4 7h16" strokeLinecap="round" />
+      <path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7" strokeLinejoin="round" />
+      <path d="M7 7l1 13h8l1-13" strokeLinejoin="round" />
+      <path d="M10 11v5M14 11v5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export default function Personal() {
   const { user } = useAuth();
   const { club } = useClub();
@@ -50,6 +79,7 @@ export default function Personal() {
   const [editandoId, setEditandoId] = useState(null);
   const [form, setForm] = useState(crearPersonalVacio);
   const [fotoFile, setFotoFile] = useState(null);
+  const [fotoUrlActual, setFotoUrlActual] = useState(null);
   const [selectorEquiposAbierto, setSelectorEquiposAbierto] = useState(false);
   const selectorEquiposRef = useRef(null);
 
@@ -129,14 +159,31 @@ export default function Personal() {
   const todosLosEquiposSeleccionados =
     equiposOrdenados.length > 0 && equiposOrdenados.every((equipo) => form.equipos.includes(equipo));
 
+  const [modalAbierto, setModalAbierto] = useState(false);
+  const [soloLectura, setSoloLectura] = useState(false);
+
   const resetForm = () => {
     setForm(crearPersonalVacio());
     setFotoFile(null);
+    setFotoUrlActual(null);
     setEditandoId(null);
     setSelectorEquiposAbierto(false);
   };
 
-  const iniciarEdicion = (item) => {
+  const cerrarModal = () => {
+    setModalAbierto(false);
+    setSoloLectura(false);
+    resetForm();
+  };
+
+  const abrirNuevo = () => {
+    resetForm();
+    setMensaje('');
+    setSoloLectura(false);
+    setModalAbierto(true);
+  };
+
+  const cargarFormDesde = (item) => {
     setEditandoId(item.id);
     setForm({
       nombre: item.nombre || '',
@@ -148,8 +195,21 @@ export default function Personal() {
       equipos: parseEquiposPersonal(item.equipo),
     });
     setFotoFile(null);
+    setFotoUrlActual(item.foto_url || null);
     setMensaje('');
     setSelectorEquiposAbierto(false);
+  };
+
+  const verPersonal = (item) => {
+    cargarFormDesde(item);
+    setSoloLectura(true);
+    setModalAbierto(true);
+  };
+
+  const iniciarEdicion = (item) => {
+    cargarFormDesde(item);
+    setSoloLectura(false);
+    setModalAbierto(true);
   };
 
   const subirFotoSiHaceFalta = async (id) => {
@@ -189,6 +249,7 @@ export default function Personal() {
       }
 
       setMensaje(editandoId ? 'Personal actualizado correctamente.' : 'Personal creado correctamente.');
+      setModalAbierto(false);
       resetForm();
       await Promise.allSettled([cargarEquipos(), cargarPersonal()]);
     } catch (err) {
@@ -210,7 +271,10 @@ export default function Personal() {
 
     try {
       await api.delete(`/personal/${item.id}`);
-      if (editandoId === item.id) resetForm();
+      if (editandoId === item.id) {
+        setModalAbierto(false);
+        resetForm();
+      }
       setMensaje(`${nombreCompleto(item)} borrado correctamente.`);
       await Promise.allSettled([cargarEquipos(), cargarPersonal()]);
     } catch (err) {
@@ -273,50 +337,174 @@ export default function Personal() {
         </p>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
-        <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-          <div className="flex items-center justify-between gap-3 mb-4">
-            <div>
-              <h3 className="text-lg font-bold text-club-black">
-                {editandoId ? 'Editar personal' : 'Nuevo personal'}
-              </h3>
-              <p className="text-sm text-club-black/60">
-                {puedeGestionar
-                  ? 'Rellena los campos y guarda el registro.'
-                  : 'Solo lectura: tu rol no puede crear o editar personal.'}
-              </p>
-            </div>
-            {editandoId && (
+      <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <h3 className="text-lg font-bold text-club-black">Listado</h3>
+          <div className="flex items-center gap-3">
+            <span className="rounded-full bg-club-black px-3 py-1 text-sm font-semibold text-white">
+              {personal.length} {personal.length === 1 ? 'registro' : 'registros'}
+            </span>
+            {puedeGestionar && (
               <button
                 type="button"
-                onClick={resetForm}
-                className="text-sm font-semibold text-club-black/60 hover:text-club-black"
+                onClick={abrirNuevo}
+                className="inline-flex items-center justify-center rounded-md bg-club-red px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-club-redDark"
               >
-                Cancelar
+                Nuevo personal
               </button>
             )}
           </div>
+        </div>
 
-          {puedeGestionar ? (
-            <form onSubmit={guardar} className="space-y-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-center">
+        {loading ? (
+          <p className="py-8 text-club-black/60">Cargando personal...</p>
+        ) : personal.length === 0 ? (
+          <p className="py-8 text-club-black/60">No se han encontrado registros de personal.</p>
+        ) : (
+          <TableScroll className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead>
+                <tr className="text-left text-xs uppercase tracking-wide text-club-black/50">
+                  <th className="px-3 py-2">Foto</th>
+                  <th className="px-3 py-2">Nombre</th>
+                  <th className="px-3 py-2">Contacto</th>
+                  <th className="px-3 py-2">Cargo</th>
+                  <th className="px-3 py-2">Equipo</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {personal.map((item) => (
+                  <tr key={item.id} className="align-top hover:bg-red-50/40">
+                    <td className="px-3 py-3">
+                      <div className="flex items-center gap-3">
+                        {item.foto_url ? (
+                          <img
+                            src={item.foto_url}
+                            alt={nombreCompleto(item)}
+                            className="h-12 w-12 rounded-full object-cover ring-2 ring-white shadow-sm"
+                          />
+                        ) : (
+                          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-club-black text-sm font-bold text-white">
+                            {avatarIniciales(item)}
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => verPersonal(item)}
+                            title="Ver"
+                            aria-label={`Ver a ${nombreCompleto(item)}`}
+                            className="rounded-md p-1.5 text-club-black/60 transition-colors hover:bg-gray-100 hover:text-club-black"
+                          >
+                            <IconoVer />
+                          </button>
+                          {puedeGestionar && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => iniciarEdicion(item)}
+                                title="Editar"
+                                aria-label={`Editar a ${nombreCompleto(item)}`}
+                                className="rounded-md p-1.5 text-club-black/60 transition-colors hover:bg-gray-100 hover:text-club-black"
+                              >
+                                <IconoEditar />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => borrar(item)}
+                                disabled={borrandoId === item.id}
+                                title="Borrar"
+                                aria-label={`Borrar a ${nombreCompleto(item)}`}
+                                className="rounded-md p-1.5 text-club-black/60 transition-colors hover:bg-red-50 hover:text-club-red disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                <IconoBorrar />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-3 py-3">
+                      <div className="font-semibold text-club-black">{nombreCompleto(item)}</div>
+                      {item.segundo_apellido ? (
+                        <div className="text-xs text-club-black/50">ID {item.id}</div>
+                      ) : null}
+                    </td>
+                    <td className="px-3 py-3 text-sm text-club-black/80">
+                      {item.telefono ? (
+                        <a href={`tel:${item.telefono}`} className="block hover:text-club-red hover:underline">
+                          {item.telefono}
+                        </a>
+                      ) : null}
+                      {item.email ? (
+                        <a href={`mailto:${item.email}`} className="block hover:text-club-red hover:underline">
+                          {item.email}
+                        </a>
+                      ) : null}
+                      {!item.telefono && !item.email ? <span className="text-club-black/40">—</span> : null}
+                    </td>
+                    <td className="px-3 py-3 text-club-black/80">{item.cargo}</td>
+                    <td className="px-3 py-3 text-club-black/80">{equiposPersonalLabel(item.equipo)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableScroll>
+        )}
+      </section>
+
+      {modalAbierto && (puedeGestionar || soloLectura) && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/60 p-4 sm:p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="personal-modal-titulo"
+          onClick={cerrarModal}
+        >
+          <div
+            className="my-auto w-full max-w-lg overflow-hidden rounded-xl bg-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="max-h-[85vh] overflow-y-auto p-5 sm:p-6">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <div>
+                  <h3 id="personal-modal-titulo" className="text-lg font-bold text-club-black">
+                    {soloLectura ? 'Detalle de personal' : editandoId ? 'Editar personal' : 'Nuevo personal'}
+                  </h3>
+                  <p className="text-sm text-club-black/60">
+                    {soloLectura ? 'Vista de solo lectura.' : 'Rellena los campos y guarda el registro.'}
+                  </p>
+                </div>
                 <button
-                  type="submit"
-                  disabled={guardando}
-                  className="w-full sm:w-auto inline-flex items-center justify-center rounded-md bg-club-red px-4 py-2 font-semibold text-white transition-colors hover:bg-club-redDark disabled:cursor-not-allowed disabled:opacity-60"
+                  type="button"
+                  onClick={cerrarModal}
+                  className="text-sm font-semibold text-club-black/60 hover:text-club-black"
                 >
-                  {guardando ? 'Guardando...' : editandoId ? 'Actualizar' : 'Crear personal'}
+                  Cerrar
                 </button>
-                {editandoId && (
-                  <button
-                    type="button"
-                    onClick={resetForm}
-                    className="w-full sm:w-auto inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 font-semibold text-club-black transition-colors hover:bg-gray-50"
-                  >
-                    Limpiar
-                  </button>
-                )}
               </div>
+
+              <form onSubmit={guardar} className="space-y-4">
+              {!soloLectura && (
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-center">
+                  <button
+                    type="submit"
+                    disabled={guardando}
+                    className="w-full sm:w-auto inline-flex items-center justify-center rounded-md bg-club-red px-4 py-2 font-semibold text-white transition-colors hover:bg-club-redDark disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {guardando ? 'Guardando...' : editandoId ? 'Actualizar' : 'Crear personal'}
+                  </button>
+                  {editandoId && (
+                    <button
+                      type="button"
+                      onClick={resetForm}
+                      className="w-full sm:w-auto inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 font-semibold text-club-black transition-colors hover:bg-gray-50"
+                    >
+                      Limpiar
+                    </button>
+                  )}
+                </div>
+              )}
 
               <div>
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-club-black/60">
@@ -326,7 +514,8 @@ export default function Personal() {
                   type="text"
                   value={form.nombre}
                   onChange={(e) => setForm((prev) => ({ ...prev, nombre: e.target.value }))}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
+                  disabled={soloLectura}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red disabled:bg-gray-50 disabled:text-club-black/70"
                   required
                 />
               </div>
@@ -339,7 +528,8 @@ export default function Personal() {
                     type="text"
                     value={form.primer_apellido}
                     onChange={(e) => setForm((prev) => ({ ...prev, primer_apellido: e.target.value }))}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
+                    disabled={soloLectura}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red disabled:bg-gray-50 disabled:text-club-black/70"
                     required
                   />
                 </div>
@@ -351,7 +541,8 @@ export default function Personal() {
                     type="text"
                     value={form.segundo_apellido}
                     onChange={(e) => setForm((prev) => ({ ...prev, segundo_apellido: e.target.value }))}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
+                    disabled={soloLectura}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red disabled:bg-gray-50 disabled:text-club-black/70"
                   />
                 </div>
               </div>
@@ -364,7 +555,8 @@ export default function Personal() {
                   value={form.telefono}
                   onChange={(e) => setForm((prev) => ({ ...prev, telefono: e.target.value }))}
                   placeholder="Ej. 600 000 000"
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
+                  disabled={soloLectura}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red disabled:bg-gray-50 disabled:text-club-black/70"
                 />
               </div>
               <div>
@@ -376,7 +568,8 @@ export default function Personal() {
                   value={form.email}
                   onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
                   placeholder="Ej. nombre@club.com"
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
+                  disabled={soloLectura}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red disabled:bg-gray-50 disabled:text-club-black/70"
                 />
               </div>
               <div>
@@ -386,7 +579,8 @@ export default function Personal() {
                 <select
                   value={form.cargo}
                   onChange={(e) => setForm((prev) => ({ ...prev, cargo: e.target.value }))}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red"
+                  disabled={soloLectura}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red disabled:bg-gray-50 disabled:text-club-black/70"
                   required
                 >
                   {CARGOS_PERSONAL.map((cargo) => (
@@ -405,8 +599,9 @@ export default function Personal() {
                     type="button"
                     aria-expanded={selectorEquiposAbierto}
                     aria-haspopup="listbox"
+                    disabled={soloLectura}
                     onClick={() => setSelectorEquiposAbierto((abierto) => !abierto)}
-                    className="w-full flex items-center justify-between gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-left focus:outline-none focus:ring-2 focus:ring-club-red"
+                    className="w-full flex items-center justify-between gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-left focus:outline-none focus:ring-2 focus:ring-club-red disabled:bg-gray-50 disabled:text-club-black/70"
                   >
                     <span className="truncate">
                       {form.equipos.length > 0
@@ -492,113 +687,32 @@ export default function Personal() {
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-club-black/60">
                   Foto
                 </label>
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={(e) => setFotoFile(e.target.files?.[0] || null)}
-                  className="block w-full text-sm text-club-black/70 file:mr-3 file:rounded-md file:border-0 file:bg-club-black file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-black"
-                />
-                <p className="mt-1 text-xs text-club-black/50">JPG, PNG o WEBP. Tamaño máximo: 5 MB.</p>
+                {fotoUrlActual ? (
+                  <img
+                    src={fotoUrlActual}
+                    alt="Foto de personal"
+                    className="mb-2 h-20 w-20 rounded-full object-cover"
+                  />
+                ) : soloLectura ? (
+                  <p className="mb-2 text-sm text-club-black/40">Sin foto</p>
+                ) : null}
+                {!soloLectura && (
+                  <>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={(e) => setFotoFile(e.target.files?.[0] || null)}
+                      className="block w-full text-sm text-club-black/70 file:mr-3 file:rounded-md file:border-0 file:bg-club-black file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-black"
+                    />
+                    <p className="mt-1 text-xs text-club-black/50">JPG, PNG o WEBP. Tamaño máximo: 5 MB.</p>
+                  </>
+                )}
               </div>
-            </form>
-          ) : (
-            <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-club-black/70">
-              Esta vista es solo de consulta para tu rol.
+              </form>
             </div>
-          )}
-        </section>
-
-        <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-          <div className="flex items-center justify-between gap-3 mb-4">
-            <h3 className="text-lg font-bold text-club-black">Listado</h3>
-            <span className="rounded-full bg-club-black px-3 py-1 text-sm font-semibold text-white">
-              {personal.length} {personal.length === 1 ? 'registro' : 'registros'}
-            </span>
           </div>
-
-          {loading ? (
-            <p className="py-8 text-club-black/60">Cargando personal...</p>
-          ) : personal.length === 0 ? (
-            <p className="py-8 text-club-black/60">No se han encontrado registros de personal.</p>
-          ) : (
-            <TableScroll className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead>
-                  <tr className="text-left text-xs uppercase tracking-wide text-club-black/50">
-                    <th className="px-3 py-2">Foto</th>
-                    <th className="px-3 py-2">Nombre</th>
-                    <th className="px-3 py-2">Contacto</th>
-                    <th className="px-3 py-2">Cargo</th>
-                    <th className="px-3 py-2">Equipo</th>
-                    {puedeGestionar && <th className="px-3 py-2 text-right">Acciones</th>}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {personal.map((item) => (
-                    <tr key={item.id} className="align-top hover:bg-red-50/40">
-                      <td className="px-3 py-3">
-                        {item.foto_url ? (
-                          <img
-                            src={item.foto_url}
-                            alt={nombreCompleto(item)}
-                            className="h-12 w-12 rounded-full object-cover ring-2 ring-white shadow-sm"
-                          />
-                        ) : (
-                          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-club-black text-sm font-bold text-white">
-                            {avatarIniciales(item)}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-3 py-3">
-                        <div className="font-semibold text-club-black">{nombreCompleto(item)}</div>
-                        {item.segundo_apellido ? (
-                          <div className="text-xs text-club-black/50">ID {item.id}</div>
-                        ) : null}
-                      </td>
-                      <td className="px-3 py-3 text-sm text-club-black/80">
-                        {item.telefono ? (
-                          <a href={`tel:${item.telefono}`} className="block hover:text-club-red hover:underline">
-                            {item.telefono}
-                          </a>
-                        ) : null}
-                        {item.email ? (
-                          <a href={`mailto:${item.email}`} className="block hover:text-club-red hover:underline">
-                            {item.email}
-                          </a>
-                        ) : null}
-                        {!item.telefono && !item.email ? <span className="text-club-black/40">—</span> : null}
-                      </td>
-                      <td className="px-3 py-3 text-club-black/80">{item.cargo}</td>
-                      <td className="px-3 py-3 text-club-black/80">{equiposPersonalLabel(item.equipo)}</td>
-                      {puedeGestionar && (
-                        <td className="px-3 py-3">
-                          <div className="flex justify-end gap-2">
-                            <button
-                              type="button"
-                              onClick={() => iniciarEdicion(item)}
-                              className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-semibold text-club-black transition-colors hover:bg-gray-50"
-                            >
-                              Editar
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => borrar(item)}
-                              disabled={borrandoId === item.id}
-                              className="rounded-md bg-club-red px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-club-redDark disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              {borrandoId === item.id ? 'Borrando...' : 'Borrar'}
-                            </button>
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </TableScroll>
-          )}
-        </section>
-      </div>
+        </div>
+      )}
     </div>
   );
 }

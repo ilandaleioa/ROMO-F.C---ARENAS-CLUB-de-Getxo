@@ -26,7 +26,9 @@ import Listas from './pages/Listas';
 import Personal from './pages/Personal';
 import Actividades from './pages/Actividades';
 import Competiciones from './pages/Competiciones';
+import CompeticionInfo from './pages/CompeticionInfo';
 import { ROLES_GESTION_USUARIOS } from './lib/roles';
+import { getRutaPorDefecto } from './lib/apartados';
 
 function ClubThemeSync() {
   const { club } = useClub();
@@ -88,7 +90,7 @@ function AppRoutes() {
       <Route path="/login" element={<Login />} />
       <Route
         path="/"
-        element={<Navigate to="/actividades" replace />}
+        element={<Navigate to={getRutaPorDefecto(user)} replace />}
       />
       <Route
         path="/plantillas"
@@ -270,7 +272,17 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
-      <Route path="*" element={<Navigate to={user ? '/actividades' : '/login'} replace />} />
+      <Route
+        path="/competicion"
+        element={
+          <ProtectedRoute requiredApartado="competicion">
+            <Layout>
+              <CompeticionInfo />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route path="*" element={<Navigate to={user ? getRutaPorDefecto(user) : '/login'} replace />} />
     </Routes>
   );
 }

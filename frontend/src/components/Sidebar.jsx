@@ -14,7 +14,7 @@ export default function Sidebar({ isOpen, onClose, colapsado, onToggleColapsado 
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const { club, setClub } = useClub();
-  const apartadosOcultosEnSidebar = ['equipos', 'usuarios', 'listas', 'clubes_maestros', 'hojas_calculo', 'competiciones'];
+  const apartadosOcultosEnSidebar = ['actividades', 'equipos', 'usuarios', 'listas', 'clubes_maestros', 'hojas_calculo', 'competiciones'];
 
   useEffect(() => {
     if (!isOpen) return undefined;

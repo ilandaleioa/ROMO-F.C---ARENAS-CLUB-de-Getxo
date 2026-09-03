@@ -333,41 +333,51 @@ function ordenarEquipos(equipos, club) {
 // GET /api/jugadores/equipos -> lista de equipos distintos (para el selector).
 // Solo tiene sentido para Administrador/Responsable; Tecnico ya conoce su equipo.
 router.get('/equipos', async (req, res) => {
-  const { data, error } = await supabaseAdmin.from('jugadores').select('equipo').eq('club', req.club);
-  if (error) {
-    return res.status(503).json({ error: 'No se pudo consultar la base de datos de jugadores.' });
-  }
+  try {
+    const { data, error } = await supabaseAdmin.from('jugadores').select('equipo').eq('club', req.club);
+    if (error) {
+      return res.status(503).json({ error: 'No se pudo consultar la base de datos de jugadores.' });
+    }
 
-  const equipos = ordenarEquiposGlobal(filtrarEquiposPermitidos((data || []).map((r) => r.equipo).filter(Boolean), req.user));
-  res.json({ equipos });
+    const equipos = ordenarEquiposGlobal(filtrarEquiposPermitidos((data || []).map((r) => r.equipo).filter(Boolean), req.user));
+    res.json({ equipos });
+  } catch (err) {
+    console.error('Error inesperado al listar equipos:', err.message);
+    res.status(503).json({ error: 'No se pudo consultar la base de datos de jugadores.' });
+  }
 });
 
 // GET /api/jugadores/:id -> ficha de un jugador.
 router.get('/:id', async (req, res) => {
-  const { rol, equipo_asignado } = req.user;
+  try {
+    const { rol, equipo_asignado } = req.user;
 
-  const { data, error } = await supabaseAdmin
-    .from('jugadores')
-    .select('*')
-    .eq('id', req.params.id)
-    .eq('club', req.club)
-    .maybeSingle();
+    const { data, error } = await supabaseAdmin
+      .from('jugadores')
+      .select('*')
+      .eq('id', req.params.id)
+      .eq('club', req.club)
+      .maybeSingle();
 
-  if (error) {
-    return res.status(503).json({ error: 'No se pudo consultar la base de datos de jugadores.' });
-  }
-  if (!data) {
-    return res.status(404).json({ error: 'Jugador no encontrado.' });
-  }
+    if (error) {
+      return res.status(503).json({ error: 'No se pudo consultar la base de datos de jugadores.' });
+    }
+    if (!data) {
+      return res.status(404).json({ error: 'Jugador no encontrado.' });
+    }
 
-  if (rol === ROLES.TECNICO && !equipo_asignado) {
-    return res.status(409).json({ error: 'Tu usuario no tiene un equipo asignado. Contacta con el administrador.' });
-  }
-  if (!puedeVerEquipo(req.user, data.equipo)) {
-    return res.status(403).json({ error: 'No tienes permiso para ver este jugador.' });
-  }
+    if (rol === ROLES.TECNICO && !equipo_asignado) {
+      return res.status(409).json({ error: 'Tu usuario no tiene un equipo asignado. Contacta con el administrador.' });
+    }
+    if (!puedeVerEquipo(req.user, data.equipo)) {
+      return res.status(403).json({ error: 'No tienes permiso para ver este jugador.' });
+    }
 
-  res.json({ jugador: await conFotoUrl(sanitizeRow(data, rol)) });
+    res.json({ jugador: await conFotoUrl(sanitizeRow(data, rol)) });
+  } catch (err) {
+    console.error('Error inesperado al consultar jugador:', err.message);
+    res.status(503).json({ error: 'No se pudo consultar la base de datos de jugadores.' });
+  }
 });
 
 // PUT /api/jugadores/:id -> actualiza los datos completos de un jugador.

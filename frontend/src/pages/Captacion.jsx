@@ -817,7 +817,7 @@ function CaptacionFormulario({
                 <section
                   key={bloque.title}
                   className={`rounded-2xl border border-gray-200 bg-gray-50 p-4 ${
-                    bloque.title === 'Perfil del jugador' || bloque.title === 'Observaciones' || bloque.title === 'Informe completo' ? 'lg:col-span-2' : ''
+                    bloque.title === 'Datos de alta' || bloque.title === 'Perfil del jugador' || bloque.title === 'Observaciones' || bloque.title === 'Informe completo' ? 'lg:col-span-2' : ''
                   }`}
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">

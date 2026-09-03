@@ -15,6 +15,7 @@ export const APARTADOS_APP = [
   { key: 'clubes_maestros', label: 'CLUBES', path: '/listas/clubes', roles: ['administrador', 'director'] },
   { key: 'hojas_calculo', label: 'Hojas de calculo', path: '/hojas-calculo' },
   { key: 'competiciones', label: 'Competiciones', path: '/competiciones', roles: ['administrador', 'director'] },
+  { key: 'competicion', label: 'COMPETICIÓN', path: '/competicion' },
 ];
 
 export const APARTADOS_USUARIO = APARTADOS_APP.map(({ key, label }) => ({
@@ -85,7 +86,14 @@ export function usuarioPuedeVerItem(user, item) {
   return usuarioPuedeVerApartado(user, item.key);
 }
 
+const PRIORIDAD_RUTA_DEFECTO = ['inicio', 'inicio_arenas'];
+
 export function getRutaPorDefecto(user) {
+  const preferido = PRIORIDAD_RUTA_DEFECTO
+    .map((key) => APARTADOS_APP.find((item) => item.key === key))
+    .find((item) => item && usuarioPuedeVerItem(user, item));
+  if (preferido) return preferido.path;
+
   const visible = APARTADOS_APP.find((item) => usuarioPuedeVerItem(user, item));
   return visible?.path || '/login';
 }

@@ -10,7 +10,7 @@ import { equiposAsignadosLabel, parseEquiposAsignados, usuarioLimitadoAUnEquipo 
 import { usuarioPuedeVerApartado } from '../lib/apartados';
 import TableScroll from '../components/TableScroll';
 import CampoFutbolPosicion from '../components/CampoFutbolPosicion';
-import { ETIQUETAS_JUGADOR, SECCIONES_FICHA } from '../lib/campos';
+import { ETIQUETAS_JUGADOR, SECCIONES_FICHA, LOCALIDAD_OPCIONES } from '../lib/campos';
 import BotonesVistaPlantillas from '../components/BotonesVistaPlantillas';
 
 const COLORES_MUNICIPIOS = [
@@ -75,13 +75,21 @@ function opcionesPresentes(lista, obtenerValor) {
   return Array.from(presentes);
 }
 
+function fechaHoyISO() {
+  const hoy = new Date();
+  const anio = hoy.getFullYear();
+  const mes = String(hoy.getMonth() + 1).padStart(2, '0');
+  const dia = String(hoy.getDate()).padStart(2, '0');
+  return `${anio}-${mes}-${dia}`;
+}
+
 function crearJugadorVacio(equipo = '') {
   return {
     nombre: '',
     primer_apellido: '',
     segundo_apellido: '',
     equipo,
-    fecha_nacimiento: '',
+    fecha_nacimiento: fechaHoyISO(),
     dorsal: '',
     lateralidad: '',
     demarcacion: '',
@@ -95,6 +103,17 @@ const SECCIONES_FORMULARIO_JUGADOR = SECCIONES_FICHA.filter(
 );
 const CAMPOS_NUMERICOS_FORMULARIO = new Set(['altura_cm', 'peso_kg']);
 const CAMPOS_OBLIGATORIOS_FORMULARIO = new Set(['nombre', 'primer_apellido', 'equipo']);
+
+function generarHorasSalidaColegio() {
+  const horas = [];
+  for (let minutos = 14 * 60; minutos <= 18 * 60; minutos += 15) {
+    const h = String(Math.floor(minutos / 60)).padStart(2, '0');
+    const m = String(minutos % 60).padStart(2, '0');
+    horas.push(`${h}:${m}`);
+  }
+  return horas;
+}
+const HORAS_SALIDA_COLEGIO_OPCIONES = generarHorasSalidaColegio();
 
 export default function Plantillas({ soloGraficas = false }) {
   const navigate = useNavigate();
@@ -135,6 +154,8 @@ export default function Plantillas({ soloGraficas = false }) {
   const [esMovil, setEsMovil] = useState(detectarMovil);
   const [jugadorEditando, setJugadorEditando] = useState(null);
   const [cargandoEdicion, setCargandoEdicion] = useState(false);
+  const [subiendoFoto, setSubiendoFoto] = useState(false);
+  const [errorFoto, setErrorFoto] = useState('');
   const estaEditando = Boolean(jugadorIdParam);
 
   useEffect(() => {
@@ -298,8 +319,28 @@ export default function Plantillas({ soloGraficas = false }) {
     setMostrarFormularioJugador(false);
     setFormularioJugador(crearJugadorVacio());
     setJugadorEditando(null);
+    setErrorFoto('');
     if (estaEditando) {
       navigate('/plantillas');
+    }
+  };
+
+  const handleFotoJugadorEditandoChange = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !jugadorEditando?.id) return;
+
+    setSubiendoFoto(true);
+    setErrorFoto('');
+    try {
+      const formData = new FormData();
+      formData.append('foto', file);
+      const { foto_url } = await api.postFile(`/jugadores/${jugadorEditando.id}/foto`, formData);
+      setJugadorEditando((actual) => (actual ? { ...actual, foto_url } : actual));
+    } catch (err) {
+      setErrorFoto(err.message);
+    } finally {
+      setSubiendoFoto(false);
     }
   };
 
@@ -622,6 +663,58 @@ export default function Plantillas({ soloGraficas = false }) {
         );
       }
 
+      if (campo === 'equipo') {
+        return (
+          <label key={campo} className="block rounded-xl border border-gray-200 bg-white p-4">
+            <span className="text-xs font-semibold uppercase tracking-wide text-club-black/45">
+              {etiqueta}
+              {requerido ? ' *' : ''}
+            </span>
+            <select
+              required={requerido}
+              value={formularioJugador[campo] ?? ''}
+              onChange={(event) => actualizarFormularioJugador(campo, event.target.value)}
+              className="mt-2 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
+            >
+              <option value="">Seleccionar equipo</option>
+              {equiposDisponibles.map((opcion) => <option key={opcion} value={opcion}>{opcion}</option>)}
+            </select>
+          </label>
+        );
+      }
+
+      if (campo === 'localidad') {
+        return (
+          <label key={campo} className="block rounded-xl border border-gray-200 bg-white p-4">
+            <span className="text-xs font-semibold uppercase tracking-wide text-club-black/45">{etiqueta}</span>
+            <select
+              value={formularioJugador[campo] ?? ''}
+              onChange={(event) => actualizarFormularioJugador(campo, event.target.value)}
+              className="mt-2 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
+            >
+              <option value="">Seleccionar localidad</option>
+              {LOCALIDAD_OPCIONES.map((opcion) => <option key={opcion} value={opcion}>{opcion}</option>)}
+            </select>
+          </label>
+        );
+      }
+
+      if (campo === 'hora_salida_colegio') {
+        return (
+          <label key={campo} className="block rounded-xl border border-gray-200 bg-white p-4">
+            <span className="text-xs font-semibold uppercase tracking-wide text-club-black/45">{etiqueta}</span>
+            <select
+              value={formularioJugador[campo] ?? ''}
+              onChange={(event) => actualizarFormularioJugador(campo, event.target.value)}
+              className="mt-2 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
+            >
+              <option value="">Sin especificar</option>
+              {HORAS_SALIDA_COLEGIO_OPCIONES.map((opcion) => <option key={opcion} value={opcion}>{opcion}</option>)}
+            </select>
+          </label>
+        );
+      }
+
       const esNumerico = CAMPOS_NUMERICOS_FORMULARIO.has(campo);
 
       return (
@@ -683,13 +776,20 @@ export default function Plantillas({ soloGraficas = false }) {
                   </div>
                 )}
               </div>
-              {esEdicion && (
-                <Link
-                  to={`/fichas/${jugadorEditando.id}`}
-                  className="block text-center text-xs font-semibold text-club-red hover:underline"
-                >
-                  Cambiar foto desde la ficha
-                </Link>
+              {esEdicion && puedeEditarJugadores && (
+                <div className="space-y-1.5">
+                  <label className="inline-flex w-full items-center justify-center rounded-md border border-club-red/20 bg-club-red/5 px-3 py-2 text-xs font-semibold text-club-red cursor-pointer hover:bg-club-red/10 transition-colors">
+                    {subiendoFoto ? 'Subiendo foto...' : 'Cambiar foto'}
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      onChange={handleFotoJugadorEditandoChange}
+                      disabled={subiendoFoto}
+                    />
+                  </label>
+                  {errorFoto ? <p className="text-xs text-club-red">{errorFoto}</p> : null}
+                </div>
               )}
             </div>
 
@@ -706,10 +806,25 @@ export default function Plantillas({ soloGraficas = false }) {
                     className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-center text-base font-bold text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
                   />
                 </label>
+                <label className="block rounded-xl border border-gray-200 bg-gray-50 p-2.5 text-center">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-club-black/50">Fecha nac.</span>
+                  <input
+                    type="date"
+                    value={formularioJugador.fecha_nacimiento || ''}
+                    onChange={(event) => actualizarFormularioJugador('fecha_nacimiento', event.target.value)}
+                    className="mt-1 w-full rounded-md border border-gray-300 px-1 py-1 text-center text-sm font-semibold text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
+                  />
+                </label>
                 <div className="rounded-xl border border-gray-200 bg-gray-50 p-2.5 text-center">
                   <p className="text-[10px] font-semibold uppercase tracking-wide text-club-black/50">Edad</p>
                   <p className="mt-1 text-base font-bold text-club-black">
                     {calcularEdad(formularioJugador.fecha_nacimiento) ?? '-'}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-2.5 text-center">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-club-black/50">Año</p>
+                  <p className="mt-1 text-base font-bold text-club-black">
+                    {anioNacimiento(formularioJugador.fecha_nacimiento) ?? '-'}
                   </p>
                 </div>
                 <label className="block rounded-xl border border-gray-200 bg-gray-50 p-2.5 text-center">
@@ -722,15 +837,6 @@ export default function Plantillas({ soloGraficas = false }) {
                     <option value="">-</option>
                     {lateralidades.map((opcion) => <option key={opcion} value={opcion}>{opcion}</option>)}
                   </select>
-                </label>
-                <label className="block rounded-xl border border-gray-200 bg-gray-50 p-2.5 text-center">
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-club-black/50">Fecha nac.</span>
-                  <input
-                    type="date"
-                    value={formularioJugador.fecha_nacimiento || ''}
-                    onChange={(event) => actualizarFormularioJugador('fecha_nacimiento', event.target.value)}
-                    className="mt-1 w-full rounded-md border border-gray-300 px-1 py-1 text-center text-sm font-semibold text-club-black focus:outline-none focus:ring-2 focus:ring-club-red"
-                  />
                 </label>
               </div>
             </div>
@@ -750,16 +856,26 @@ export default function Plantillas({ soloGraficas = false }) {
 
           <div className="grid gap-4 lg:grid-cols-2">
             {SECCIONES_FORMULARIO_JUGADOR.map((seccion) => {
-              const esSeccionAncha = seccion.titulo === 'Datos del jugador';
+              const esSeccionAncha = seccion.titulo === 'Datos del jugador' || seccion.titulo === 'Colegio';
+              const esDomicilio = seccion.titulo === 'Domicilio';
               return (
                 <section
                   key={seccion.titulo}
                   className={`rounded-2xl border border-gray-200 bg-gray-50 p-4 ${esSeccionAncha ? 'lg:col-span-2' : ''}`}
                 >
                   <h4 className="text-sm font-bold uppercase tracking-wide text-club-black">{seccion.titulo}</h4>
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                    {seccion.campos.map((campo) => renderCampoSeccion(campo))}
-                  </div>
+                  {esDomicilio ? (
+                    <>
+                      <div className="mt-4">{renderCampoSeccion('domicilio')}</div>
+                      <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                        {seccion.campos.filter((campo) => campo !== 'domicilio').map((campo) => renderCampoSeccion(campo))}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                      {seccion.campos.map((campo) => renderCampoSeccion(campo))}
+                    </div>
+                  )}
                 </section>
               );
             })}
