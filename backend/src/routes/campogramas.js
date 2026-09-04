@@ -219,7 +219,7 @@ async function guardarCampograma(req, res) {
 // PUT /api/campogramas -> guarda/actualiza la asignacion de jugadores a posiciones.
 router.put(
   '/',
-  requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR),
+  requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR, ROLES.RESPONSABLE),
   async (req, res) => {
     try {
       await guardarCampograma(req, res);

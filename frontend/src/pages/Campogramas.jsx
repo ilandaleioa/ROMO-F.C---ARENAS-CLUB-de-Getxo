@@ -20,7 +20,7 @@ export default function Campogramas() {
   const navigate = useNavigate();
   const equiposAsignadosUsuario = useMemo(() => parseEquiposAsignados(user.equipo_asignado), [user.equipo_asignado]);
   const limitadoAUnEquipo = usuarioLimitadoAUnEquipo(user);
-  const puedeEditar = ['administrador', 'director'].includes(user.rol);
+  const puedeEditar = ['administrador', 'director', 'responsable'].includes(user.rol);
   const [searchParams] = useSearchParams();
   const equipoInicial = searchParams.get('equipo') || '';
 

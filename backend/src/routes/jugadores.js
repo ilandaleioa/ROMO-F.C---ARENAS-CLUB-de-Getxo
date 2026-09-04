@@ -207,7 +207,7 @@ function prepararCamposJugador(rol, body, { exigirObligatorios = false } = {}) {
 }
 
 // POST /api/jugadores -> crea un jugador desde el formulario de la app.
-router.post('/', requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR), async (req, res) => {
+router.post('/', requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR, ROLES.RESPONSABLE), async (req, res) => {
   try {
     const { rol } = req.user;
     const resultado = prepararCamposJugador(rol, req.body || {}, { exigirObligatorios: true });

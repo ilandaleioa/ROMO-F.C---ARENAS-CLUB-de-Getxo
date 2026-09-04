@@ -125,7 +125,7 @@ export default function Plantillas({ soloGraficas = false }) {
   const equiposAsignadosUsuario = useMemo(() => parseEquiposAsignados(user.equipo_asignado), [user.equipo_asignado]);
   const limitadoAUnEquipo = usuarioLimitadoAUnEquipo(user);
   const puedeSincronizar = !soloGraficas && (user.rol === 'administrador' || user.rol === 'director');
-  const puedeAnadirJugadores = !soloGraficas && puedeSincronizar;
+  const puedeAnadirJugadores = !soloGraficas && ['administrador', 'director', 'responsable'].includes(user.rol);
   const puedeBorrarJugadores = !soloGraficas && (user.rol === 'administrador' || user.rol === 'director');
   const puedeEditarJugadores = !soloGraficas && ['administrador', 'director', 'responsable', 'tecnico'].includes(user.rol);
   const { equiposDisponibles, equiposSeleccionados, seleccionarEquipoUnico, limpiarSeleccion, recargarEquipos } =
