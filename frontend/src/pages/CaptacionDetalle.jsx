@@ -1267,7 +1267,12 @@ export default function CaptacionDetalle() {
         <div className="mx-auto w-full max-w-6xl space-y-6">
           <section ref={fichaRef} className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
             <div className="flex items-center justify-between gap-3 border-b border-gray-100 bg-gradient-to-r from-club-black to-club-red px-5 py-3 text-white">
-              <h3 className="text-2xl font-bold">{nombre}</h3>
+              <div>
+                <h3 className="text-2xl font-bold">{nombre}</h3>
+                {registro.id_legible && (
+                  <p className="text-xs text-white/60">ID: {registro.id_legible}</p>
+                )}
+              </div>
               <div className="flex items-center gap-2">
                 <button
                   type="button"

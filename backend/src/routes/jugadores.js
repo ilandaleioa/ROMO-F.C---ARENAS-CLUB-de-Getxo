@@ -128,7 +128,7 @@ async function conFotosUrl(rows, { timeoutMs = null } = {}) {
 // El resto de columnas editables se tratan como texto libre (trim, vacio -> null).
 const CAMPOS_NUMERICOS_JUGADOR = new Set(['dorsal', 'altura_cm', 'peso_kg']);
 const CAMPOS_BOOLEANOS_JUGADOR = new Set(['tiene_hermanos_club', 'acepta_condiciones']);
-const CAMPOS_NO_EDITABLES_JUGADOR = new Set(['id', 'club', 'foto_path', 'marca_temporal']);
+const CAMPOS_NO_EDITABLES_JUGADOR = new Set(['id', 'club', 'foto_path', 'marca_temporal', 'id_legible']);
 const CAMPOS_OBLIGATORIOS_JUGADOR = new Set(['nombre', 'primer_apellido', 'equipo']);
 
 // Construye el objeto de columnas a guardar en Supabase a partir del body recibido,

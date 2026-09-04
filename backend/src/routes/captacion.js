@@ -570,7 +570,7 @@ async function enriquecerInformes(informes) {
   if (!ids.length) return informes || [];
   const { data: jugadores, error } = await supabaseAdmin
     .from(TABLA_CAPTACION)
-    .select('id, nombre, primer_apellido, segundo_apellido, club, equipo, categoria, dorsal, lateralidad, foto_jugador')
+    .select('id, nombre, primer_apellido, segundo_apellido, club, equipo, categoria, dorsal, lateralidad, foto_jugador, id_legible')
     .in('id', ids);
   if (error) throw error;
   const jugadoresPorId = new Map((jugadores || []).map((jugador) => [jugador.id, jugador]));
@@ -580,7 +580,7 @@ async function enriquecerInformes(informes) {
 async function obtenerJugadorParaInforme(jugadorId) {
   const { data, error } = await supabaseAdmin
     .from(TABLA_CAPTACION)
-    .select('id, nombre, primer_apellido, segundo_apellido, club, equipo, categoria, dorsal, lateralidad, foto_jugador')
+    .select('id, nombre, primer_apellido, segundo_apellido, club, equipo, categoria, dorsal, lateralidad, foto_jugador, id_legible')
     .eq('id', jugadorId)
     .maybeSingle();
   if (error) throw error;

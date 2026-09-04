@@ -355,8 +355,11 @@ export default function Plantillas({ soloGraficas = false }) {
     setMensajeSync('');
 
     try {
+      // id_legible es una columna generada por la base de datos y foto_url es
+      // derivado (URL firmada): nunca se deben reenviar en el payload.
+      const { id_legible, foto_url, ...formularioSinDerivados } = formularioJugador;
       const datosJugador = {
-        ...formularioJugador,
+        ...formularioSinDerivados,
         dorsal: formularioJugador.dorsal === '' ? null : Number(formularioJugador.dorsal),
         lateralidad: formularioJugador.lateralidad || null,
         demarcacion: formularioJugador.demarcacion || null,
@@ -1147,6 +1150,7 @@ export default function Plantillas({ soloGraficas = false }) {
             <th className="hidden md:table-cell px-2.5 py-2.5 sm:px-3 sm:py-3 text-left text-xs font-semibold uppercase tracking-wide">Año</th>
             <th className="hidden md:table-cell px-2.5 py-2.5 sm:px-3 sm:py-3 text-left text-xs font-semibold uppercase tracking-wide">Edad</th>
             <th className="hidden min-[380px]:table-cell px-2 py-2.5 sm:px-3 sm:py-3 text-left text-xs font-semibold uppercase tracking-wide">Posición</th>
+            <th className="hidden lg:table-cell px-2.5 py-2.5 sm:px-3 sm:py-3 text-left text-xs font-semibold uppercase tracking-wide">ID jugador</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
@@ -1203,6 +1207,7 @@ export default function Plantillas({ soloGraficas = false }) {
               <td className="hidden md:table-cell px-2.5 py-2.5 sm:px-3 sm:py-3 text-club-black/80 text-sm">{anioNacimiento(j.fecha_nacimiento) ?? '-'}</td>
               <td className="hidden md:table-cell px-2.5 py-2.5 sm:px-3 sm:py-3 text-club-black/80 text-sm max-w-[110px] truncate">{calcularEdad(j.fecha_nacimiento) ?? '-'}</td>
               <td className="hidden min-[380px]:table-cell px-2 py-2.5 sm:px-3 sm:py-3 text-club-black/80 text-sm max-w-[110px] truncate">{j.demarcacion || '-'}</td>
+              <td className="hidden lg:table-cell px-2.5 py-2.5 sm:px-3 sm:py-3 text-club-black/60 text-xs max-w-[160px] truncate" title={j.id_legible || '-'}>{j.id_legible || '-'}</td>
             </tr>
           ))}
         </tbody>
@@ -1243,9 +1248,14 @@ export default function Plantillas({ soloGraficas = false }) {
                 {j.dorsal ?? '-'}
               </div>
             )}
-            <p className="font-semibold text-club-black">
-              {nombreCompleto(j)}
-            </p>
+            <div>
+              <p className="font-semibold text-club-black">
+                {nombreCompleto(j)}
+              </p>
+              {j.id_legible && (
+                <p className="text-xs text-club-black/50 truncate">{j.id_legible}</p>
+              )}
+            </div>
           </div>
           <p className="text-sm text-club-black/80">{j.equipo}</p>
           <p className="text-sm text-club-black/60">

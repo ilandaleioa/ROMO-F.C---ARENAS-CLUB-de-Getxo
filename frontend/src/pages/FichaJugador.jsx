@@ -516,6 +516,9 @@ export default function FichaJugador() {
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/70">Ficha completa</p>
                 <h3 className="mt-1 text-2xl font-bold">{nombreCompleto(jugador) || 'Jugador sin nombre'}</h3>
                 <p className="text-sm text-white/80">{jugador.equipo || 'Sin equipo asignado'}</p>
+                {jugador.id_legible && (
+                  <p className="mt-1 text-xs text-white/60">ID: {jugador.id_legible}</p>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <button

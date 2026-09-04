@@ -48,6 +48,7 @@ const FULL_COLUMNS = [
   'dni_aceptante',
   'observaciones',
   'foto_path',
+  'id_legible',
 ];
 
 // Columnas visibles para Responsable: todo menos datos de los tutores
@@ -95,6 +96,7 @@ const TECNICO_COLUMNS = [
   'telefono_jugador',
   'observaciones',
   'foto_path',
+  'id_legible',
 ];
 
 // Columnas necesarias para listados, graficas y campogramas. La ficha
@@ -113,6 +115,7 @@ const LIST_COLUMNS = [
   'demarcacion',
   'localidad',
   'foto_path',
+  'id_legible',
 ];
 
 // Columnas consideradas sensibles (documentacion / referencia).

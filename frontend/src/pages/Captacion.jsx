@@ -34,6 +34,7 @@ const CAMPOS = [
   { key: 'nombre', label: 'NOMBRE', type: 'text', required: true },
   { key: 'primer_apellido', label: 'PRIMER APELLIDO', type: 'text', required: true },
   { key: 'nombre_completo', label: 'NOMBRE COMPLETO', type: 'computed' },
+  { key: 'id_legible', label: 'ID JUGADOR', type: 'computed' },
   { key: 'segundo_apellido', label: 'SEGUNDO APELLIDO', type: 'text' },
   { key: 'dorsal', label: 'DORSAL', type: 'number' },
   { key: 'altura', label: 'ALTURA (CM)', type: 'select', options: Array.from({ length: 51 }, (_, index) => String(index + 150)) },
@@ -2060,6 +2061,8 @@ export default function Captacion() {
       payload.primer_apellido = String(formCalculado.primer_apellido || '').trim();
       payload.etapa = String(formCalculado.etapa || '').trim();
       payload.valoracion_items = formCalculado.valoracion_items || {};
+      // id_legible es una columna generada por la base de datos: nunca se envia.
+      delete payload.id_legible;
 
       if (fotoJugadorFile) {
         payload.foto_jugador = await archivoADataUrl(fotoJugadorFile);
@@ -2611,10 +2614,11 @@ export default function Captacion() {
         </select>
       );
     } else if (campo.type === 'computed') {
+      const valorComputado = campo.key === 'id_legible' ? (valor || 'Se genera al guardar') : nombreCompleto(form);
       contenido = (
         <input
           type="text"
-          value={campo.type === 'computed' ? nombreCompleto(form) : valor}
+          value={valorComputado}
           readOnly
           className={readOnlyClass}
         />
