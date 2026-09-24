@@ -8,7 +8,6 @@ export const APARTADOS_APP = [
   { key: 'graficas', label: 'GRAFICAS', path: '/graficas' },
   { key: 'campogramas', label: 'Campogramas', path: '/campogramas' },
   { key: 'captacion', label: 'CAPTACION', path: '/captacion' },
-  { key: 'personal', label: 'PERSONAL', path: '/personal' },
   { key: 'tecnicos', label: 'TECNICOS', path: '/tecnicos' },
   { key: 'configuracion', label: 'CONFIGURACIÓN', path: '/configuracion', roles: ['administrador', 'director'] },
   { key: 'usuarios', label: 'Usuarios', path: '/usuarios', roles: ['administrador', 'director'] },

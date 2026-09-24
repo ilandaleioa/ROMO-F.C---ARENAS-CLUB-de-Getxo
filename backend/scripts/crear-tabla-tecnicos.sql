@@ -38,6 +38,7 @@ create table if not exists public.tecnicos (
   euskera text,
   cuenta_bancaria text,
   observaciones text,
+  foto_path text,
   sheet_row_hash text,
   creado_en timestamptz not null default now(),
   actualizado_en timestamptz not null default now(),
@@ -75,6 +76,7 @@ alter table public.tecnicos
   add column if not exists euskera text,
   add column if not exists cuenta_bancaria text,
   add column if not exists observaciones text,
+  add column if not exists foto_path text,
   add column if not exists sheet_row_hash text,
   add column if not exists creado_en timestamptz,
   add column if not exists actualizado_en timestamptz;

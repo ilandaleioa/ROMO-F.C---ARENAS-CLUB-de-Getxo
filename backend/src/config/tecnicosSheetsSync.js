@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { google } = require('googleapis');
 const env = require('./env');
 
 // Mapa de cabeceras del formulario de tecnicos a columnas de Supabase.
@@ -34,17 +35,38 @@ const HEADER_TO_COLUMN = {
   OBSERVACIONES: 'observaciones',
 };
 
+const ID_SYNC_HEADER = 'ID_SYNC';
 const CAMPOS_FECHA = new Set(['marca_temporal', 'fecha_nacimiento']);
 const CAMPOS_OBLIGATORIOS = ['nombre', 'primer_apellido'];
 const CAMPOS_HASH_FILA = [...new Set(Object.values(HEADER_TO_COLUMN))];
+const COLUMNAS_EDITABLES = [...CAMPOS_HASH_FILA];
 
 function configDelClub(club) {
   return env.googleSheetsTecnicosPorClub?.[club] || {};
 }
 
+function tieneCredencialesDeEscritura() {
+  const { email, privateKey } = env.googleServiceAccount;
+  return Boolean(email && privateKey);
+}
+
 function estaConfigurado(club) {
   const { spreadsheetId, gid } = configDelClub(club);
   return Boolean(spreadsheetId && gid);
+}
+
+function puedeEscribir(club) {
+  return estaConfigurado(club) && tieneCredencialesDeEscritura();
+}
+
+function getSheetsClient() {
+  if (!tieneCredencialesDeEscritura()) return null;
+  const auth = new google.auth.JWT({
+    email: env.googleServiceAccount.email,
+    key: env.googleServiceAccount.privateKey,
+    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+  });
+  return google.sheets({ version: 'v4', auth });
 }
 
 function normalizarTexto(valor) {
@@ -90,6 +112,29 @@ function parsearFecha(valor) {
   return tieneHora ? `${iso}T${hh.padStart(2, '0')}:${mm}:${ss}` : iso;
 }
 
+function formatearFechaParaHoja(valor, conHora = false) {
+  if (!valor) return '';
+  const fecha = new Date(valor);
+  if (Number.isNaN(fecha.getTime())) return String(valor);
+
+  const dia = String(fecha.getDate()).padStart(2, '0');
+  const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+  const anio = fecha.getFullYear();
+  if (!conHora) return `${dia}/${mes}/${anio}`;
+
+  const hh = String(fecha.getHours()).padStart(2, '0');
+  const mm = String(fecha.getMinutes()).padStart(2, '0');
+  const ss = String(fecha.getSeconds()).padStart(2, '0');
+  return `${dia}/${mes}/${anio} ${hh}:${mm}:${ss}`;
+}
+
+function valorParaHoja(columna, valor) {
+  if (valor === null || valor === undefined) return '';
+  if (columna === 'marca_temporal') return formatearFechaParaHoja(valor, true);
+  if (columna === 'fecha_nacimiento') return formatearFechaParaHoja(valor, false);
+  return valor;
+}
+
 function mapearFila(headers, filaValores) {
   const datos = {};
   headers.forEach((header, i) => {
@@ -133,7 +178,7 @@ function parsearRespuestaPublicaGviz(texto) {
   return { headers, filas };
 }
 
-async function leerFilasDesdeHoja(club) {
+async function leerFilasPublicoGviz(club) {
   const { spreadsheetId, gid } = configDelClub(club);
   const params = new URLSearchParams({ tqx: 'out:json' });
   if (gid) params.set('gid', String(gid));
@@ -145,7 +190,38 @@ async function leerFilasDesdeHoja(club) {
   }
 
   const texto = await res.text();
-  const { headers, filas } = parsearRespuestaPublicaGviz(texto);
+  return parsearRespuestaPublicaGviz(texto);
+}
+
+async function resolverPestana(sheets, club) {
+  const { spreadsheetId, gid } = configDelClub(club);
+  const gidObjetivo = gid ? Number(gid) : null;
+
+  const meta = await sheets.spreadsheets.get({ spreadsheetId });
+  const tabs = meta.data.sheets.map((s) => ({ title: s.properties.title, gid: s.properties.sheetId }));
+  const tab = tabs.find((t) => t.gid === gidObjetivo) || tabs[0];
+  if (!tab) throw new Error('La hoja de calculo de tecnicos no tiene ninguna pestana.');
+  return tab.title;
+}
+
+function escaparTituloHoja(tabTitle) {
+  return String(tabTitle || '').replace(/'/g, "''");
+}
+
+function columnaAIndice(idx) {
+  let n = idx;
+  let letra = '';
+  do {
+    letra = String.fromCharCode(65 + (n % 26)) + letra;
+    n = Math.floor(n / 26) - 1;
+  } while (n >= 0);
+  return letra;
+}
+
+// Lee todas las filas validas de la hoja (via lectura publica gviz, sin
+// necesitar credenciales). Se usa para el import inicial hacia Supabase.
+async function leerFilasDesdeHoja(club) {
+  const { headers, filas } = await leerFilasPublicoGviz(club);
   if (filas.length === 0) return { headers: [], validas: [], omitidas: [] };
 
   const validas = [];
@@ -166,7 +242,208 @@ async function leerFilasDesdeHoja(club) {
   return { headers, validas, omitidas };
 }
 
+// Escribe (crea o actualiza) la fila de un tecnico en la hoja de Google
+// Sheets, usando la Service Account. Enlaza por ID_SYNC: si el tecnico no
+// tiene fila conocida, se anade una nueva y se etiqueta con su id.
+async function escribirTecnicoEnHoja(club, tecnico) {
+  if (!puedeEscribir(club)) {
+    return {
+      omitida: true,
+      motivo: 'Faltan credenciales de Google (service account) para escribir en la hoja de tecnicos.',
+    };
+  }
+
+  const sheets = getSheetsClient();
+  const tabTitle = await resolverPestana(sheets, club);
+  const titulo = escaparTituloHoja(tabTitle);
+  const { spreadsheetId } = configDelClub(club);
+
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: `'${titulo}'!A:BZ`,
+  });
+  const filas = res.data.values || [];
+  const headers = [...(filas[0] || [])];
+  if (headers.length === 0) throw new Error('La hoja de tecnicos no tiene cabeceras.');
+
+  let idxIdSync = headers.indexOf(ID_SYNC_HEADER);
+  let cabecerasCambiadas = false;
+  if (idxIdSync === -1) {
+    idxIdSync = headers.length;
+    headers.push(ID_SYNC_HEADER);
+    cabecerasCambiadas = true;
+  }
+
+  if (cabecerasCambiadas) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `'${titulo}'!A1:${columnaAIndice(headers.length - 1)}1`,
+      valueInputOption: 'RAW',
+      requestBody: { values: [headers] },
+    });
+  }
+
+  let filaExistente = null;
+  for (let i = 1; i < filas.length; i += 1) {
+    const idSync = filas[i]?.[idxIdSync] ? String(filas[i][idxIdSync]).trim() : '';
+    if (idSync && idSync === String(tecnico.id)) {
+      filaExistente = { numeroFila: i + 1, fila: filas[i] };
+      break;
+    }
+  }
+
+  const ancho = Math.max(headers.length, idxIdSync + 1);
+  const valores = Array.from({ length: ancho }, (_, i) => filaExistente?.fila?.[i] ?? '');
+  headers.forEach((header, i) => {
+    if (normalizarCabecera(header) === ID_SYNC_HEADER) {
+      valores[i] = tecnico.id;
+      return;
+    }
+    const columna = HEADER_TO_COLUMN[normalizarCabecera(header)];
+    if (!columna || !COLUMNAS_EDITABLES.includes(columna)) return;
+    valores[i] = valorParaHoja(columna, tecnico[columna]);
+  });
+  valores[idxIdSync] = tecnico.id;
+
+  const ultimaColumna = columnaAIndice(valores.length - 1);
+
+  if (filaExistente) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `'${titulo}'!A${filaExistente.numeroFila}:${ultimaColumna}${filaExistente.numeroFila}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [valores] },
+    });
+    return { omitida: false, accion: 'actualizado' };
+  }
+
+  await sheets.spreadsheets.values.append({
+    spreadsheetId,
+    range: `'${titulo}'!A:${ultimaColumna}`,
+    valueInputOption: 'USER_ENTERED',
+    insertDataOption: 'INSERT_ROWS',
+    requestBody: { values: [valores] },
+  });
+  return { omitida: false, accion: 'insertado' };
+}
+
+// Borra (deja en blanco, conservando la fila) la fila enlazada a un tecnico
+// concreto por ID_SYNC. No reordena ni elimina filas de otros tecnicos.
+async function borrarTecnicoDeHoja(club, tecnicoId) {
+  if (!puedeEscribir(club)) {
+    return { omitida: true, motivo: 'Faltan credenciales de Google (service account) para escribir en la hoja de tecnicos.' };
+  }
+
+  const sheets = getSheetsClient();
+  const tabTitle = await resolverPestana(sheets, club);
+  const titulo = escaparTituloHoja(tabTitle);
+  const { spreadsheetId } = configDelClub(club);
+
+  const meta = await sheets.spreadsheets.get({ spreadsheetId, fields: 'sheets(properties(sheetId,title))' });
+  const pestana = (meta.data.sheets || []).find((s) => s.properties?.title === tabTitle);
+  const sheetId = pestana?.properties?.sheetId;
+  if (sheetId === undefined || sheetId === null) {
+    throw new Error(`No se encontro la pestana "${tabTitle}" para borrar el tecnico.`);
+  }
+
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `'${titulo}'!A:BZ` });
+  const filas = res.data.values || [];
+  const headers = filas[0] || [];
+  const idxIdSync = headers.indexOf(ID_SYNC_HEADER);
+  if (idxIdSync === -1) return { omitida: true, motivo: 'La hoja no tiene columna ID_SYNC.' };
+
+  const indiceFila = filas.findIndex((fila, i) => i > 0 && fila?.[idxIdSync] === String(tecnicoId));
+  if (indiceFila === -1) return { omitida: true, motivo: 'No se encontro la fila enlazada en la hoja.' };
+
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      requests: [
+        {
+          deleteDimension: {
+            range: { sheetId, dimension: 'ROWS', startIndex: indiceFila, endIndex: indiceFila + 1 },
+          },
+        },
+      ],
+    },
+  });
+
+  return { omitida: false };
+}
+
+// Tras un import inicial, enlaza cada fila de la hoja con el id de Supabase
+// que le corresponde (por sheet_row_hash), escribiendo ID_SYNC. Sin esto, la
+// primera edicion desde la web crearia una fila duplicada en vez de
+// actualizar la fila original del formulario.
+async function marcarIdSyncEnHoja(club, hashesConId) {
+  if (!puedeEscribir(club) || hashesConId.length === 0) {
+    return { omitida: true, motivo: 'Faltan credenciales de Google (service account) o no hay filas que enlazar.' };
+  }
+
+  const sheets = getSheetsClient();
+  const tabTitle = await resolverPestana(sheets, club);
+  const titulo = escaparTituloHoja(tabTitle);
+  const { spreadsheetId } = configDelClub(club);
+
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `'${titulo}'!A:BZ` });
+  const filas = res.data.values || [];
+  const headers = [...(filas[0] || [])];
+  if (headers.length === 0) return { omitida: true, motivo: 'La hoja no tiene cabeceras.' };
+
+  let idxIdSync = headers.indexOf(ID_SYNC_HEADER);
+  let cabecerasCambiadas = false;
+  if (idxIdSync === -1) {
+    idxIdSync = headers.length;
+    headers.push(ID_SYNC_HEADER);
+    cabecerasCambiadas = true;
+  }
+
+  if (cabecerasCambiadas) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `'${titulo}'!A1:${columnaAIndice(headers.length - 1)}1`,
+      valueInputOption: 'RAW',
+      requestBody: { values: [headers] },
+    });
+  }
+
+  const hashPorFila = new Map();
+  const idxPorHash = new Map(hashesConId.map((item) => [item.sheet_row_hash, item.id]));
+
+  const data = [];
+  for (let i = 1; i < filas.length; i += 1) {
+    const fila = filas[i] || [];
+    const idSyncActual = fila[idxIdSync] ? String(fila[idxIdSync]).trim() : '';
+    if (idSyncActual) continue;
+
+    const resultado = mapearFila(headers, fila);
+    if (!resultado.valido) continue;
+
+    const id = idxPorHash.get(resultado.datos.sheet_row_hash);
+    if (!id || hashPorFila.has(resultado.datos.sheet_row_hash)) continue;
+
+    hashPorFila.set(resultado.datos.sheet_row_hash, id);
+    data.push({
+      range: `'${titulo}'!${columnaAIndice(idxIdSync)}${i + 1}`,
+      values: [[id]],
+    });
+  }
+
+  if (data.length > 0) {
+    await sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId,
+      requestBody: { valueInputOption: 'RAW', data },
+    });
+  }
+
+  return { omitida: false, enlazados: data.length };
+}
+
 module.exports = {
   estaConfigurado,
+  puedeEscribir,
   leerFilasDesdeHoja,
+  escribirTecnicoEnHoja,
+  borrarTecnicoDeHoja,
+  marcarIdSyncEnHoja,
 };
