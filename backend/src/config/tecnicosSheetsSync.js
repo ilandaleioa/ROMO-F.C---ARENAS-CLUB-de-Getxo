@@ -30,12 +30,14 @@ const HEADER_TO_COLUMN = {
   'OTRAS TITULACIONES [TAFAD]': 'titulacion_tafad',
   'OTRAS TITULACIONES [IVEF]': 'titulacion_ivef',
   'OTRAS TITULACIONES [CAFYD]': 'titulacion_cafyd',
+  'OTRAS TITULACIONES': 'titulacion_otras',
   EUSKERA: 'euskera',
   'CUENTA BANCARIA': 'cuenta_bancaria',
   OBSERVACIONES: 'observaciones',
 };
 
 const ID_SYNC_HEADER = 'ID_SYNC';
+const FOTO_WEB_HEADER = 'FOTO_WEB';
 const CAMPOS_FECHA = new Set(['marca_temporal', 'fecha_nacimiento']);
 const CAMPOS_OBLIGATORIOS = ['nombre', 'primer_apellido'];
 const CAMPOS_HASH_FILA = [...new Set(Object.values(HEADER_TO_COLUMN))];
@@ -126,6 +128,11 @@ function formatearFechaParaHoja(valor, conHora = false) {
   const mm = String(fecha.getMinutes()).padStart(2, '0');
   const ss = String(fecha.getSeconds()).padStart(2, '0');
   return `${dia}/${mes}/${anio} ${hh}:${mm}:${ss}`;
+}
+
+function enlaceFotoWeb(tecnico) {
+  if (!tecnico.foto_path) return '';
+  return `${env.frontendOrigin}/tecnicos?tecnico=${tecnico.id}`;
 }
 
 function valorParaHoja(columna, valor) {
@@ -274,6 +281,13 @@ async function escribirTecnicoEnHoja(club, tecnico) {
     cabecerasCambiadas = true;
   }
 
+  let idxFotoWeb = headers.indexOf(FOTO_WEB_HEADER);
+  if (idxFotoWeb === -1) {
+    idxFotoWeb = headers.length;
+    headers.push(FOTO_WEB_HEADER);
+    cabecerasCambiadas = true;
+  }
+
   if (cabecerasCambiadas) {
     await sheets.spreadsheets.values.update({
       spreadsheetId,
@@ -292,18 +306,17 @@ async function escribirTecnicoEnHoja(club, tecnico) {
     }
   }
 
-  const ancho = Math.max(headers.length, idxIdSync + 1);
+  const ancho = Math.max(headers.length, idxIdSync + 1, idxFotoWeb + 1);
   const valores = Array.from({ length: ancho }, (_, i) => filaExistente?.fila?.[i] ?? '');
   headers.forEach((header, i) => {
-    if (normalizarCabecera(header) === ID_SYNC_HEADER) {
-      valores[i] = tecnico.id;
-      return;
-    }
-    const columna = HEADER_TO_COLUMN[normalizarCabecera(header)];
+    const cabecera = normalizarCabecera(header);
+    if (cabecera === ID_SYNC_HEADER || cabecera === FOTO_WEB_HEADER) return;
+    const columna = HEADER_TO_COLUMN[cabecera];
     if (!columna || !COLUMNAS_EDITABLES.includes(columna)) return;
     valores[i] = valorParaHoja(columna, tecnico[columna]);
   });
   valores[idxIdSync] = tecnico.id;
+  valores[idxFotoWeb] = enlaceFotoWeb(tecnico);
 
   const ultimaColumna = columnaAIndice(valores.length - 1);
 

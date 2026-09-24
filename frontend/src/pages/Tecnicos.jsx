@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useClub } from '../context/ClubContext';
 import { api } from '../lib/api';
@@ -32,6 +33,7 @@ function titulacionLabel(tecnico) {
   const seleccionadas = [...CAMPOS_TITULACION, ...CAMPOS_OTRAS_TITULACIONES]
     .filter(({ campo }) => tecnico[campo])
     .map(({ label }) => label);
+  if (tecnico.titulacion_otras) seleccionadas.push(tecnico.titulacion_otras);
   return seleccionadas.join(', ') || '—';
 }
 
@@ -108,6 +110,7 @@ function crearTecnicoVacio() {
     titulacion_tafad: '',
     titulacion_ivef: '',
     titulacion_cafyd: '',
+    titulacion_otras: '',
     euskera: '',
     cuenta_bancaria: '',
   };
@@ -145,6 +148,7 @@ function IconoBorrar() {
 export default function Tecnicos() {
   const { user } = useAuth();
   const { club } = useClub();
+  const [searchParams, setSearchParams] = useSearchParams();
   const puedeSincronizar = user?.rol === 'administrador' || user?.rol === 'director';
   const puedeGestionar = user?.rol === 'administrador' || user?.rol === 'director';
 
@@ -305,6 +309,7 @@ export default function Tecnicos() {
       titulacion_tafad: item.titulacion_tafad || '',
       titulacion_ivef: item.titulacion_ivef || '',
       titulacion_cafyd: item.titulacion_cafyd || '',
+      titulacion_otras: item.titulacion_otras || '',
       euskera: item.euskera || '',
       cuenta_bancaria: item.cuenta_bancaria || '',
     });
@@ -322,6 +327,21 @@ export default function Tecnicos() {
     setSoloLectura(false);
     setModalAbierto(true);
   };
+
+  useEffect(() => {
+    const tecnicoId = searchParams.get('tecnico');
+    if (!tecnicoId || loading || modalAbierto) return;
+
+    const item = tecnicos.find((t) => t.id === tecnicoId);
+    if (item) {
+      verTecnico(item);
+    }
+
+    const siguientes = new URLSearchParams(searchParams);
+    siguientes.delete('tecnico');
+    setSearchParams(siguientes, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, loading, tecnicos]);
 
   const subirFotoSiHaceFalta = async (id) => {
     if (!fotoFile) return null;
@@ -663,7 +683,7 @@ export default function Tecnicos() {
                       disabled={guardando}
                       className="w-full sm:w-auto inline-flex items-center justify-center rounded-md bg-club-red px-4 py-2 font-semibold text-white transition-colors hover:bg-club-redDark disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {guardando ? 'Guardando...' : editandoId ? 'Actualizar' : 'Crear tecnico'}
+                      {guardando ? 'Guardando...' : editandoId ? 'GUARDAR' : 'Crear tecnico'}
                     </button>
                   </div>
                 )}
@@ -865,6 +885,14 @@ export default function Tecnicos() {
                       </label>
                     ))}
                   </div>
+                  <input
+                    type="text"
+                    value={form.titulacion_otras}
+                    onChange={(e) => setForm((prev) => ({ ...prev, titulacion_otras: e.target.value }))}
+                    placeholder="Otras titulaciones no listadas arriba..."
+                    disabled={soloLectura}
+                    className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red disabled:bg-gray-50 disabled:text-club-black/70"
+                  />
                 </div>
 
                 <div>

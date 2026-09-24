@@ -114,6 +114,7 @@ const CAMPOS_EDITABLES = [
   'titulacion_tafad',
   'titulacion_ivef',
   'titulacion_cafyd',
+  'titulacion_otras',
   'euskera',
   'cuenta_bancaria',
   'observaciones',
@@ -429,6 +430,16 @@ router.post(
 
       if (registro.foto_path) {
         await supabaseAdmin.storage.from(FOTO_BUCKET).remove([registro.foto_path]);
+      }
+
+      const { data: completo } = await supabaseAdmin
+        .from('tecnicos')
+        .select('*')
+        .eq('id', registro.id)
+        .eq('club', req.club)
+        .maybeSingle();
+      if (completo) {
+        await empujarAHoja(req.club, completo);
       }
 
       const { data: signed, error: signError } = await supabaseAdmin.storage
