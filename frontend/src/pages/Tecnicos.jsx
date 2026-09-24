@@ -546,7 +546,7 @@ export default function Tecnicos() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead>
                 <tr className="text-left text-xs uppercase tracking-wide text-club-black/50">
-                  <th className="px-3 py-2">Acciones</th>
+                  <th className="whitespace-nowrap px-3 py-2">Acciones</th>
                   <th className="px-3 py-2">Nombre</th>
                   <th className="px-3 py-2">Contacto</th>
                   <th className="px-3 py-2">Funcion</th>
@@ -558,14 +558,14 @@ export default function Tecnicos() {
               <tbody className="divide-y divide-gray-100">
                 {tecnicosFiltrados.map((item) => (
                   <tr key={item.id} className="align-top hover:bg-red-50/40">
-                    <td className="px-3 py-3">
-                      <div className="flex items-center gap-1 sm:gap-1">
+                    <td className="whitespace-nowrap px-3 py-3">
+                      <div className="flex shrink-0 items-center gap-1">
                         <button
                           type="button"
                           onClick={() => verTecnico(item)}
                           title="Ver"
                           aria-label={`Ver a ${nombreCompleto(item)}`}
-                          className="rounded-md p-2.5 sm:p-1.5 text-club-black/60 transition-colors hover:bg-gray-100 hover:text-club-black"
+                          className="shrink-0 rounded-md p-2.5 sm:p-1.5 text-club-black/60 transition-colors hover:bg-gray-100 hover:text-club-black"
                         >
                           <IconoVer />
                         </button>
@@ -576,7 +576,7 @@ export default function Tecnicos() {
                               onClick={() => iniciarEdicion(item)}
                               title="Editar"
                               aria-label={`Editar a ${nombreCompleto(item)}`}
-                              className="rounded-md p-2.5 sm:p-1.5 text-club-black/60 transition-colors hover:bg-gray-100 hover:text-club-black"
+                              className="shrink-0 rounded-md p-2.5 sm:p-1.5 text-club-black/60 transition-colors hover:bg-gray-100 hover:text-club-black"
                             >
                               <IconoEditar />
                             </button>
@@ -586,7 +586,7 @@ export default function Tecnicos() {
                               disabled={borrandoId === item.id}
                               title="Borrar"
                               aria-label={`Borrar a ${nombreCompleto(item)}`}
-                              className="rounded-md p-2.5 sm:p-1.5 text-club-black/60 transition-colors hover:bg-red-50 hover:text-club-red disabled:cursor-not-allowed disabled:opacity-60"
+                              className="shrink-0 rounded-md p-2.5 sm:p-1.5 text-club-black/60 transition-colors hover:bg-red-50 hover:text-club-red disabled:cursor-not-allowed disabled:opacity-60"
                             >
                               <IconoBorrar />
                             </button>
