@@ -63,4 +63,16 @@ module.exports = {
       gid: cleanEnvValue(process.env.GOOGLE_SHEETS_GID_ARENAS) || null,
     },
   },
+  // Hoja publica (formulario) con el listado de tecnicos. Solo lectura, no
+  // requiere service account ni API key: se lee via el endpoint gviz publico.
+  googleSheetsTecnicosPorClub: {
+    ROMO: {
+      spreadsheetId: cleanEnvValue(process.env.GOOGLE_SHEETS_TECNICOS_SPREADSHEET_ID) || null,
+      gid: cleanEnvValue(process.env.GOOGLE_SHEETS_TECNICOS_GID) || null,
+    },
+    ARENAS: {
+      spreadsheetId: cleanEnvValue(process.env.GOOGLE_SHEETS_TECNICOS_SPREADSHEET_ID_ARENAS) || null,
+      gid: cleanEnvValue(process.env.GOOGLE_SHEETS_TECNICOS_GID_ARENAS) || null,
+    },
+  },
 };

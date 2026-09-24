@@ -12,6 +12,7 @@ const captacionRoutes = require('./routes/captacion');
 const personalRoutes = require('./routes/personal');
 const competicionesRoutes = require('./routes/competiciones');
 const actividadesRoutes = require('./routes/actividades');
+const tecnicosRoutes = require('./routes/tecnicos');
 
 const app = express();
 
@@ -88,6 +89,7 @@ app.use('/api/captacion', captacionRoutes);
 app.use('/api/personal', personalRoutes);
 app.use('/api/competiciones', competicionesRoutes);
 app.use('/api/actividades', actividadesRoutes);
+app.use('/api/tecnicos', tecnicosRoutes);
 
 // Manejador de errores generico: nunca exponer detalles internos ni datos sensibles.
 app.use((err, req, res, next) => {

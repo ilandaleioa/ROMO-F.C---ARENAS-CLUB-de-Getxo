@@ -32,6 +32,8 @@ Columnas sensibles (nunca llegan al frontend si el rol es Tecnico): `dni_jugador
 
 La tabla `competiciones` se crea ejecutando `backend/scripts/crear-tabla-competiciones.sql` en el editor SQL de Supabase. Contiene los datos de la competición (`nombre`, `tipo`, `partes`, `minutos_por_parte`, `total_minutos`, `equipos_anadidos`), los datos federativos (`equipo_interno`, `equipo_fed`, `etapa`, `categoria`, `url`) y el campo técnico `club` para separar ROMO y ARENAS. El apartado **Competiciones** queda disponible para administradores y directores.
 
+La tabla `tecnicos` se crea ejecutando `backend/scripts/crear-tabla-tecnicos.sql` en el editor SQL de Supabase. El apartado **TECNICOS** importa de forma unidireccional (solo lectura) los datos del formulario de Google Sheets de técnicos: la hoja debe estar compartida como "Cualquiera con el enlace puede ver" y configurada con `GOOGLE_SHEETS_TECNICOS_SPREADSHEET_ID`/`GID` (y su variante `_ARENAS`). Administradores y directores pueden pulsar "Sincronizar con Google Sheets" desde el apartado para traer los cambios hechos en la hoja.
+
 ## Backend
 
 ### Variables de entorno (`backend/.env`)
@@ -52,6 +54,10 @@ GOOGLE_SHEETS_SPREADSHEET_ID_ARENAS=... # ARENAS
 GOOGLE_SHEETS_GID_ARENAS=...
 GOOGLE_SERVICE_ACCOUNT_EMAIL=...
 GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY=...
+GOOGLE_SHEETS_TECNICOS_SPREADSHEET_ID=...        # ROMO, hoja publica del formulario de tecnicos
+GOOGLE_SHEETS_TECNICOS_GID=...
+GOOGLE_SHEETS_TECNICOS_SPREADSHEET_ID_ARENAS=... # ARENAS
+GOOGLE_SHEETS_TECNICOS_GID_ARENAS=...
 ```
 
 ### Instalacion y arranque

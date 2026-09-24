@@ -24,6 +24,7 @@ import MisEquipos from './pages/MisEquipos';
 import EquiposMaestros from './pages/EquiposMaestros';
 import Listas from './pages/Listas';
 import Personal from './pages/Personal';
+import Tecnicos from './pages/Tecnicos';
 import Actividades from './pages/Actividades';
 import Competiciones from './pages/Competiciones';
 import CompeticionInfo from './pages/CompeticionInfo';
@@ -178,6 +179,16 @@ function AppRoutes() {
           <ProtectedRoute requiredApartado="personal">
             <Layout>
               <Personal />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/tecnicos"
+        element={
+          <ProtectedRoute requiredApartado="tecnicos">
+            <Layout>
+              <Tecnicos />
             </Layout>
           </ProtectedRoute>
         }
