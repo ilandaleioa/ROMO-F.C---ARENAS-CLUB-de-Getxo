@@ -88,6 +88,7 @@ export default function FichaJugador() {
 
   const puedeSubirFoto = user && ROLES_QUE_PUEDEN_SUBIR_FOTO.includes(user.rol);
   const puedeEditar = user && ROLES_QUE_PUEDEN_EDITAR.includes(user.rol);
+  const telefonoJugador = jugador ? String(obtenerValorCampoFicha(jugador, 'telefono_jugador') || '').trim() : '';
 
   async function cargarImagenComoDataUrl(url) {
     try {
@@ -580,6 +581,30 @@ export default function FichaJugador() {
                       </label>
                     )}
                     {errorFoto ? <p className="text-xs text-club-red mt-2">{errorFoto}</p> : null}
+                    {telefonoJugador && (
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <a
+                          href={`https://wa.me/${telefonoJugador.replace(/[^0-9]/g, '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-green-700 sm:w-auto"
+                        >
+                          <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4">
+                            <path d="M12.04 2c-5.52 0-10 4.48-10 10 0 1.77.46 3.45 1.28 4.94L2 22l5.2-1.36A9.94 9.94 0 0012.04 22c5.52 0 10-4.48 10-10s-4.48-10-10-10zm0 18.06c-1.6 0-3.12-.43-4.44-1.19l-.32-.19-3.09.81.83-3.01-.21-.31A8.05 8.05 0 014 12c0-4.43 3.6-8.03 8.04-8.03S20.08 7.57 20.08 12s-3.6 8.06-8.04 8.06zm4.4-6.03c-.24-.12-1.43-.7-1.65-.78-.22-.08-.38-.12-.54.12-.16.24-.62.78-.76.94-.14.16-.28.18-.52.06-.24-.12-1.02-.38-1.94-1.2-.72-.64-1.2-1.43-1.34-1.67-.14-.24-.02-.37.1-.49.11-.11.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.54-1.3-.74-1.78-.19-.46-.39-.4-.54-.4-.14-.01-.3-.01-.46-.01s-.42.06-.64.3c-.22.24-.84.82-.84 2s.86 2.32.98 2.48c.12.16 1.7 2.6 4.12 3.64.58.25 1.03.4 1.38.51.58.18 1.11.16 1.53.1.47-.07 1.43-.58 1.63-1.15.2-.56.2-1.04.14-1.15-.06-.1-.22-.16-.46-.28z" />
+                          </svg>
+                          WhatsApp
+                        </a>
+                        <a
+                          href={`tel:${telefonoJugador.replace(/[^0-9+]/g, '')}`}
+                          className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-club-black px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-black sm:w-auto"
+                        >
+                          <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4">
+                            <path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.36 11.36 0 003.57.57 1 1 0 011 1V20a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1 11.36 11.36 0 00.57 3.57 1 1 0 01-.25 1.02l-2.2 2.2z" />
+                          </svg>
+                          Llamar
+                        </a>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -670,9 +695,33 @@ export default function FichaJugador() {
                                 </p>
                                 <div className={`mt-2 text-sm text-club-black/80 ${esLargo ? 'whitespace-pre-line leading-6' : 'break-words'}`}>
                                   {campo === 'telefono_jugador' && valor !== '-' ? (
-                                    <a href={`tel:${String(valor).replace(/\s+/g, '')}`} className="font-semibold text-club-red hover:underline">
-                                      {valor}
-                                    </a>
+                                    <div className="space-y-2.5">
+                                      <a href={`tel:${String(valor).replace(/\s+/g, '')}`} className="font-semibold text-club-red hover:underline">
+                                        {valor}
+                                      </a>
+                                      <div className="flex flex-col gap-2 sm:flex-row">
+                                        <a
+                                          href={`https://wa.me/${String(valor).replace(/[^0-9]/g, '')}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-green-700 sm:w-auto"
+                                        >
+                                          <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4">
+                                            <path d="M12.04 2c-5.52 0-10 4.48-10 10 0 1.77.46 3.45 1.28 4.94L2 22l5.2-1.36A9.94 9.94 0 0012.04 22c5.52 0 10-4.48 10-10s-4.48-10-10-10zm0 18.06c-1.6 0-3.12-.43-4.44-1.19l-.32-.19-3.09.81.83-3.01-.21-.31A8.05 8.05 0 014 12c0-4.43 3.6-8.03 8.04-8.03S20.08 7.57 20.08 12s-3.6 8.06-8.04 8.06zm4.4-6.03c-.24-.12-1.43-.7-1.65-.78-.22-.08-.38-.12-.54.12-.16.24-.62.78-.76.94-.14.16-.28.18-.52.06-.24-.12-1.02-.38-1.94-1.2-.72-.64-1.2-1.43-1.34-1.67-.14-.24-.02-.37.1-.49.11-.11.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.54-1.3-.74-1.78-.19-.46-.39-.4-.54-.4-.14-.01-.3-.01-.46-.01s-.42.06-.64.3c-.22.24-.84.82-.84 2s.86 2.32.98 2.48c.12.16 1.7 2.6 4.12 3.64.58.25 1.03.4 1.38.51.58.18 1.11.16 1.53.1.47-.07 1.43-.58 1.63-1.15.2-.56.2-1.04.14-1.15-.06-.1-.22-.16-.46-.28z" />
+                                          </svg>
+                                          WhatsApp
+                                        </a>
+                                        <a
+                                          href={`tel:${String(valor).replace(/\s+/g, '')}`}
+                                          className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-club-black px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-black sm:w-auto"
+                                        >
+                                          <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4">
+                                            <path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.36 11.36 0 003.57.57 1 1 0 011 1V20a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1 11.36 11.36 0 00.57 3.57 1 1 0 01-.25 1.02l-2.2 2.2z" />
+                                          </svg>
+                                          Llamar
+                                        </a>
+                                      </div>
+                                    </div>
                                   ) : campo === 'email_jugador' && valor !== '-' ? (
                                     <a href={`mailto:${valor}`} className="font-semibold text-club-red hover:underline">
                                       {valor}

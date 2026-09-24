@@ -118,7 +118,7 @@ function crearTecnicoVacio() {
 
 function IconoVer() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5 sm:h-4 sm:w-4" aria-hidden="true">
       <path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12Z" />
       <circle cx="12" cy="12" r="2.5" />
     </svg>
@@ -127,7 +127,7 @@ function IconoVer() {
 
 function IconoEditar() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5 sm:h-4 sm:w-4" aria-hidden="true">
       <path d="m4 20 4.5-1 10-10a1.8 1.8 0 0 0 0-2.5l-1-1a1.8 1.8 0 0 0-2.5 0l-10 10L4 20Z" strokeLinejoin="round" />
       <path d="m13 6 5 5" strokeLinecap="round" />
     </svg>
@@ -136,7 +136,7 @@ function IconoEditar() {
 
 function IconoBorrar() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5 sm:h-4 sm:w-4" aria-hidden="true">
       <path d="M4 7h16" strokeLinecap="round" />
       <path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7" strokeLinejoin="round" />
       <path d="M7 7l1 13h8l1-13" strokeLinejoin="round" />
@@ -484,7 +484,7 @@ export default function Tecnicos() {
         </div>
 
         {!loading && tecnicos.length > 0 && (
-          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center mb-4">
+          <div className="hidden gap-3 sm:flex sm:flex-row sm:flex-wrap sm:items-center mb-4">
             <select
               value={filtroFuncion}
               onChange={(e) => setFiltroFuncion(e.target.value)}
@@ -546,18 +546,54 @@ export default function Tecnicos() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead>
                 <tr className="text-left text-xs uppercase tracking-wide text-club-black/50">
+                  <th className="px-3 py-2">Acciones</th>
                   <th className="px-3 py-2">Nombre</th>
                   <th className="px-3 py-2">Contacto</th>
                   <th className="px-3 py-2">Funcion</th>
                   <th className="px-3 py-2">Localidad</th>
                   <th className="px-3 py-2">Titulacion</th>
                   <th className="px-3 py-2">Euskera</th>
-                  <th className="px-3 py-2">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {tecnicosFiltrados.map((item) => (
                   <tr key={item.id} className="align-top hover:bg-red-50/40">
+                    <td className="px-3 py-3">
+                      <div className="flex items-center gap-1 sm:gap-1">
+                        <button
+                          type="button"
+                          onClick={() => verTecnico(item)}
+                          title="Ver"
+                          aria-label={`Ver a ${nombreCompleto(item)}`}
+                          className="rounded-md p-2.5 sm:p-1.5 text-club-black/60 transition-colors hover:bg-gray-100 hover:text-club-black"
+                        >
+                          <IconoVer />
+                        </button>
+                        {puedeGestionar && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => iniciarEdicion(item)}
+                              title="Editar"
+                              aria-label={`Editar a ${nombreCompleto(item)}`}
+                              className="rounded-md p-2.5 sm:p-1.5 text-club-black/60 transition-colors hover:bg-gray-100 hover:text-club-black"
+                            >
+                              <IconoEditar />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => borrar(item)}
+                              disabled={borrandoId === item.id}
+                              title="Borrar"
+                              aria-label={`Borrar a ${nombreCompleto(item)}`}
+                              className="rounded-md p-2.5 sm:p-1.5 text-club-black/60 transition-colors hover:bg-red-50 hover:text-club-red disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              <IconoBorrar />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-3 py-3">
                       <div className="flex items-center gap-3">
                         {item.foto_url ? (
@@ -599,42 +635,6 @@ export default function Tecnicos() {
                     <td className="px-3 py-3 text-club-black/80 max-w-[220px]">{titulacionLabel(item)}</td>
                     <td className="px-3 py-3 text-club-black/80">
                       {item.euskera || <span className="text-club-black/40">—</span>}
-                    </td>
-                    <td className="px-3 py-3">
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => verTecnico(item)}
-                          title="Ver"
-                          aria-label={`Ver a ${nombreCompleto(item)}`}
-                          className="rounded-md p-1.5 text-club-black/60 transition-colors hover:bg-gray-100 hover:text-club-black"
-                        >
-                          <IconoVer />
-                        </button>
-                        {puedeGestionar && (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => iniciarEdicion(item)}
-                              title="Editar"
-                              aria-label={`Editar a ${nombreCompleto(item)}`}
-                              className="rounded-md p-1.5 text-club-black/60 transition-colors hover:bg-gray-100 hover:text-club-black"
-                            >
-                              <IconoEditar />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => borrar(item)}
-                              disabled={borrandoId === item.id}
-                              title="Borrar"
-                              aria-label={`Borrar a ${nombreCompleto(item)}`}
-                              className="rounded-md p-1.5 text-club-black/60 transition-colors hover:bg-red-50 hover:text-club-red disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              <IconoBorrar />
-                            </button>
-                          </>
-                        )}
-                      </div>
                     </td>
                   </tr>
                 ))}

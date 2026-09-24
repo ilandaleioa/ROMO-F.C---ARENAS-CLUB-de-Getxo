@@ -1149,7 +1149,7 @@ function GraficoBarras({ titulo, datos }) {
   );
 }
 
-function FiltroBuscador({ label, value, options, emptyLabel, onChange }) {
+function FiltroBuscador({ label, value, options, emptyLabel, onChange, className = '' }) {
   const [abierto, setAbierto] = useState(false);
   const [busquedaInterna, setBusquedaInterna] = useState('');
   const rootRef = useRef(null);
@@ -1207,7 +1207,7 @@ function FiltroBuscador({ label, value, options, emptyLabel, onChange }) {
   };
 
   return (
-    <div ref={rootRef} className="relative min-w-0">
+    <div ref={rootRef} className={`relative min-w-0 ${className}`}>
       <span className="mb-0.5 block text-[10px] font-semibold uppercase tracking-wide text-club-black/50">{label}</span>
       <button
         type="button"
@@ -2896,6 +2896,7 @@ export default function Captacion() {
                 options={opcionesFiltros.etapa}
                 emptyLabel="Todas"
                 onChange={(valor) => actualizarFiltro('etapa', valor)}
+                className="hidden sm:block"
               />
               <FiltroBuscador
                 label="Categoría"
@@ -2903,6 +2904,7 @@ export default function Captacion() {
                 options={opcionesFiltros.categoria}
                 emptyLabel="Todas"
                 onChange={(valor) => actualizarFiltro('categoria', valor)}
+                className="hidden sm:block"
               />
               <FiltroBuscador
                 label="Categoría año"
@@ -2910,6 +2912,7 @@ export default function Captacion() {
                 options={opcionesFiltros.anio_nacimiento}
                 emptyLabel="Todos"
                 onChange={(valor) => actualizarFiltro('anio_nacimiento', valor)}
+                className="hidden sm:block"
               />
               <FiltroBuscador
                 label="Lateralidad"
@@ -2917,6 +2920,7 @@ export default function Captacion() {
                 options={opcionesFiltros.lateralidad}
                 emptyLabel="Todas"
                 onChange={(valor) => actualizarFiltro('lateralidad', valor)}
+                className="hidden sm:block"
               />
               <FiltroBuscador
                 label="Valoración Resp"
@@ -2924,6 +2928,7 @@ export default function Captacion() {
                 options={opcionesFiltros.valoracion_general}
                 emptyLabel="Todas"
                 onChange={(valor) => actualizarFiltro('valoracion_general', valor)}
+                className="hidden sm:block"
               />
               <FiltroBuscador
                 label="Media Val Partidos"
@@ -2931,6 +2936,7 @@ export default function Captacion() {
                 options={opcionesFiltros.media_valoracion_partidos}
                 emptyLabel="Todas"
                 onChange={(valor) => actualizarFiltro('media_valoracion_partidos', valor)}
+                className="hidden sm:block"
               />
             </div>
             <button
