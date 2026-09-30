@@ -31,6 +31,8 @@ import CompeticionInfo from './pages/CompeticionInfo';
 import { ROLES_GESTION_USUARIOS } from './lib/roles';
 import { getRutaPorDefecto } from './lib/apartados';
 
+const APARTADOS_INICIO = ['inicio', 'inicio_arenas'];
+
 function ClubThemeSync() {
   const { club } = useClub();
 
@@ -96,7 +98,7 @@ function AppRoutes() {
       <Route
         path="/plantillas"
         element={
-          <ProtectedRoute requiredApartado="inicio">
+          <ProtectedRoute requiredApartado={APARTADOS_INICIO}>
             <Layout>
               <Plantillas />
             </Layout>
@@ -106,7 +108,7 @@ function AppRoutes() {
       <Route
         path="/plantillas/:id"
         element={
-          <ProtectedRoute requiredApartado="inicio">
+          <ProtectedRoute requiredApartado={APARTADOS_INICIO}>
             <Layout>
               <Plantillas />
             </Layout>
@@ -116,7 +118,7 @@ function AppRoutes() {
       <Route
         path="/fichas/:id"
         element={
-          <ProtectedRoute requiredApartado="inicio">
+          <ProtectedRoute requiredApartado={APARTADOS_INICIO}>
             <Layout>
               <FichaJugador />
             </Layout>

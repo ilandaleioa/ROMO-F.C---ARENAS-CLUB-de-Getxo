@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { getRutaPorDefecto } from '../lib/apartados';
 
 export default function Login() {
-  const { user, login } = useAuth();
+  const { user, login, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [username, setUsername] = useState('');
@@ -14,7 +14,15 @@ export default function Login() {
 
   if (user) {
     const dest = location.state?.from?.pathname || getRutaPorDefecto(user);
-    return <Navigate to={dest} replace />;
+    if (dest !== '/login') return <Navigate to={dest} replace />;
+    return (
+      <div className="min-h-[100dvh] flex flex-col items-center justify-center gap-3 p-8 text-center text-club-black/70">
+        <p>Tu usuario no tiene apartados disponibles. Contacta con un administrador.</p>
+        <button type="button" className="underline" onClick={logout}>
+          Cerrar sesión
+        </button>
+      </div>
+    );
   }
 
   const handleSubmit = async (e) => {

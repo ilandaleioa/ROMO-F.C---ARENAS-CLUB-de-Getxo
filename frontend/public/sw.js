@@ -1,4 +1,4 @@
-const CACHE_NAME = 'romo-arenas-shell-v2';
+const CACHE_NAME = 'romo-arenas-shell-v3';
 const APP_SHELL = [
   '/',
   '/index.html',
@@ -43,7 +43,7 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put('/index.html', copy));
           return response;
         })
-        .catch(() => caches.match('/index.html'))
+        .catch(() => caches.match('/index.html').then((r) => r || Response.error()))
     );
     return;
   }
@@ -58,7 +58,7 @@ self.addEventListener('fetch', (event) => {
           }
           return response;
         })
-        .catch(() => cached);
+        .catch(() => cached || Response.error());
 
       return cached || network;
     })
