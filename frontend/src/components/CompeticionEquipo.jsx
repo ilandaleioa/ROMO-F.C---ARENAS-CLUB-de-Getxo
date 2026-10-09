@@ -406,7 +406,7 @@ export default function CompeticionEquipo({ equipo, club, pestanaInicial = 'clas
   const competicionesEnlaces = (enlaces.datos?.competiciones || []).filter(
     (c) => normalizar(c.equipo_interno) === normalizar(equipo)
   );
-  const nombreFed = club === 'ARENAS' ? 'Arenas Club' : 'ROMO F.C.';
+  const nombreFed = club === 'ARENAS' ? 'Arenas' : 'ROMO F.C.';
 
   return (
     <section className="overflow-hidden rounded-2xl border border-slate-200 shadow-[0_14px_38px_rgba(15,23,42,0.07)]">

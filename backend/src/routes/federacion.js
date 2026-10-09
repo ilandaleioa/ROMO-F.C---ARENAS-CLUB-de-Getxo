@@ -19,6 +19,12 @@ const NOMBRE_CLUB_FEDERACION = {
   ARENAS: 'Arenas Club',
 };
 
+// Prefijo con el que la federacion nombra al equipo propio (p. ej. "ROMO F.C.", "ARENAS C.").
+const PREFIJO_EQUIPO_PROPIO = {
+  ROMO: 'romo',
+  ARENAS: 'arenas',
+};
+
 const ETAPAS = ['JUVENIL', 'CADETE', 'INFANTIL', 'SENIOR'];
 
 const RE_COMP = /^\d+-\d+-\d+$/;
@@ -97,7 +103,8 @@ router.get('/equipo-dashboard', async (req, res) => {
     const base = await consultar('/api/filters', { clubnom });
     const season = (base.seasons || [])[0] || '';
     const filtros = await consultar('/api/filters', { clubnom, season, etapa });
-    const propios = (filtros.teams || []).filter((t) => String(t.name || '').trim().toLowerCase() === clubnom.toLowerCase());
+    const prefijo = PREFIJO_EQUIPO_PROPIO[req.club];
+    const propios = (filtros.teams || []).filter((t) => String(t.name || '').trim().toLowerCase().startsWith(prefijo));
     return res.json({ id: propios.length === 1 ? propios[0].id : null, etapa, season });
   } catch (error) {
     return responderError(res, error, 'consultar');

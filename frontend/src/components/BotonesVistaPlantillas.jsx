@@ -10,7 +10,7 @@ const claseBoton = (activo) =>
       : 'border border-gray-300 bg-white text-club-black/80 hover:bg-club-red/10 hover:text-club-black'
   }`;
 
-// Accesos rápidos del equipo seleccionado: actas, clasificación, gráficas y dashboard.
+// Accesos rápidos del equipo seleccionado: actas, clasificación y dashboard del equipo.
 export function BotonesSeccionesEquipo({ vistaActual = null }) {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -24,14 +24,9 @@ export function BotonesSeccionesEquipo({ vistaActual = null }) {
       <button type="button" onClick={() => setVista('clasificacion')} className={claseBoton(vistaActual === 'clasificacion')}>
         Clasificación
       </button>
-      {usuarioPuedeVerApartado(user, 'graficas') && (
-        <button type="button" onClick={() => setVista('graficas_competicion')} className={claseBoton(vistaActual === 'graficas_competicion')}>
-          Gráficas competición
-        </button>
-      )}
       {usuarioPuedeVerApartado(user, 'estadisticas') && (
         <button type="button" onClick={() => setVista('dashboard')} className={claseBoton(vistaActual === 'dashboard')}>
-          Dashboard
+          Dashboard equipo
         </button>
       )}
     </div>
