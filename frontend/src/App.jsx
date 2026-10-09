@@ -28,6 +28,7 @@ import Tecnicos from './pages/Tecnicos';
 import Actividades from './pages/Actividades';
 import Competiciones from './pages/Competiciones';
 import CompeticionInfo from './pages/CompeticionInfo';
+import Estadisticas from './pages/Estadisticas';
 import { ROLES_GESTION_USUARIOS } from './lib/roles';
 import { getRutaPorDefecto } from './lib/apartados';
 
@@ -291,6 +292,16 @@ function AppRoutes() {
           <ProtectedRoute requiredApartado="competicion">
             <Layout>
               <CompeticionInfo />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/estadisticas"
+        element={
+          <ProtectedRoute requiredApartado="estadisticas">
+            <Layout>
+              <Estadisticas />
             </Layout>
           </ProtectedRoute>
         }

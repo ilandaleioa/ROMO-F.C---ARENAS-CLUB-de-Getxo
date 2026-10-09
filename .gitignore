@@ -9,3 +9,6 @@ build/
 Thumbs.db
 
 .vercel
+
+# Exports con datos personales (match jugadores/CSV)
+backend/exports/

@@ -11,6 +11,7 @@ const configRoutes = require('./routes/config');
 const captacionRoutes = require('./routes/captacion');
 const personalRoutes = require('./routes/personal');
 const competicionesRoutes = require('./routes/competiciones');
+const federacionRoutes = require('./routes/federacion');
 const actividadesRoutes = require('./routes/actividades');
 const tecnicosRoutes = require('./routes/tecnicos');
 
@@ -88,6 +89,7 @@ app.use('/api/config', configRoutes);
 app.use('/api/captacion', captacionRoutes);
 app.use('/api/personal', personalRoutes);
 app.use('/api/competiciones', competicionesRoutes);
+app.use('/api/federacion', federacionRoutes);
 app.use('/api/actividades', actividadesRoutes);
 app.use('/api/tecnicos', tecnicosRoutes);
 

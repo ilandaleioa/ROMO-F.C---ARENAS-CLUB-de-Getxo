@@ -16,6 +16,7 @@ export const APARTADOS_APP = [
   { key: 'hojas_calculo', label: 'Hojas de calculo', path: '/hojas-calculo' },
   { key: 'competiciones', label: 'Competiciones', path: '/competiciones', roles: ['administrador', 'director'] },
   { key: 'competicion', label: 'COMPETICIÓN', path: '/competicion' },
+  { key: 'estadisticas', label: 'DATOS FEDERACIONES', path: '/estadisticas' },
 ];
 
 export const APARTADOS_USUARIO = APARTADOS_APP.map(({ key, label }) => ({

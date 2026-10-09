@@ -16,6 +16,7 @@ const APARTADOS_PERMITIDOS = [
   'hojas_calculo',
   'competiciones',
   'competicion',
+  'estadisticas',
 ];
 
 function limpiarApartado(valor) {

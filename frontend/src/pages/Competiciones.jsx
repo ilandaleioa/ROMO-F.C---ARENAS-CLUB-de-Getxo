@@ -21,6 +21,7 @@ const FORM_VACIO = {
   url_goleadores: '',
   url_porteros: '',
   url_estadisticas: '',
+  url_actas: '',
   rivales: '',
 };
 
@@ -35,6 +36,7 @@ const CAMPOS_FEDERATIVOS = [
   { key: 'url_goleadores', label: 'URL Goleadores', type: 'url' },
   { key: 'url_porteros', label: 'URL Porteros', type: 'url' },
   { key: 'url_estadisticas', label: 'URL Estadísticas', type: 'url' },
+  { key: 'url_actas', label: 'URL Actas', type: 'url' },
 ];
 
 function texto(valor) {
@@ -69,6 +71,7 @@ function formDesdeFila(fila, clubActual) {
     url_goleadores: texto(fila.url_goleadores),
     url_porteros: texto(fila.url_porteros),
     url_estadisticas: texto(fila.url_estadisticas),
+    url_actas: texto(fila.url_actas),
     rivales: Array.isArray(fila.rivales) ? fila.rivales.join('\n') : '',
   };
 }

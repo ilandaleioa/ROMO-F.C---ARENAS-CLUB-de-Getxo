@@ -30,10 +30,11 @@ const CAMPOS = [
   'url_goleadores',
   'url_porteros',
   'url_estadisticas',
+  'url_actas',
   'rivales',
 ];
 
-const CAMPOS_URL = ['url', 'url_resultados', 'url_calendario', 'url_tabla_cruzada', 'url_goleadores', 'url_porteros', 'url_estadisticas'];
+const CAMPOS_URL = ['url', 'url_resultados', 'url_calendario', 'url_tabla_cruzada', 'url_goleadores', 'url_porteros', 'url_estadisticas', 'url_actas'];
 const CAMPOS_SELECT = ['id', 'club', ...CAMPOS, 'created_at', 'updated_at'].join(', ');
 const TIPOS_VALIDOS = ['liga', 'amistoso'];
 
@@ -70,6 +71,7 @@ function normalizarPayload(body) {
     url_goleadores: texto(body?.url_goleadores),
     url_porteros: texto(body?.url_porteros),
     url_estadisticas: texto(body?.url_estadisticas),
+    url_actas: texto(body?.url_actas),
     rivales: listaRivales(body?.rivales),
   };
 }
@@ -199,6 +201,7 @@ const CAMPOS_PUBLICOS_SELECT = [
   'url_goleadores',
   'url_porteros',
   'url_estadisticas',
+  'url_actas',
   'rivales',
 ].join(', ');
 

@@ -11,7 +11,9 @@ import { usuarioPuedeVerApartado } from '../lib/apartados';
 import TableScroll from '../components/TableScroll';
 import CampoFutbolPosicion from '../components/CampoFutbolPosicion';
 import { ETIQUETAS_JUGADOR, SECCIONES_FICHA, LOCALIDAD_OPCIONES } from '../lib/campos';
-import BotonesVistaPlantillas from '../components/BotonesVistaPlantillas';
+import BotonesVistaPlantillas, { BotonesSeccionesEquipo } from '../components/BotonesVistaPlantillas';
+import CompeticionEquipo from '../components/CompeticionEquipo';
+import Estadisticas from './Estadisticas';
 
 const COLORES_MUNICIPIOS = [
   '#2a78d6',
@@ -206,7 +208,21 @@ export default function Plantillas({ soloGraficas = false }) {
     };
   }, []);
 
-  const vistaVisible = soloGraficas ? 'graficas' : esMovil ? 'tabla' : vista;
+  const VISTAS_EQUIPO = ['competicion', 'actas', 'clasificacion', 'graficas_competicion', 'dashboard'];
+  const vistaVisible = soloGraficas ? 'graficas' : esMovil && !VISTAS_EQUIPO.includes(vista) ? 'tabla' : vista;
+  const vistaEquipo = VISTAS_EQUIPO.includes(vistaVisible);
+  const renderVistaEquipo = (equipo) =>
+    vistaVisible === 'dashboard' ? (
+      <Estadisticas equipo={equipo} club={club} />
+    ) : (
+      <CompeticionEquipo
+        equipo={equipo}
+        club={club}
+        pestanaInicial={
+          vistaVisible === 'actas' ? 'actas' : vistaVisible === 'graficas_competicion' ? 'graficas' : 'clasificacion'
+        }
+      />
+    );
 
   useEffect(() => {
     if (vistaVisible !== 'tarjetas') {
@@ -1608,22 +1624,17 @@ export default function Plantillas({ soloGraficas = false }) {
             <div className="text-sm font-semibold bg-club-black text-white px-4 py-2 rounded-md inline-block">
               Equipo: {equiposAsignadosLabel(user.equipo_asignado)}
             </div>
-            {equiposAsignadosUsuario[0] && (
-              <Link
-                to={`/campogramas?equipo=${encodeURIComponent(equiposAsignadosUsuario[0])}`}
-                className="inline-flex items-center gap-1.5 bg-club-red hover:bg-club-redDark text-white font-semibold px-3 py-2 rounded-md text-sm transition-colors"
-              >
-                <span className="text-base leading-none">+</span> Campograma
-              </Link>
-            )}
             {!loading && !error && renderContadorRegistros(jugadoresFiltrados.length)}
+            {equiposAsignadosUsuario[0] && <BotonesSeccionesEquipo vistaActual={vistaVisible} />}
           </div>
           {error && (
             <p className="text-sm text-club-red font-medium bg-red-50 border border-club-red/30 rounded-md px-3 py-2 mb-4">
               {error}
             </p>
           )}
-          {loading ? (
+          {vistaEquipo ? (
+            renderVistaEquipo(equiposAsignadosUsuario[0])
+          ) : loading ? (
             <p className="text-club-black/60">Cargando jugadores...</p>
           ) : error ? null : jugadoresFiltrados.length === 0 ? (
             <p className="text-club-black/60">No se han encontrado jugadores.</p>
@@ -1649,7 +1660,12 @@ export default function Plantillas({ soloGraficas = false }) {
               </p>
             )}
 
-            {loading ? (
+            {vistaEquipo ? (
+              <div className="space-y-3">
+                {equiposSeleccionados.length === 1 && <BotonesSeccionesEquipo vistaActual={vistaVisible} />}
+                {renderVistaEquipo(equiposSeleccionados.length === 1 ? equiposSeleccionados[0] : '')}
+              </div>
+            ) : loading ? (
               <p className="text-club-black/60">Cargando jugadores...</p>
             ) : jugadoresFiltrados.length === 0 ? (
               <p className="text-club-black/60">No se han encontrado jugadores.</p>
@@ -1661,15 +1677,8 @@ export default function Plantillas({ soloGraficas = false }) {
             ) : (
               <div className="space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  {equiposSeleccionados.length === 1 && (
-                    <Link
-                      to={`/campogramas?equipo=${encodeURIComponent(equiposSeleccionados[0])}`}
-                      className="inline-flex items-center gap-1.5 bg-club-red hover:bg-club-redDark text-white font-semibold px-3 py-1.5 rounded-md text-sm transition-colors"
-                    >
-                      <span className="text-base leading-none">+</span> Campograma
-                    </Link>
-                  )}
                   {renderContadorRegistros(jugadoresFiltrados.length)}
+                  {equiposSeleccionados.length === 1 && <BotonesSeccionesEquipo vistaActual={vistaVisible} />}
                 </div>
                 {renderJugadores(jugadoresFiltrados)}
               </div>

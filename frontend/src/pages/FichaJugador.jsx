@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { ETIQUETAS_JUGADOR, SECCIONES_FICHA } from '../lib/campos';
 import { CLUBES_MAESTROS } from '../data/clubes';
 import CampoFutbolPosicion from '../components/CampoFutbolPosicion';
+import PartidosJugador from '../components/PartidosJugador';
 
 const ROLES_QUE_PUEDEN_SUBIR_FOTO = ['administrador', 'director', 'responsable', 'tecnico'];
 const ROLES_QUE_PUEDEN_EDITAR = ['administrador', 'director', 'responsable', 'tecnico'];
@@ -738,6 +739,8 @@ export default function FichaJugador() {
                     );
                   })}
                 </div>
+
+                <PartidosJugador jugadorId={jugador.id} />
               </main>
             </div>
           </section>
