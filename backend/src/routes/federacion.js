@@ -215,6 +215,7 @@ router.get('/jugador/:id', async (req, res) => {
     const ficha = await consultar('/api/player', { id: data.federacion_player_id });
     return res.json({
       vinculado: true,
+      federacionPlayerId: String(data.federacion_player_id),
       totales: ficha.totals || {},
       temporadas: repararTexto(ficha.seasons || []),
       partidos: repararTexto(ficha.matches || []),

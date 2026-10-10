@@ -5,6 +5,8 @@
 // Con --aplicar guarda jugadores.federacion_player_id (antes hay que ejecutar
 // scripts/agregar-federacion-id-jugadores.sql) para las coincidencias exactas
 // y probables unicas. Los ambiguos y sin coincidencia no se tocan.
+// Con --manual [--aplicar] guarda los vinculos que hayas escrito a mano en la columna csv_player_id
+// de exports/match_jugadores.csv (solo filas ambiguo / sin_match).
 // Genera backend/exports/match_jugadores.csv (contiene datos personales: no
 // se versiona, esta en .gitignore) y solo imprime recuentos por consola.
 
@@ -96,6 +98,7 @@ async function main() {
   const subset = (a, b) => a.every((t) => b.includes(t));
   const filas = [];
   const resumen = { exacto: 0, probable: 0, ambiguo: 0, sin_match: 0 };
+  const porEquipo = {};
   const vinculos = [];
 
   for (const j of jugadores) {
@@ -113,6 +116,8 @@ async function main() {
     }
     const estado = cands.length === 0 ? 'sin_match' : cands.length === 1 ? tipo : 'ambiguo';
     resumen[estado] += 1;
+    const eq = (porEquipo[j.equipo || '(sin equipo)'] ||= { exacto: 0, probable: 0, ambiguo: 0, sin_match: 0 });
+    eq[estado] += 1;
     const c = cands[0];
     if (cands.length === 1) vinculos.push({ id: j.id, player_id: Number(c.player_id) });
     filas.push([
@@ -131,6 +136,7 @@ async function main() {
   );
   console.log(`Jugadores en app: ${jugadores.length} | jugadores CSV: ${dim.length}`);
   console.log(resumen);
+  console.table(porEquipo);
 
   if (APLICAR) {
     let ok = 0;
@@ -143,4 +149,20 @@ async function main() {
   }
 }
 
-main().catch((err) => { console.error(err.message); process.exit(1); });
+// Vinculos manuales: tras revisar exports/match_jugadores.csv, escribe en la columna csv_player_id el id
+// elegido para los jugadores ambiguos o sin coincidencia y ejecuta con --manual (simulacion) o --manual --aplicar.
+async function manual() {
+  const file = path.join(OUT_DIR, 'match_jugadores.csv');
+  const valido = new Set(parseCsv(path.join(CSV_DIR, 'dim_player.csv')).map((p) => p.player_id));
+  const filas = parseCsv(file).filter((f) => ['ambiguo', 'sin_match'].includes(f.estado) && /^\d+$/.test((f.csv_player_id || '').trim()));
+  const buenas = filas.filter((f) => valido.has(f.csv_player_id.trim()));
+  console.log(`Filas con id manual: ${filas.length} | ids que existen en la federacion: ${buenas.length}`);
+  if (!APLICAR) return console.log('Simulacion: repite con --manual --aplicar para guardar.');
+  for (const f of buenas) {
+    const { error } = await supabaseAdmin.from('jugadores').update({ federacion_player_id: Number(f.csv_player_id) }).eq('id', f.jugador_id);
+    if (error) throw new Error(`Supabase: ${error.message}`);
+  }
+  console.log(`Vinculados a mano: ${buenas.length}`);
+}
+
+(process.argv.includes('--manual') ? manual() : main()).catch((err) => { console.error(err.message); process.exit(1); });

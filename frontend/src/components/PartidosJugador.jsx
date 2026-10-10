@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../lib/api';
+import { urlEstadisticas } from '../lib/urlEstadisticas';
 
 const COLORES_RESULTADO = { W: 'bg-emerald-500', D: 'bg-amber-400', L: 'bg-club-red' };
 const LETRAS_RESULTADO = { W: 'G', D: 'E', L: 'P' };
@@ -57,6 +58,36 @@ function minutos(lista) {
 function Mensaje({ children, error = false }) {
   return (
     <p className={`px-2 py-6 text-center text-sm font-semibold ${error ? 'text-club-red' : 'text-slate-400'}`}>{children}</p>
+  );
+}
+
+// Dashboard completo del jugador de la app de Datos (evolución, rankings, comparativas), cargado a petición.
+function DashboardFederativo({ id }) {
+  const [abierto, setAbierto] = useState(false);
+  if (!/^\d{1,12}$/.test(String(id ?? ''))) return null;
+  const hash = new URLSearchParams({ tab: 'dash-jugador', pid: String(id), embed: '1' });
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white">
+      <button
+        type="button"
+        onClick={() => setAbierto((v) => !v)}
+        aria-expanded={abierto}
+        className="flex w-full items-center justify-between px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-club-black/70"
+      >
+        Dashboard federativo completo
+        <span aria-hidden="true">{abierto ? '▴' : '▾'}</span>
+      </button>
+      {abierto && (
+        <iframe
+          title="Dashboard federativo del jugador"
+          src={`${urlEstadisticas()}#${hash}`}
+          className="h-[80vh] w-full border-0 border-t border-gray-200 bg-white"
+          sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-downloads"
+          referrerPolicy="no-referrer"
+          allow="fullscreen"
+        />
+      )}
+    </div>
   );
 }
 
@@ -157,6 +188,8 @@ export default function PartidosJugador({ jugadorId }) {
             </table>
           </div>
         )}
+
+        <DashboardFederativo id={datos.federacionPlayerId} />
 
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h5 className="text-xs font-bold uppercase tracking-wide text-club-black/60">Partidos ({partidos.length})</h5>
