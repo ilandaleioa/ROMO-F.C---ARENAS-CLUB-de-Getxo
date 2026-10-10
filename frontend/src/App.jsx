@@ -27,7 +27,6 @@ import Personal from './pages/Personal';
 import Tecnicos from './pages/Tecnicos';
 import Actividades from './pages/Actividades';
 import Competiciones from './pages/Competiciones';
-import CompeticionInfo from './pages/CompeticionInfo';
 import Estadisticas from './pages/Estadisticas';
 import { ROLES_GESTION_USUARIOS } from './lib/roles';
 import { getRutaPorDefecto } from './lib/apartados';
@@ -282,16 +281,6 @@ function AppRoutes() {
           <ProtectedRoute allowedRoles={['administrador', 'director']} requiredApartado="competiciones">
             <Layout>
               <Competiciones />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/competicion"
-        element={
-          <ProtectedRoute requiredApartado="competicion">
-            <Layout>
-              <CompeticionInfo />
             </Layout>
           </ProtectedRoute>
         }

@@ -15,7 +15,6 @@ export const APARTADOS_APP = [
   { key: 'clubes_maestros', label: 'CLUBES', path: '/listas/clubes', roles: ['administrador', 'director'] },
   { key: 'hojas_calculo', label: 'Hojas de calculo', path: '/hojas-calculo' },
   { key: 'competiciones', label: 'Competiciones', path: '/competiciones', roles: ['administrador', 'director'] },
-  { key: 'competicion', label: 'COMPETICIÓN', path: '/competicion' },
   { key: 'estadisticas', label: 'DATOS FEDERACIONES', path: '/estadisticas' },
 ];
 
