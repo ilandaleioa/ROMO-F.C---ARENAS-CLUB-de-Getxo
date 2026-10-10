@@ -11,7 +11,7 @@ import { usuarioPuedeVerApartado } from '../lib/apartados';
 import TableScroll from '../components/TableScroll';
 import CampoFutbolPosicion from '../components/CampoFutbolPosicion';
 import { ETIQUETAS_JUGADOR, SECCIONES_FICHA, LOCALIDAD_OPCIONES } from '../lib/campos';
-import BotonesVistaPlantillas, { BotonesSeccionesEquipo } from '../components/BotonesVistaPlantillas';
+import BotonesVistaPlantillas from '../components/BotonesVistaPlantillas';
 import CompeticionEquipo from '../components/CompeticionEquipo';
 import Estadisticas from './Estadisticas';
 
@@ -1379,6 +1379,8 @@ export default function Plantillas({ soloGraficas = false }) {
                 key={eq}
                 onClick={() => {
                   seleccionarEquipoUnico(eq);
+                  // Al elegir un equipo se abre directamente su pantalla de Datos con los filtros aplicados.
+                  if (!soloGraficas && usuarioPuedeVerApartado(user, 'estadisticas')) setVista('dashboard');
                   setFiltroEquiposAbierto(false);
                 }}
                 className={`w-full text-left px-4 py-2.5 text-sm border-b border-gray-100 last:border-b-0 transition-colors ${
@@ -1625,7 +1627,6 @@ export default function Plantillas({ soloGraficas = false }) {
               Equipo: {equiposAsignadosLabel(user.equipo_asignado)}
             </div>
             {!loading && !error && renderContadorRegistros(jugadoresFiltrados.length)}
-            {equiposAsignadosUsuario[0] && <BotonesSeccionesEquipo vistaActual={vistaVisible} />}
           </div>
           {error && (
             <p className="text-sm text-club-red font-medium bg-red-50 border border-club-red/30 rounded-md px-3 py-2 mb-4">
@@ -1662,7 +1663,6 @@ export default function Plantillas({ soloGraficas = false }) {
 
             {vistaEquipo ? (
               <div className="space-y-3">
-                {equiposSeleccionados.length === 1 && <BotonesSeccionesEquipo vistaActual={vistaVisible} />}
                 {renderVistaEquipo(equiposSeleccionados.length === 1 ? equiposSeleccionados[0] : '')}
               </div>
             ) : loading ? (
@@ -1678,7 +1678,6 @@ export default function Plantillas({ soloGraficas = false }) {
               <div className="space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
                   {renderContadorRegistros(jugadoresFiltrados.length)}
-                  {equiposSeleccionados.length === 1 && <BotonesSeccionesEquipo vistaActual={vistaVisible} />}
                 </div>
                 {renderJugadores(jugadoresFiltrados)}
               </div>

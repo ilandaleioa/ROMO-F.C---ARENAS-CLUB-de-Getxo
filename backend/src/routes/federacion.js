@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 const express = require('express');
 const requireAuth = require('../middleware/requireAuth');
 const resolveClub = require('../middleware/resolveClub');
@@ -19,13 +21,43 @@ const NOMBRE_CLUB_FEDERACION = {
   ARENAS: 'Arenas Club',
 };
 
+const CLUB_FILTRO_DATOS = {
+  ROMO: 'ROMO,ROMO F.C.',
+  ARENAS: 'Arenas Club',
+};
+
 // Prefijo con el que la federacion nombra al equipo propio (p. ej. "ROMO F.C.", "ARENAS C.").
 const PREFIJO_EQUIPO_PROPIO = {
   ROMO: 'romo',
   ARENAS: 'arenas',
 };
 
-const ETAPAS = ['JUVENIL', 'CADETE', 'INFANTIL', 'SENIOR'];
+// Equipos internos que la federación registra con otro nombre: [marca en el equipo interno, prefijo federativo].
+const PREFIJOS_FILIAL = [['ITZU', 'itzu']];
+
+// Relación equipo interno ↔ equipo federativo (club;equipo_interno;id_federacion;nombre_federacion).
+const EQUIPOS_CSV = path.join(__dirname, '..', 'config', 'equipos_federacion.csv');
+
+const normalizar = (texto) =>
+  String(texto || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+
+function filaEquipoFederacion(club, equipo) {
+  let texto;
+  try {
+    texto = fs.readFileSync(EQUIPOS_CSV, 'utf8').replace(/^﻿/, '');
+  } catch (_) {
+    return null;
+  }
+  const [cabecera, ...filas] = texto.split(/\r?\n/).filter((l) => l.trim());
+  if (!cabecera) return null;
+  const sep = cabecera.includes(';') ? ';' : ',';
+  const campos = cabecera.split(sep).map((c) => c.trim());
+  return filas
+    .map((linea) => Object.fromEntries(linea.split(sep).map((v, i) => [campos[i], v.trim()])))
+    .find((f) => normalizar(f.club) === normalizar(club) && normalizar(f.equipo_interno) === normalizar(equipo)) || null;
+}
+
+const ETAPAS =['JUVENIL', 'CADETE', 'INFANTIL', 'SENIOR'];
 
 const RE_COMP = /^\d+-\d+-\d+$/;
 const RE_ID = /^\d{1,12}$/;
@@ -37,7 +69,9 @@ async function consultar(ruta, params = {}) {
     if (valor !== '' && valor != null) url.searchParams.set(clave, String(valor));
   });
 
-  const respuesta = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS), headers: { Accept: 'application/json' } });
+  const headers = { Accept: 'application/json' };
+  if (process.env.FEDERACION_SERVICE_KEY) headers['X-Service-Key'] = process.env.FEDERACION_SERVICE_KEY;
+  const respuesta = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS), headers });
   if (!respuesta.ok) throw new Error(`La API federativa respondio ${respuesta.status}.`);
   return respuesta.json();
 }
@@ -99,12 +133,26 @@ router.get('/equipo-dashboard', async (req, res) => {
     return res.status(403).json({ error: 'No tienes permiso para ver este equipo.' });
   }
 
+  const fila = filaEquipoFederacion(req.club, req.query.equipo);
+  if (fila && RE_ID.test(fila.id_federacion)) return res.json({ id: fila.id_federacion, etapa });
+
   try {
-    const base = await consultar('/api/filters', { clubnom });
+    // Mismo filtro de club que usa la pantalla de Datos (incluye el alias «ROMO» y los filiales).
+    const clubFiltro = CLUB_FILTRO_DATOS[req.club] || clubnom;
+    const base = await consultar('/api/filters', { clubnom: clubFiltro });
     const season = (base.seasons || [])[0] || '';
-    const filtros = await consultar('/api/filters', { clubnom, season, etapa });
-    const prefijo = PREFIJO_EQUIPO_PROPIO[req.club];
-    const propios = (filtros.teams || []).filter((t) => String(t.name || '').trim().toLowerCase().startsWith(prefijo));
+    const filtros = await consultar('/api/filters', { clubnom: clubFiltro, season, etapa });
+    // El filial de ROMO (ITZU JUVENIL = Itzubaltzeta Juvenil B) cuelga del mismo club en la federación:
+    // se resuelve por su propio prefijo para que no coincida con el primer equipo.
+    const prefijo = PREFIJOS_FILIAL.find(([marca]) => String(req.query.equipo || '').toUpperCase().includes(marca))?.[1]
+      || PREFIJO_EQUIPO_PROPIO[req.club];
+    const equipos = filtros.teams || [];
+    // Si el CSV da el nombre federativo (p. ej. «ROMO F.C. - Juvenil A»), se elige el equipo cuyo nombre lo encabeza.
+    const nombre = normalizar(fila?.nombre_federacion);
+    const porNombre = nombre ? equipos.filter((t) => t.name && nombre.startsWith(normalizar(t.name))) : [];
+    const propios = porNombre.length === 1
+      ? porNombre
+      : equipos.filter((t) => String(t.name || '').trim().toLowerCase().startsWith(prefijo));
     return res.json({ id: propios.length === 1 ? propios[0].id : null, etapa, season });
   } catch (error) {
     return responderError(res, error, 'consultar');
