@@ -19,7 +19,8 @@ const router = express.Router();
 router.use(requireAuth, requireRole(ROLES.ADMINISTRADOR, ROLES.DIRECTOR));
 
 const PUBLIC_USER_FIELDS_BASE = ['id', 'username', 'rol', 'equipo_asignado'];
-const PUBLIC_USER_OPTIONAL_FIELDS = ['club', 'apartados_visibles', 'activo', 'creado_en'];
+const PUBLIC_USER_OPTIONAL_FIELDS = ['club', 'apartados_visibles', 'activo', 'creado_en', 'texto'];
+const MAX_TEXTO = 500;
 
 function normalizarUsuario(usuario) {
   if (!usuario) return usuario;
@@ -28,6 +29,9 @@ function normalizarUsuario(usuario) {
     equipo_asignado: usuario.equipo_asignado || null,
     club: usuario.club || null,
   };
+  if (Object.prototype.hasOwnProperty.call(usuario, 'texto')) {
+    normalizado.texto = usuario.texto || '';
+  }
 
   // No inventamos esta propiedad cuando la base de datos es antigua y aun no
   // tiene la columna. El frontend usa su ausencia para no intentar guardar un
@@ -94,8 +98,11 @@ router.get('/', async (req, res) => {
 });
 
 function validarPayload(body, { requierePassword }) {
-  const { username, password, rol, equipo_asignado, apartados_visibles, club } = body || {};
+  const { username, password, rol, equipo_asignado, apartados_visibles, club, texto } = body || {};
 
+  if (texto !== undefined && texto !== null && (typeof texto !== 'string' || texto.length > MAX_TEXTO)) {
+    return `El texto no es valido (maximo ${MAX_TEXTO} caracteres).`;
+  }
   if (!username || typeof username !== 'string' || username.trim().length < 3) {
     return 'El nombre de usuario es obligatorio (minimo 3 caracteres).';
   }
@@ -176,6 +183,9 @@ router.post('/', async (req, res) => {
     if (Object.prototype.hasOwnProperty.call(req.body, 'apartados_visibles')) {
       payload.apartados_visibles = normalizarApartadosVisibles(apartados_visibles);
     }
+    if (Object.prototype.hasOwnProperty.call(req.body, 'texto')) {
+      payload.texto = String(req.body.texto ?? '').trim();
+    }
 
     const { data, error: dbError } = await insertarUsuarioConFallback({
       ...payload,
@@ -217,6 +227,9 @@ router.put('/:id', async (req, res) => {
     // pantalla no puede persistirlo por falta de migracion.
     if (Object.prototype.hasOwnProperty.call(req.body, 'apartados_visibles')) {
       update.apartados_visibles = normalizarApartadosVisibles(apartados_visibles);
+    }
+    if (Object.prototype.hasOwnProperty.call(req.body, 'texto')) {
+      update.texto = String(req.body.texto ?? '').trim();
     }
 
     if (password) {

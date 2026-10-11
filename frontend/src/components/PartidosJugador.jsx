@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../lib/api';
 import { urlEstadisticas } from '../lib/urlEstadisticas';
+import { Acta } from './CompeticionEquipo';
 
 const COLORES_RESULTADO = { W: 'bg-emerald-500', D: 'bg-amber-400', L: 'bg-club-red' };
 const LETRAS_RESULTADO = { W: 'G', D: 'E', L: 'P' };
@@ -15,10 +16,11 @@ function escudoSeguro(url) {
   return typeof url === 'string' && url.startsWith('https://') ? url : null;
 }
 
-function Dato({ etiqueta, valor }) {
+function Dato({ etiqueta, valor, icono }) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-2.5 text-center">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-club-black/50">{etiqueta}</p>
+      {icono && <span className="block text-lg leading-none" aria-hidden="true">{icono}</span>}
+      <p className={`text-[10px] font-semibold uppercase tracking-wide text-club-black/50 ${icono ? 'mt-1' : ''}`}>{etiqueta}</p>
       <p className="mt-0.5 text-base font-bold text-club-black">{valor ?? 0}</p>
     </div>
   );
@@ -62,10 +64,11 @@ function Mensaje({ children, error = false }) {
 }
 
 // Dashboard completo del jugador de la app de Datos (evolución, rankings, comparativas), cargado a petición.
-function DashboardFederativo({ id }) {
+function DashboardFederativo({ id, temporada }) {
   const [abierto, setAbierto] = useState(false);
   if (!/^\d{1,12}$/.test(String(id ?? ''))) return null;
   const hash = new URLSearchParams({ tab: 'dash-jugador', pid: String(id), embed: '1' });
+  if (/^\d{4}-\d{4}$/.test(String(temporada ?? ''))) hash.set('season', temporada);
   return (
     <div className="rounded-xl border border-gray-200 bg-white">
       <button
@@ -94,7 +97,7 @@ function DashboardFederativo({ id }) {
 // Historial federativo del jugador: totales, temporadas y partidos con minutos, goles y tarjetas.
 export default function PartidosJugador({ jugadorId }) {
   const [estado, setEstado] = useState({ datos: null, cargando: true, error: '' });
-  const [temporada, setTemporada] = useState('');
+  const [actaAbierta, setActaAbierta] = useState(null);
 
   useEffect(() => {
     let cancelado = false;
@@ -109,11 +112,7 @@ export default function PartidosJugador({ jugadorId }) {
   }, [jugadorId]);
 
   const { datos } = estado;
-  const temporadas = useMemo(() => [...new Set((datos?.partidos || []).map((p) => p.season))], [datos]);
-  const partidos = useMemo(
-    () => (datos?.partidos || []).filter((p) => !temporada || p.season === temporada),
-    [datos, temporada]
-  );
+  const partidos = useMemo(() => datos?.partidos || [], [datos]);
 
   let contenido;
   if (estado.cargando) contenido = <Mensaje>Cargando partidos...</Mensaje>;
@@ -124,18 +123,18 @@ export default function PartidosJugador({ jugadorId }) {
     contenido = (
       <div className="space-y-4">
         <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 lg:grid-cols-6">
-          <Dato etiqueta="Partidos" valor={t.pj} />
-          <Dato etiqueta="Titular" valor={t.titular} />
-          <Dato etiqueta="Minutos" valor={t.minutos} />
-          <Dato etiqueta="Goles" valor={t.goles} />
-          <Dato etiqueta="Penaltis" valor={t.penaltis} />
-          <Dato etiqueta="Propia puerta" valor={t.pp} />
-          <Dato etiqueta="Amarillas" valor={t.amarillas} />
-          <Dato etiqueta="Doble amarilla" valor={t.doble} />
-          <Dato etiqueta="Rojas" valor={t.rojas} />
-          <Dato etiqueta="Ganados" valor={t.g} />
-          <Dato etiqueta="Empatados" valor={t.e} />
-          <Dato etiqueta="Perdidos" valor={t.p} />
+          <Dato icono="🏟️" etiqueta="Partidos" valor={t.pj} />
+          <Dato icono="👕" etiqueta="Titular" valor={t.titular} />
+          <Dato icono="⏱️" etiqueta="Minutos" valor={t.minutos} />
+          <Dato icono="⚽" etiqueta="Goles" valor={t.goles} />
+          <Dato icono="🎯" etiqueta="Penaltis" valor={t.penaltis} />
+          <Dato icono="🥅" etiqueta="Propia puerta" valor={t.pp} />
+          <Dato icono="🟨" etiqueta="Amarillas" valor={t.amarillas} />
+          <Dato icono="🟨🟨" etiqueta="Doble amarilla" valor={t.doble} />
+          <Dato icono="🟥" etiqueta="Rojas" valor={t.rojas} />
+          <Dato icono="✅" etiqueta="Ganados" valor={t.g} />
+          <Dato icono="🤝" etiqueta="Empatados" valor={t.e} />
+          <Dato icono="❌" etiqueta="Perdidos" valor={t.p} />
         </div>
 
         <div className="grid gap-3 lg:grid-cols-3">
@@ -189,23 +188,10 @@ export default function PartidosJugador({ jugadorId }) {
           </div>
         )}
 
-        <DashboardFederativo id={datos.federacionPlayerId} />
+        <DashboardFederativo id={datos.federacionPlayerId} temporada={datos.temporada} />
 
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h5 className="text-xs font-bold uppercase tracking-wide text-club-black/60">Partidos ({partidos.length})</h5>
-          {temporadas.length > 1 && (
-            <select
-              value={temporada}
-              onChange={(e) => setTemporada(e.target.value)}
-              className="rounded-md border border-gray-300 bg-white px-2 py-1 text-sm"
-              aria-label="Filtrar por temporada"
-            >
-              <option value="">Todas las temporadas</option>
-              {temporadas.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          )}
         </div>
 
         {partidos.length === 0 ? (
@@ -218,6 +204,7 @@ export default function PartidosJugador({ jugadorId }) {
               const amarillas = (p.cards || []).filter((c) => c.type === 'yellow').length;
               const rojas = (p.cards || []).filter((c) => c.type !== 'yellow').length;
               const local = p.side === 'home';
+              const actaVisible = actaAbierta === p.id;
               return (
                 <li key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5 text-sm">
                   <span className="w-20 shrink-0 text-xs font-semibold text-slate-500">{fechaCorta(p.date)}</span>
@@ -243,9 +230,24 @@ export default function PartidosJugador({ jugadorId }) {
                     {amarillas > 0 && <span className="rounded bg-yellow-300 px-1.5" title={`Amarillas: ${minutos((p.cards || []).filter((c) => c.type === 'yellow'))}`}>{amarillas}</span>}
                     {rojas > 0 && <span className="rounded bg-club-red px-1.5 text-white" title="Rojas / doble amarilla">{rojas}</span>}
                   </span>
+                  {/^\d{1,12}$/.test(String(p.id ?? '')) && (
+                    <button
+                      type="button"
+                      onClick={() => setActaAbierta(actaVisible ? null : p.id)}
+                      aria-expanded={actaVisible}
+                      className="shrink-0 rounded-md border border-gray-300 bg-white px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-club-red transition-colors hover:bg-gray-100"
+                    >
+                      📋 {actaVisible ? 'Cerrar acta' : 'Acta'}
+                    </button>
+                  )}
                   <span className="w-full pl-[7.5rem] text-[11px] text-slate-400">
                     {[p.competition, p.stadium, local ? 'Local' : 'Visitante'].filter(Boolean).join(' · ')}
                   </span>
+                  {actaVisible && (
+                    <div className="-mx-3 -mb-2.5 mt-1 w-[calc(100%+1.5rem)] border-t border-gray-200">
+                      <Acta id={p.id} />
+                    </div>
+                  )}
                 </li>
               );
             })}

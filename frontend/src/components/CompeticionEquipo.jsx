@@ -114,7 +114,7 @@ function Clasificacion({ comp, nombreEquipo }) {
   );
 }
 
-function Acta({ id }) {
+export function Acta({ id }) {
   const { datos, cargando, error } = useCarga(`/federacion/acta?id=${encodeURIComponent(id)}`, true);
   const acta = datos?.acta;
 

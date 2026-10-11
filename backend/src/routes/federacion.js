@@ -18,12 +18,12 @@ const TIMEOUT_MS = 15000;
 
 const NOMBRE_CLUB_FEDERACION = {
   ROMO: 'ROMO F.C.',
-  ARENAS: 'Arenas Club',
+  ARENAS: 'ARENAS C.',
 };
 
 const CLUB_FILTRO_DATOS = {
   ROMO: 'ROMO,ROMO F.C.',
-  ARENAS: 'Arenas Club',
+  ARENAS: 'ARENAS C.',
 };
 
 // Prefijo con el que la federacion nombra al equipo propio (p. ej. "ROMO F.C.", "ARENAS C.").
@@ -57,11 +57,43 @@ function filaEquipoFederacion(club, equipo) {
     .find((f) => normalizar(f.club) === normalizar(club) && normalizar(f.equipo_interno) === normalizar(equipo)) || null;
 }
 
-const ETAPAS =['JUVENIL', 'CADETE', 'INFANTIL', 'SENIOR'];
+const ETAPAS = ['JUVENIL', 'CADETE', 'INFANTIL', 'SENIOR'];
 
 const RE_COMP = /^\d+-\d+-\d+$/;
 const RE_ID = /^\d{1,12}$/;
-const RE_TEMPORADA = /^\d{4}-\d{4}$/;
+
+// La app solo trabaja con la temporada en curso; cualquier dato de otras temporadas se descarta.
+const TEMPORADA_ACTUAL = /^\d{4}-\d{4}$/.test(process.env.TEMPORADA_ACTUAL || '') ? process.env.TEMPORADA_ACTUAL : '2026-2027';
+
+const TRAMOS_MIN = [15, 30, 45, 60, 75, Infinity];
+const tramoDe = (minuto) => Math.max(0, TRAMOS_MIN.findIndex((limite) => Number(minuto) <= limite));
+const SUMABLES = ['pj', 'titular', 'minutos', 'goles', 'penaltis', 'pp', 'amarillas', 'doble', 'rojas'];
+
+// Reconstruye los datos agregados del jugador usando solo la temporada actual.
+function resumenTemporada(ficha) {
+  const temporadas = (ficha.seasons || []).filter((s) => s.season === TEMPORADA_ACTUAL);
+  const partidos = (ficha.matches || []).filter((m) => m.season === TEMPORADA_ACTUAL);
+  const totales = Object.fromEntries(
+    SUMABLES.map((k) => [k, temporadas.reduce((acc, s) => acc + (Number(s[k]) || 0), 0)])
+  );
+  totales.g = partidos.filter((m) => m.result === 'W').length;
+  totales.e = partidos.filter((m) => m.result === 'D').length;
+  totales.p = partidos.filter((m) => m.result === 'L').length;
+
+  const golesPorTramo = [0, 0, 0, 0, 0, 0];
+  const tarjetasPorTramo = [0, 0, 0, 0, 0, 0];
+  const lados = { home: { pj: 0, goles: 0 }, away: { pj: 0, goles: 0 } };
+  partidos.forEach((m) => {
+    (m.goals || []).forEach((g) => { if (g.minute != null) golesPorTramo[tramoDe(g.minute)] += 1; });
+    (m.cards || []).forEach((c) => { if (c.minute != null) tarjetasPorTramo[tramoDe(c.minute)] += 1; });
+    const lado = lados[m.side];
+    if (lado) {
+      lado.pj += 1;
+      lado.goles += (m.goals || []).length;
+    }
+  });
+  return { temporadas, partidos, totales, golesPorTramo, tarjetasPorTramo, lados };
+}
 
 async function consultar(ruta, params = {}) {
   const url = new URL(`${FEDERACION_API_URL}${ruta}`);
@@ -104,15 +136,12 @@ router.get('/competiciones', async (req, res) => {
   const clubnom = NOMBRE_CLUB_FEDERACION[req.club];
   if (!clubnom) return res.json({ competiciones: [], sugerida: null });
 
-  const temporada = RE_TEMPORADA.test(String(req.query.season || '')) ? req.query.season : '';
-
   try {
-    const base = await consultar('/api/filters', { clubnom });
-    const season = temporada || (base.seasons || [])[0] || '';
-    const filtros = temporada ? await consultar('/api/filters', { clubnom, season }) : base;
+    const season = TEMPORADA_ACTUAL;
+    const filtros = await consultar('/api/filters', { clubnom, season });
     const claves = new Set(filtros.clubcomps || []);
     const competiciones = (filtros.competitions || [])
-      .filter((c) => claves.has(c.key) && (!season || c.season === season))
+      .filter((c) => claves.has(c.key) && c.season === season)
       .map((c) => ({ key: c.key, name: c.name, season: c.season, etapa: c.etapa }));
 
     const etapa = etapaDelEquipo(req.query.equipo);
@@ -134,13 +163,12 @@ router.get('/equipo-dashboard', async (req, res) => {
   }
 
   const fila = filaEquipoFederacion(req.club, req.query.equipo);
-  if (fila && RE_ID.test(fila.id_federacion)) return res.json({ id: fila.id_federacion, etapa });
+  if (fila && RE_ID.test(fila.id_federacion)) return res.json({ id: fila.id_federacion, etapa, season: TEMPORADA_ACTUAL });
 
   try {
     // Mismo filtro de club que usa la pantalla de Datos (incluye el alias «ROMO» y los filiales).
     const clubFiltro = CLUB_FILTRO_DATOS[req.club] || clubnom;
-    const base = await consultar('/api/filters', { clubnom: clubFiltro });
-    const season = (base.seasons || [])[0] || '';
+    const season = TEMPORADA_ACTUAL;
     const filtros = await consultar('/api/filters', { clubnom: clubFiltro, season, etapa });
     // El filial de ROMO (ITZU JUVENIL = Itzubaltzeta Juvenil B) cuelga del mismo club en la federación:
     // se resuelve por su propio prefijo para que no coincida con el primer equipo.
@@ -150,9 +178,21 @@ router.get('/equipo-dashboard', async (req, res) => {
     // Si el CSV da el nombre federativo (p. ej. «ROMO F.C. - Juvenil A»), se elige el equipo cuyo nombre lo encabeza.
     const nombre = normalizar(fila?.nombre_federacion);
     const porNombre = nombre ? equipos.filter((t) => t.name && nombre.startsWith(normalizar(t.name))) : [];
-    const propios = porNombre.length === 1
+    let propios = porNombre.length === 1
       ? porNombre
       : equipos.filter((t) => String(t.name || '').trim().toLowerCase().startsWith(prefijo));
+    // Varios equipos propios en la misma etapa (A, B...): se elige por la letra del equipo interno
+    // (p. ej. «ARENAS Juvenil A» ↔ «ARENAS C. - Juvenil A» / «ARENAS C. "A"»).
+    if (propios.length > 1) {
+      const letra = (String(req.query.equipo || '').trim().match(/\s([A-Z])$/i) || [])[1];
+      if (letra) {
+        const porLetra = propios.filter((t) => {
+          const nombreEq = String(t.name || '').trim().toUpperCase().replace(/["']+$/, '');
+          return /[\s"'-]/.test(nombreEq.slice(-2, -1)) && nombreEq.endsWith(letra.toUpperCase());
+        });
+        if (porLetra.length === 1) propios = porLetra;
+      }
+    }
     return res.json({ id: propios.length === 1 ? propios[0].id : null, etapa, season });
   } catch (error) {
     return responderError(res, error, 'consultar');
@@ -213,16 +253,17 @@ router.get('/jugador/:id', async (req, res) => {
     if (!data.federacion_player_id) return res.json({ vinculado: false });
 
     const ficha = await consultar('/api/player', { id: data.federacion_player_id });
+    const r = resumenTemporada(ficha);
     return res.json({
       vinculado: true,
       federacionPlayerId: String(data.federacion_player_id),
-      totales: ficha.totals || {},
-      temporadas: repararTexto(ficha.seasons || []),
-      partidos: repararTexto(ficha.matches || []),
-      golesPorTramo: ficha.goals_min || [],
-      tarjetasPorTramo: ficha.cards_min || [],
-      localVisitante: ficha.sides || {},
-      tiposGol: ficha.goal_types || {},
+      temporada: TEMPORADA_ACTUAL,
+      totales: r.totales,
+      temporadas: repararTexto(r.temporadas),
+      partidos: repararTexto(r.partidos),
+      golesPorTramo: r.golesPorTramo,
+      tarjetasPorTramo: r.tarjetasPorTramo,
+      localVisitante: r.lados,
     });
   } catch (error) {
     return responderError(res, error, 'consultar');

@@ -39,7 +39,10 @@ const FORM_VACIO = {
   apartados_visibles: [TODOS_APARTADOS],
   club: 'TODOS',
   activo: true,
+  texto: '',
 };
+
+const MAX_TEXTO = 500;
 
 export default function Usuarios() {
   const { user, refreshMe } = useAuth();
@@ -55,6 +58,7 @@ export default function Usuarios() {
   const [selectorEquiposAbierto, setSelectorEquiposAbierto] = useState(false);
   const [selectorApartadosAbierto, setSelectorApartadosAbierto] = useState(false);
   const [apartadosVisiblesDisponibles, setApartadosVisiblesDisponibles] = useState(true);
+  const [textoDisponible, setTextoDisponible] = useState(true);
   const selectorEquiposRef = useRef(null);
   const selectorApartadosRef = useRef(null);
 
@@ -105,6 +109,7 @@ export default function Usuarios() {
   const empezarEdicion = (usuario) => {
     setEditandoId(usuario.id);
     setApartadosVisiblesDisponibles(Object.prototype.hasOwnProperty.call(usuario, 'apartados_visibles'));
+    setTextoDisponible(Object.prototype.hasOwnProperty.call(usuario, 'texto'));
     setForm({
       username: usuario.username,
       password: '',
@@ -113,6 +118,7 @@ export default function Usuarios() {
       apartados_visibles: parseApartadosVisibles(usuario.apartados_visibles),
       club: usuario.club || 'TODOS',
       activo: usuario.activo !== false,
+      texto: usuario.texto || '',
     });
     setFormError('');
     setMostrarFormulario(true);
@@ -121,6 +127,7 @@ export default function Usuarios() {
   const cancelarEdicion = () => {
     setEditandoId(null);
     setApartadosVisiblesDisponibles(true);
+    setTextoDisponible(true);
     setForm(FORM_VACIO);
     setFormError('');
     setMostrarFormulario(false);
@@ -177,6 +184,10 @@ export default function Usuarios() {
         payload.apartados_visibles = form.apartados_visibles;
       }
 
+      if (textoDisponible) {
+        payload.texto = form.texto;
+      }
+
       if (form.password) payload.password = form.password;
 
       if (editandoId) {
@@ -207,7 +218,7 @@ export default function Usuarios() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <h2 className="text-2xl font-bold text-club-black">Gestion de usuarios</h2>
         {!mostrarFormulario && (
@@ -421,6 +432,25 @@ export default function Usuarios() {
               Usuario activo
             </label>
           </div>
+
+          <div className="sm:col-span-2">
+            <label htmlFor="texto-usuario" className="block text-sm font-semibold text-club-black mb-1">Texto</label>
+            {!textoDisponible && (
+              <p className="mb-1 text-xs text-amber-700">
+                Falta la columna `texto` en la base de datos. Ejecuta backend/scripts/agregar-texto-usuarios.sql en Supabase para poder guardar anotaciones.
+              </p>
+            )}
+            <textarea
+              id="texto-usuario"
+              rows={3}
+              maxLength={MAX_TEXTO}
+              disabled={!textoDisponible}
+              value={form.texto}
+              onChange={(e) => setForm({ ...form, texto: e.target.value })}
+              placeholder="Anotaciones sobre el usuario"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-club-red disabled:opacity-70"
+            />
+          </div>
         </div>
       </form>
       )}
@@ -444,6 +474,7 @@ export default function Usuarios() {
                 <th className="hidden sm:table-cell px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Equipo</th>
                 <th className="hidden lg:table-cell px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Apartados</th>
                 <th className="hidden sm:table-cell px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Estado</th>
+                <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Texto</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
@@ -469,6 +500,9 @@ export default function Usuarios() {
                     >
                       {u.activo !== false ? 'Activo' : 'Inactivo'}
                     </span>
+                  </td>
+                  <td className="hidden md:table-cell max-w-[14rem] truncate px-4 py-3 text-club-black/80" title={u.texto || ''}>
+                    {u.texto || '-'}
                   </td>
                   <td className="px-4 py-3 text-right whitespace-nowrap space-x-3">
                     <button

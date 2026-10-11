@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useLocation, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { jsPDF } from 'jspdf';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
@@ -78,11 +78,11 @@ function obtenerEscudoEquipo(equipo) {
 
 export default function FichaJugador() {
   const { id } = useParams();
-  const location = useLocation();
   const { user } = useAuth();
   const [jugador, setJugador] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [mostrarDatosPersonales, setMostrarDatosPersonales] = useState(false);
   const [subiendoFoto, setSubiendoFoto] = useState(false);
   const [errorFoto, setErrorFoto] = useState('');
   const [generandoInforme, setGenerandoInforme] = useState(false);
@@ -469,15 +469,6 @@ export default function FichaJugador() {
     };
   }, [id]);
 
-  useEffect(() => {
-    if (!jugador || location.hash !== '#datos-deportivos') return;
-
-    const elemento = document.getElementById('datos-deportivos');
-    if (elemento) {
-      elemento.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }, [jugador, location.hash]);
-
   return (
     <div className="w-full px-4 sm:px-6 py-6">
       <div className="mb-6 flex flex-col gap-4">
@@ -661,17 +652,30 @@ export default function FichaJugador() {
               </div>
 
               <main className="space-y-6">
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setMostrarDatosPersonales((v) => !v)}
+                    aria-expanded={mostrarDatosPersonales}
+                    className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-club-black transition-colors hover:bg-gray-100"
+                  >
+                    {mostrarDatosPersonales ? 'Ocultar datos personales' : 'Mostrar datos personales'}
+                  </button>
+                </div>
+
                 <div className="grid gap-4 lg:grid-cols-2">
-                  {SECCIONES_FICHA.filter((seccion) => !['Contacto', 'Otros datos'].includes(seccion.titulo)).map((seccion) => {
+                  {SECCIONES_FICHA.filter(
+                    (seccion) =>
+                      !['Contacto', 'Otros datos', 'Datos deportivos'].includes(seccion.titulo) &&
+                      mostrarDatosPersonales
+                  ).map((seccion) => {
                     const camposDisponibles = seccion.campos.filter((campo) => tieneDatoCampo(jugador, campo));
                     if (camposDisponibles.length === 0) return null;
-                    const esDeportivo = seccion.titulo === 'Datos deportivos';
                     const esSeccionAncha = seccion.titulo === 'Datos del jugador';
 
                     return (
                       <section
                         key={seccion.titulo}
-                        id={esDeportivo ? 'datos-deportivos' : undefined}
                         className={`rounded-2xl border border-gray-200 bg-gray-50 p-4 ${esSeccionAncha ? 'lg:col-span-2' : ''}`}
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2">

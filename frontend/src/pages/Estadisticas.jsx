@@ -3,28 +3,10 @@ import { api } from '../lib/api';
 
 import { urlEstadisticas } from '../lib/urlEstadisticas';
 
-// Secciones de la app de Datos accesibles por hash (clave = pestaña de Datos).
-const SECCIONES = [
-  ['dash-equipo', 'Dashboard'],
-  ['listado', 'Clubes / Equipos'],
-  ['partidos', 'Actas'],
-  ['plantillas', 'Plantillas'],
-  ['clasificacion', 'Clasificaciones'],
-  ['calendario', 'Calendario'],
-  ['jugadores', 'Jugadores'],
-  ['equipos', 'Datos'],
-  ['ranking', 'Ranking'],
-];
-
-const claseBoton = (activo) =>
-  `rounded-md px-4 py-2 text-sm font-semibold transition-colors ${
-    activo
-      ? 'bg-club-red text-white'
-      : 'border border-gray-300 bg-white text-club-black/80 hover:bg-club-red/10 hover:text-club-black'
-  }`;
-
-const CLUB_FILTRO = { ROMO: 'ROMO,ROMO F.C.', ARENAS: 'Arenas Club' };
+const CLUB_FILTRO = { ROMO: 'ROMO,ROMO F.C.', ARENAS: 'ARENAS C.' };
 const ETAPAS = ['JUVENIL', 'CADETE', 'INFANTIL', 'SENIOR'];
+// Factor de reducción del dashboard embebido (1 = tamaño original).
+const ESCALA = 0.75;
 
 // Sin equipo se muestra el dashboard completo; con equipo se filtra por club y etapa
 // (y por el id federativo del equipo propio cuando se conoce) mediante el hash de la URL.
@@ -32,10 +14,8 @@ export default function Estadisticas({ equipo = '', club = '' }) {
   const base = urlEstadisticas();
   const etapa = ETAPAS.find((e) => String(equipo).toUpperCase().includes(e)) || '';
   const [teamId, setTeamId] = useState(null);
+  const [season, setSeason] = useState('');
   const [listo, setListo] = useState(!etapa);
-  const [seccion, setSeccion] = useState('dash-equipo');
-
-  useEffect(() => setSeccion('dash-equipo'), [equipo, club]);
 
   useEffect(() => {
     if (!etapa) {
@@ -47,7 +27,11 @@ export default function Estadisticas({ equipo = '', club = '' }) {
     setListo(false);
     api
       .get(`/federacion/equipo-dashboard?equipo=${encodeURIComponent(equipo)}`)
-      .then((r) => !cancelado && setTeamId(r.id || null))
+      .then((r) => {
+        if (cancelado) return;
+        setTeamId(r.id || null);
+        setSeason(r.season || '');
+      })
       .catch(() => !cancelado && setTeamId(null))
       .finally(() => !cancelado && setListo(true));
     return () => {
@@ -59,31 +43,31 @@ export default function Estadisticas({ equipo = '', club = '' }) {
 
   let url = base;
   if (etapa && CLUB_FILTRO[club]) {
-    const hash = new URLSearchParams({ tab: seccion, etapa, clubnom: CLUB_FILTRO[club], embed: '1' });
+    const hash = new URLSearchParams({ tab: 'dash-equipo', etapa, clubnom: CLUB_FILTRO[club], embed: '1' });
     if (teamId) {
       // El filtro de equipo se aplica en todas las pestañas; el dashboard además abre directamente ese equipo.
       hash.set('team', String(teamId));
-      if (seccion === 'dash-equipo') hash.set('tid', String(teamId));
+      hash.set('tid', String(teamId));
     }
+    if (season) hash.set('season', season);
     url = `${base}#${hash}`;
   }
 
+  // El iframe se renderiza a mayor tamaño y se reduce con transform: así todo el contenido
+  // (textos, tarjetas, gráficas) se ve más compacto y cabe más información en pantalla.
   return (
-    <div className="flex h-[calc(100dvh-4rem)] flex-col">
-      {etapa && CLUB_FILTRO[club] && (
-        <div className="flex flex-wrap gap-2 px-2 py-2" aria-label="Secciones de datos">
-          {SECCIONES.map(([clave, texto]) => (
-            <button key={clave} type="button" onClick={() => setSeccion(clave)} className={claseBoton(seccion === clave)}>
-              {texto}
-            </button>
-          ))}
-        </div>
-      )}
+    <div className="h-[calc(100dvh-4rem)] overflow-hidden bg-white">
       <iframe
         key={url}
         title="Datos Federaciones"
         src={url}
-        className="w-full flex-1 border-0 bg-white"
+        style={{
+          width: `${100 / ESCALA}%`,
+          height: `${100 / ESCALA}%`,
+          transform: `scale(${ESCALA})`,
+          transformOrigin: 'top left',
+        }}
+        className="block border-0 bg-white"
         sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-downloads"
         referrerPolicy="no-referrer"
         allow="fullscreen"
