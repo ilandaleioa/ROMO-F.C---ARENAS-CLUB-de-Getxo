@@ -111,6 +111,36 @@ function normalizarCabecera(header) {
   return normalizarTexto(header).replace(/[:]+$/g, '').replace(/\s+/g, ' ').trim();
 }
 
+// El formulario 2026-27 usa cabeceras largas ("Nombre del jugador", "EQUIPO EN EL
+// QUE VAS A JUGAR..."). Si no hay coincidencia exacta se prueban estos patrones
+// sobre la cabecera normalizada (sin tildes, en mayusculas).
+const HEADER_PATTERNS = [
+  [/^NOMBRE DEL JUGADOR/, 'nombre'],
+  [/^PRIMER APELLIDO DEL JUGADOR/, 'primer_apellido'],
+  [/^SEGUNDO APELLIDO DEL JUGADOR/, 'segundo_apellido'],
+  [/^EQUIPO( EN EL QUE|.*TEMPORADA)/, 'equipo'],
+  [/^FECHA DE NACIMIENTO/, 'fecha_nacimiento'],
+  [/^LUGAR DE NACIMIENTO/, 'lugar_nacimiento'],
+  [/^DNI DEL JUGADOR/, 'dni_jugador'],
+  [/HERMANOS/, 'tiene_hermanos_club'],
+  [/^COLEGIO/, 'colegio_instituto'],
+  [/^HORA SALIDA/, 'hora_salida_colegio'],
+  [/^CLUB .*PROCEDENCIA/, 'club_procedencia'],
+  [/^TEMPORADA DE INGRESO/, 'temporada_ingreso'],
+  [/^TELEFONO( MOVIL)? (DEL )?JUGADOR/, 'telefono_jugador'],
+  [/^E ?-? ?MAIL DEL JUGADOR/, 'email_jugador'],
+  [/^HE LEIDO Y ACEPTO/, 'acepta_condiciones'],
+  [/^NOMBRE DE AITA O AMA/, 'nombre_aceptante'],
+  [/^DNI DE AITA O AMA/, 'dni_aceptante'],
+];
+
+function columnaDeCabecera(header) {
+  const normalizada = normalizarCabecera(header);
+  if (HEADER_TO_COLUMN[normalizada]) return HEADER_TO_COLUMN[normalizada];
+  const patron = HEADER_PATTERNS.find(([regex]) => regex.test(normalizada));
+  return patron ? patron[1] : undefined;
+}
+
 function valorCanonicoParaHash(campo, valor) {
   if (valor === null || valor === undefined || valor === '') return '';
   // En el formulario, una aceptacion falsa se representa como celda vacia.
@@ -209,7 +239,7 @@ function puntuarPestana(headers, title) {
   let score = 0;
 
   for (const header of headers) {
-    const columna = HEADER_TO_COLUMN[normalizarCabecera(header)];
+    const columna = columnaDeCabecera(header);
     if (!columna) continue;
     columnasDetectadas.add(columna);
     score += CAMPOS_MAPA_PISTA.includes(columna) ? 4 : 1;
@@ -286,7 +316,7 @@ function normalizarLocalidad(valor) {
 function mapearFila(headers, filaValores) {
   const datos = {};
   headers.forEach((header, i) => {
-    const columna = HEADER_TO_COLUMN[normalizarCabecera(header)];
+    const columna = columnaDeCabecera(header);
     if (!columna) return;
     const valorCrudo = filaValores[i] !== undefined ? String(filaValores[i]).trim() : '';
     if (valorCrudo === '') {
@@ -478,7 +508,7 @@ function filaDesdeJugador(headers, jugador, idxIdSync, filaActual = []) {
       return;
     }
 
-    const columna = HEADER_TO_COLUMN[normalizarCabecera(header)];
+    const columna = columnaDeCabecera(header);
     if (!columna) return;
     valores[i] = valorParaHoja(columna, jugador[columna]);
   });
@@ -491,7 +521,7 @@ function asegurarCabecerasWebapp(headers) {
   let huboCambios = false;
 
   for (const { header, column } of WEBAPP_SHEET_HEADERS) {
-    const existe = headers.some((h) => HEADER_TO_COLUMN[normalizarCabecera(h)] === column);
+    const existe = headers.some((h) => columnaDeCabecera(h) === column);
     if (!existe) {
       headers.push(header);
       huboCambios = true;

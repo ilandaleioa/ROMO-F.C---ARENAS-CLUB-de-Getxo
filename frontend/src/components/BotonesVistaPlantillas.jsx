@@ -24,16 +24,11 @@ export function BotonesSeccionesEquipo({ vistaActual = null }) {
       <button type="button" onClick={() => setVista('clasificacion')} className={claseBoton(vistaActual === 'clasificacion')}>
         Clasificación
       </button>
-      {usuarioPuedeVerApartado(user, 'estadisticas') && (
-        <button type="button" onClick={() => setVista('dashboard')} className={claseBoton(vistaActual === 'dashboard')}>
-          Dashboard equipo
-        </button>
-      )}
     </div>
   );
 }
 
-const VISTAS_PLANTILLAS = ['tabla', 'tarjetas', 'competicion', 'actas', 'clasificacion', 'graficas_competicion', 'dashboard'];
+const VISTAS_PLANTILLAS = ['tabla', 'tarjetas', 'competicion', 'actas', 'clasificacion', 'graficas_competicion'];
 
 export default function BotonesVistaPlantillas({ vistaActual = null }) {
   const navigate = useNavigate();

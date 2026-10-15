@@ -7,13 +7,11 @@ import { useVistaPlantillas } from '../context/VistaPlantillasContext';
 import { api } from '../lib/api';
 import { useListaValores } from '../lib/listas';
 import { equiposAsignadosLabel, parseEquiposAsignados, usuarioLimitadoAUnEquipo } from '../lib/equiposAsignados';
-import { usuarioPuedeVerApartado } from '../lib/apartados';
 import TableScroll from '../components/TableScroll';
 import CampoFutbolPosicion from '../components/CampoFutbolPosicion';
 import { ETIQUETAS_JUGADOR, SECCIONES_FICHA, LOCALIDAD_OPCIONES } from '../lib/campos';
 import BotonesVistaPlantillas from '../components/BotonesVistaPlantillas';
 import CompeticionEquipo from '../components/CompeticionEquipo';
-import Estadisticas from './Estadisticas';
 
 const COLORES_MUNICIPIOS = [
   '#2a78d6',
@@ -208,21 +206,18 @@ export default function Plantillas({ soloGraficas = false }) {
     };
   }, []);
 
-  const VISTAS_EQUIPO = ['competicion', 'actas', 'clasificacion', 'graficas_competicion', 'dashboard'];
+  const VISTAS_EQUIPO = ['competicion', 'actas', 'clasificacion', 'graficas_competicion'];
   const vistaVisible = soloGraficas ? 'graficas' : esMovil && !VISTAS_EQUIPO.includes(vista) ? 'tabla' : vista;
   const vistaEquipo = VISTAS_EQUIPO.includes(vistaVisible);
-  const renderVistaEquipo = (equipo) =>
-    vistaVisible === 'dashboard' ? (
-      <Estadisticas equipo={equipo} club={club} />
-    ) : (
-      <CompeticionEquipo
-        equipo={equipo}
-        club={club}
-        pestanaInicial={
-          vistaVisible === 'actas' ? 'actas' : vistaVisible === 'graficas_competicion' ? 'graficas' : 'clasificacion'
-        }
-      />
-    );
+  const renderVistaEquipo = (equipo) => (
+    <CompeticionEquipo
+      equipo={equipo}
+      club={club}
+      pestanaInicial={
+        vistaVisible === 'actas' ? 'actas' : vistaVisible === 'graficas_competicion' ? 'graficas' : 'clasificacion'
+      }
+    />
+  );
 
   useEffect(() => {
     if (vistaVisible !== 'tarjetas') {
@@ -1379,8 +1374,6 @@ export default function Plantillas({ soloGraficas = false }) {
                 key={eq}
                 onClick={() => {
                   seleccionarEquipoUnico(eq);
-                  // Al elegir un equipo se abre directamente su pantalla de Datos con los filtros aplicados.
-                  if (!soloGraficas && usuarioPuedeVerApartado(user, 'estadisticas')) setVista('dashboard');
                   setFiltroEquiposAbierto(false);
                 }}
                 className={`w-full text-left px-4 py-2.5 text-sm border-b border-gray-100 last:border-b-0 transition-colors ${
